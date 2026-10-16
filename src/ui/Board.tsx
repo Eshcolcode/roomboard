@@ -191,7 +191,7 @@ export function Board({ onOpen }: { onOpen: (p: PanelInit) => void }) {
             Until further notice / TBC
           </span>
           <span>
-            <span className="co co-scheduled mini">
+            <span className={'co mini ' + (client ? 'co-client' : 'co-scheduled')}>
               <BrushIcon />
             </span>
             Clean between stays
@@ -201,7 +201,7 @@ export function Board({ onOpen }: { onOpen: (p: PanelInit) => void }) {
             Away, room kept
           </span>
           <span>
-            <span className="co co-needs zero mini">
+            <span className={'co zero mini ' + (client ? 'co-client' : 'co-needs')}>
               <BrushIcon />
             </span>
             Same-day turnaround
@@ -370,7 +370,16 @@ function Bar({
       ) : (
         <>
           <b>{short}</b>
-          <span>{width < 150 ? subShort : sub + (open ? ' · ' + depText(s) : '')}</span>
+          <span>
+            {width < 150
+              ? subShort
+              : sub +
+                (open
+                  ? ' · ' + depText(s)
+                  : width >= 300 && s.departure && s.arrival <= T && !vacated && !dep
+                    ? ' · leaves ' + fmt(s.departure)
+                    : '')}
+          </span>
         </>
       )}
       {s.away && (
@@ -389,7 +398,9 @@ function Marker({ c, left, client }: { c: Changeover; left: number; client: bool
   const r = readinessFor(c);
   const label = client ? (r.client ?? 'Clean between stays') : r.provider;
   const tip = `Clean · ${label}${c.readyBy ? ' · next arrival ' + fmt(c.readyBy) : ''}${c.zeroDay ? ' · same-day turnaround' : ''}${!client && c.exception ? ' · ⚠ ' + c.exception : ''}`;
-  const cls = ['co', 'co-' + c.status, c.zeroDay && 'zero', c.cancelled && 'cancelled', c.exception && 'exc']
+  // the client sees one calm colour until the room is ready (no scheduling noise)
+  const tone = client ? (c.status === 'ready' ? 'ready' : 'client') : c.status;
+  const cls = ['co', 'co-' + tone, c.zeroDay && 'zero', c.cancelled && 'cancelled', !client && c.exception && 'exc']
     .filter(Boolean)
     .join(' ');
   return (

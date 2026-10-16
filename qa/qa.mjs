@@ -574,6 +574,7 @@ for (const t of ['board', 'free', 'changeovers', 'available', 'activity', 'worke
 }
 await go(p, 'board');
 await p.click('.ph button:has-text("+ Add stay")');
+await p.waitForTimeout(400);
 await p.addScriptTag({ content: AXE });
 {
   const r = await p.evaluate(async () =>

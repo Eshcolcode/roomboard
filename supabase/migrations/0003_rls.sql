@@ -7,6 +7,7 @@ alter table alert_outbox enable row level security; alter table contract_allocat
 -- Client must never see cleaner details: clients read only their own profile and managers.
 create policy "read profiles" on profiles for select using (id = auth.uid() or my_role() in ('manager','cleaner') or (my_role() = 'client' and role = 'manager'));
 create policy "manager profiles" on profiles for all using (my_role() = 'manager');
+create policy "own prefs" on profiles for update using (id = auth.uid()) with check (id = auth.uid() and role = my_role());
 create policy "read properties" on properties for select using (auth.uid() is not null);  -- non-contracted shown on the upsell page
 create policy "manager properties" on properties for all using (my_role() = 'manager');
 create policy "read units" on units for select using (auth.uid() is not null);
@@ -22,10 +23,11 @@ create policy "stays write" on stays for all using (my_role() = 'manager' or (my
 -- Changeovers: everyone sees them. Manager schedules. Cleaner updates progress on their own tasks. Client is read-only.
 create policy "co read" on changeovers for select using (auth.uid() is not null);
 create policy "co manager" on changeovers for update using (my_role() = 'manager');
-create policy "co cleaner" on changeovers for update using (my_role() = 'cleaner' and cleaner_id = auth.uid()) with check (status in ('in_progress','ready'));
+create policy "co cleaner" on changeovers for update using (my_role() = 'cleaner' and cleaner_id = auth.uid()) with check (status in ('scheduled','in_progress','ready'));
 create policy "activity read" on activity for select using (my_role() in ('client','manager'));
 create policy "enq insert" on enquiries for insert with check (my_role() in ('client','manager'));
 create policy "enq read" on enquiries for select using (my_role() = 'manager' or created_by = auth.uid());
 create policy "outbox read" on alert_outbox for select using (my_role() = 'manager' or recipient_id = auth.uid());
+create policy "outbox ack" on alert_outbox for update using (recipient_id = auth.uid()) with check (status = 'acknowledged');
 
 alter publication supabase_realtime add table stays, changeovers, activity, workers, enquiries;

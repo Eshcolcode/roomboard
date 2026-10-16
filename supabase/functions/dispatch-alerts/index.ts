@@ -14,6 +14,7 @@ async function sms(to: string, text: string) {
   if (!r.ok) throw new Error(`twilio ${r.status} ${await r.text()}`);
 }
 Deno.serve(async () => {
+  // rows are claimed by status; the unique dedupe_key prevents duplicate queueing upstream
   const { data: rows } = await sb.from('alert_outbox').select('*').eq('status', 'queued').lte('next_attempt_at', new Date().toISOString()).limit(50);
   let sent = 0;
   for (const a of rows ?? []) {
@@ -21,7 +22,7 @@ Deno.serve(async () => {
       if (a.channel === 'email') await email(a.recipient, a.subject, a.body);
       else if (a.channel === 'sms') await sms(a.recipient, `${a.subject}: ${a.body}`);
       // 'push' rows are delivered live via Realtime in the app; mark sent.
-      await sb.from('alert_outbox').update({ status: 'sent', attempts: a.attempts + 1 }).eq('id', a.id); sent++;
+      await sb.from('alert_outbox').update({ status: 'accepted', attempts: a.attempts + 1 }).eq('id', a.id).eq('status', 'queued'); sent++; // provider accepted; delivery webhooks may later set 'delivered'
     } catch (e) {
       const attempts = a.attempts + 1; const backoffMin = Math.min(60, 2 ** attempts);
       await sb.from('alert_outbox').update({ attempts, last_error: String(e), status: attempts >= 6 ? 'failed' : 'queued', next_attempt_at: new Date(Date.now() + backoffMin * 60e3).toISOString() }).eq('id', a.id);

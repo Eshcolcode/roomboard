@@ -82,7 +82,7 @@ export function reconcile(x: DB): CoEvent[] {
   // changeovers whose departing stay vanished or became open-ended
   for (const c of [...x.changeovers]) {
     if (seen.has(c.id) || c.cancelled) continue;
-    const scheduled = c.status !== 'needs' || c.scheduledFor;
+    const scheduled = c.status !== 'needs' || c.scheduledFor || c.invalidated; // once scheduled, never silently dropped
     if (scheduled) { c.cancelled = 'Departure removed or made open-ended after this clean was scheduled'; ev.push({ kind: 'cancelled', co: c, roomId: c.roomId, text: c.cancelled }); }
     else { x.changeovers = x.changeovers.filter(z => z.id !== c.id); ev.push({ kind: 'dropped', roomId: c.roomId, text: 'unscheduled changeover no longer needed' }); }
   }

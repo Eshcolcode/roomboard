@@ -4,7 +4,8 @@ alter table rooms enable row level security; alter table workers enable row leve
 alter table changeovers enable row level security; alter table activity enable row level security; alter table enquiries enable row level security;
 alter table alert_outbox enable row level security; alter table contract_allocations enable row level security;
 
-create policy "read profiles" on profiles for select using (auth.uid() is not null);
+-- Client must never see cleaner details: clients read only their own profile and managers.
+create policy "read profiles" on profiles for select using (id = auth.uid() or my_role() in ('manager','cleaner') or (my_role() = 'client' and role = 'manager'));
 create policy "manager profiles" on profiles for all using (my_role() = 'manager');
 create policy "read properties" on properties for select using (auth.uid() is not null);  -- non-contracted shown on the upsell page
 create policy "manager properties" on properties for all using (my_role() = 'manager');

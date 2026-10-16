@@ -7,9 +7,9 @@ create type dep_status as enum ('planned','confirmed','tbc','ufn');
 create type co_status as enum ('needs','scheduled','in_progress','ready');
 
 create table profiles (id uuid primary key references auth.users on delete cascade, full_name text not null, role app_role not null, email text not null, phone text);
-create table properties (id text primary key, name text not null, short_name text not null, contracted boolean not null default false, address text, blurb text, photo_url text, features text[] default '{}', beds_label text, sort int default 0);
+create table properties (id text primary key, name text not null, short_name text not null, contracted boolean not null default false, address text, blurb text, photo_url text, features text[] default '{}', beds_label text, brand text, sort int default 0);
 create table units (id text primary key, property_id text not null references properties, name text not null, sort int default 0);
-create table rooms (id text primary key, property_id text not null references properties, unit_id text not null references units, name text not null, bath bath_kind not null, note text, photo_url text, sort int default 0);
+create table rooms (id text primary key, property_id text not null references properties, unit_id text not null references units, name text not null, floor text, bath bath_kind not null, note text, photo_url text, sort int default 0);
 -- Contract allocation is separate from stays: which rooms the client may use, and for what period.
 create table contract_allocations (id uuid primary key default gen_random_uuid(), room_id text not null references rooms, valid_from date not null, valid_to date not null, note text);
 create table workers (id uuid primary key default gen_random_uuid(), name text not null, company text, phone text, notes text, uses int default 0, last_used date, created_at timestamptz default now());

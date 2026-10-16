@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { data, useDB, me, roomOf, propOf, workerOf, stayLabel, roomLabel, depText, digest, validate, ConflictError, getDB } from './data';
+import { data, useDB, me, roomOf, propOf, workerOf, stayLabel, roomLabel, depText, digest, validate, ConflictError, getDB, CO_LABEL, CO_CLIENT_LABEL, bathText } from './data';
 import type { Stay, StayInput, DepStatus, Changeover, CoStatus, Role } from './data';
 import { addDays, diffDays, fmt, londonToday } from './dates';
 
@@ -38,7 +38,7 @@ function Shell({ wide }: { wide: boolean }) {
         <div className="sp" />
         <span className="live" title="Alerts queued">● Live{pendingAlerts ? ` · ${pendingAlerts} sending` : ''}</span>
         {data.mode === 'demo' ? <select className="who" value={u.id} onChange={e => data.setUser(e.target.value)} title="Demo: switch role">
-          {db.users.map(x => <option key={x.id} value={x.id}>{x.name} · {x.role === 'client' ? 'Client coordinator' : x.role === 'manager' ? 'Provider manager' : 'Cleaner'}</option>)}
+          {db.users.map(x => <option key={x.id} value={x.id}>{x.role === 'cleaner' && u.role === 'client' ? 'Housekeeping view' : x.name} · {x.role === 'client' ? 'Client coordinator · RJ McLeod' : x.role === 'manager' ? 'Provider manager' : 'Cleaner'}</option>)}
         </select> : <span className="who">{u.name}</span>}
       </header>
       {data.mode === 'demo' && <div className="demo">Demo mode · data is stored in this browser only · <a onClick={() => { if (confirm('Reset all demo data?')) data.reset(); }}>Reset demo</a></div>}
@@ -92,7 +92,7 @@ function Board({ onOpen }: { onOpen: (p: { stay?: Stay; roomId?: string; date?: 
             const rs = db.stays.filter(s => s.roomId === r.id && s.arrival < end && (s.departure ?? '9') > start);
             const cos = db.changeovers.filter(c => c.roomId === r.id && c.afterDate >= start && c.afterDate < end);
             return (<div className="row" key={r.id}>
-              <div className="rl"><b>{r.name}</b><span>{r.bath === 'ensuite' ? 'Ensuite' : r.bath === 'shared' ? 'Shared shower' : 'Private shower'}</span></div>
+              <div className="rl" title={r.note ?? bathText(r)}><b>{r.name}</b><span>{r.bath === 'shared' && r.note ? r.note.replace('Shares a shower room', 'Shared shower') : bathText(r)}</span></div>
               <div className="track" style={{ width: days * W, backgroundSize: `${W}px 100%` }} onClick={e => { const i = Math.floor((e.clientX - (e.currentTarget as HTMLElement).getBoundingClientRect().left) / W); if ((e.target as HTMLElement).classList.contains('track')) onOpen({ roomId: r.id, date: addDays(start, i) }); }}>
                 {diffDays(start, T) >= 0 && diffDays(start, T) < days && <div className="todayline" style={{ left: diffDays(start, T) * W + W / 2 }} />}
                 {rs.map(s => {
@@ -139,7 +139,8 @@ function StayPanel({ init, onClose }: { init: { stay?: Stay; roomId?: string; da
   const W = workerOf(f.workerId);
   return (<div className="scrim" onClick={onClose}><aside className="panel" onClick={e => e.stopPropagation()}>
     <div className="pt"><div><small>{existing ? (existing.workerId ? 'Edit stay' : 'Hold · name to follow') : 'Add stay'}</small><h2>{room ? roomLabel(room.id) : 'Choose a room'}</h2></div><button className="x" onClick={onClose}>×</button></div>
-    {room?.photo && <img className="rp" src={room.photo} alt={room.name} />}
+    {room?.photo ? <img className="rp" src={room.photo} alt={room.name} /> : room && <div className="rp ph-img">Images to follow</div>}
+    {room && <div className="rinfo"><span>{room.floor}</span><span className={'bt bt-' + room.bath}>{bathText(room)}</span>{room.note && room.note !== 'Ensuite' && <span>{room.note}</span>}</div>}
     {conflict && <div className="warn"><b>Someone else changed this stay.</b> {conflict}<div><button className="btn sm" onClick={onClose}>Close and reload</button></div></div>}
     <div className="seg full"><button className={mode === 'worker' ? 'on' : ''} onClick={() => setMode('worker')}>Named worker</button><button className={mode === 'hold' ? 'on' : ''} onClick={() => setMode('hold')}>Hold · name to follow</button></div>
     {mode === 'worker' ? (<div className="fs">
@@ -218,7 +219,7 @@ function Changeovers() {
   const cleaners = db.users.filter(x => x.role === 'cleaner');
   const next: Record<CoStatus, CoStatus | null> = { needs: 'scheduled', scheduled: 'in_progress', in_progress: 'ready', ready: null };
   return (<div className="page"><div className="ph"><div><h1>Changeovers</h1><p>Room readiness is tracked separately from stays. The client can see every status. Extending a stay or bringing an arrival forward resets Ready.</p></div></div>
-    <div className="kanban">{CO_COLS.map(([k, l]) => { const list = db.changeovers.filter(c => c.status === k).sort((a, b) => (a.readyBy ?? '9').localeCompare(b.readyBy ?? '9'));
+    <div className="kanban">{CO_COLS.map(([k]) => { const l = (u.role === 'client' ? CO_CLIENT_LABEL : CO_LABEL)[k]; const list = db.changeovers.filter(c => c.status === k).sort((a, b) => (a.readyBy ?? '9').localeCompare(b.readyBy ?? '9'));
       return <div className="col" key={k}><h3><span className={'co co-' + k} style={{ position: 'static' }}><BrushIcon /></span>{l}<em>{list.length}</em></h3>
         {list.map(c => { const slack = c.readyBy ? diffDays(T, c.readyBy) : null; return <div className={'cc' + (slack !== null && slack <= 1 && k !== 'ready' ? ' urgent' : '')} key={c.id}>
           <b>{roomLabel(c.roomId)}</b>
@@ -226,11 +227,12 @@ function Changeovers() {
           {c.toStayId && <small>Next: {(() => { const s = db.stays.find(x => x.id === c.toStayId); return s ? (u.role === 'cleaner' ? (s.workerId ? 'named guest' : 'hold') : stayLabel(s)) : ''; })()}</small>}
           {c.invalidated && <div className="inv">⚠ {c.invalidated}</div>}
           {c.note && <small className="note">{c.note}</small>}
+          {u.role === 'client' && <div className={'cstat cs-' + k}>{CO_CLIENT_LABEL[k]}{c.scheduledFor && k !== 'ready' ? ' · ' + fmt(c.scheduledFor) : ''}</div>}
           {u.role !== 'client' && <div className="ca">
             {k === 'needs' && u.role === 'manager' ? <><input type="date" defaultValue={addDays(c.afterDate, 0)} id={'d' + c.id} /><select id={'c' + c.id}>{cleaners.map(x => <option key={x.id} value={x.id}>{x.name.split(' ')[0]}</option>)}</select>
               <button className="btn sm" onClick={() => data.updateChangeover(c.id, { status: 'scheduled', scheduledFor: (document.getElementById('d' + c.id) as HTMLInputElement).value, cleanerId: (document.getElementById('c' + c.id) as HTMLSelectElement).value })}>Schedule</button></>
               : next[k] && k !== 'needs' && <button className="btn sm" onClick={() => data.updateChangeover(c.id, { status: next[k]! })}>{k === 'scheduled' ? 'Start clean' : 'Mark Ready ✓'}</button>}
-            {c.cleanerId && <small className="muted">{db.users.find(x => x.id === c.cleanerId)?.name}</small>}
+            {c.cleanerId && u.role === 'manager' && <small className="muted">{db.users.find(x => x.id === c.cleanerId)?.name}</small>}
           </div>}
         </div>; })}
         {!list.length && <p className="muted empty">Nothing here</p>}</div>; })}</div></div>);
@@ -255,10 +257,11 @@ function Available() {
   const db = useDB(); const T = londonToday(); const [req, setReq] = useState<string | null>(null);
   const [form, setForm] = useState({ from: addDays(T, 3), to: addDays(T, 17), longTerm: false, people: 1, note: '' }); const [sent, setSent] = useState<string | null>(null);
   const others = db.properties.filter(p => !p.contracted);
-  const art: Record<string, string> = { 'p-pod1': 'pod', 'p-pod2': 'pod', 'p-lodge': 'lodge', 'p-cottage': 'cottage' };
-  return (<div className="page"><div className="hero" style={{ backgroundImage: 'linear-gradient(90deg,rgba(7,24,47,.92),rgba(7,24,47,.55)),url(img/eshcol-exterior.jpg)' }}><small>Need more rooms?</small><h1>Available elsewhere on Lewis</h1><p>Self-contained pods, a lodge and a cottage from the same team. Same standards, one coordinator. Short stays or long-term.</p></div>
+  const art: Record<string, string> = { 'p-pod1': 'pod', 'p-pod2': 'pod', 'p-lodge': 'lodge', 'p-cottage': 'cottage', 'p-monadh': 'lodge' };
+  return (<div className="page"><div className="hero" style={{ backgroundImage: 'linear-gradient(90deg,rgba(7,24,47,.92),rgba(7,24,47,.55)),url(img/eshcol-exterior.jpg)' }}><small>Need more rooms?</small><h1>Available elsewhere on Lewis</h1><p>Hebridean Holiday Cabins and Whitefalls Spa Lodges, from the same team. Same standards, one coordinator. Short stays or long-term.</p></div>
     {sent && <div className="ok">✓ Request sent to Donald for {sent}. You'll get a reply by email, usually the same day.</div>}
-    <div className="cards">{others.map(p => <div className="ucard" key={p.id}>
+    {[...new Set(others.map(p => p.brand ?? 'Other'))].map(brand => <div key={brand}><h2 className="brandh">{brand}<small>{others.filter(p => (p.brand ?? 'Other') === brand).length} available</small></h2>
+    <div className="cards">{others.filter(p => (p.brand ?? 'Other') === brand).map(p => <div className="ucard" key={p.id}>
       <div className={'art art-' + art[p.id]}><span>{p.beds}</span><em>Photos to follow</em></div>
       <div className="ub"><h3>{p.name}</h3><p>{p.blurb}</p><div className="feat">{p.features.map(f => <span key={f}>{f}</span>)}</div>
         <div className="avl"><span className="dot" />Available now</div>
@@ -268,22 +271,24 @@ function Available() {
           <textarea rows={2} placeholder="Anything we should know?" value={form.note} onChange={e => setForm({ ...form, note: e.target.value })} />
           <div className="pa"><button className="link" onClick={() => setReq(null)}>Cancel</button><div className="sp" /><button className="btn" onClick={() => { data.addEnquiry({ propertyId: p.id, from: form.from, to: form.longTerm ? null : form.to, longTerm: form.longTerm, people: form.people, note: form.note }); setSent(p.name); setReq(null); }}>Send request</button></div></div>
           : <button className="btn full" onClick={() => setReq(p.id)}>Request</button>}
-      </div></div>)}</div>
+      </div></div>)}</div></div>)}
     {me().role === 'manager' && db.enquiries.length > 0 && <section className="card"><h3>Requests received</h3>{db.enquiries.map(e => <div className="li" key={e.id}><span className="tag t-new">New</span><div><b>{propOf(e.propertyId).name} · {e.people} people</b><small>From {fmt(e.from)} {e.longTerm ? '· long-term' : e.to ? '→ ' + fmt(e.to) : ''} {e.note && '· ' + e.note}</small></div></div>)}</section>}
   </div>);
 }
 
 // ---------------- Activity, digest, outbox ----------------
 function ActivityView() {
-  const db = useDB(); const [role, setRole] = useState<Role>('manager');
-  const name = (id: string) => db.users.find(u => u.id === id)?.name ?? id;
+  const db = useDB(); const viewer = me(); const [role, setRole] = useState<Role>(viewer.role);
+  const name = (id: string) => { const x = db.users.find(u => u.id === id); return x?.role === 'cleaner' && viewer.role === 'client' ? 'Housekeeping' : x?.name ?? id; };
+  const roles: Role[] = viewer.role === 'manager' ? ['client', 'manager', 'cleaner'] : [viewer.role];
+  const alerts = viewer.role === 'manager' ? db.alerts : db.alerts.filter(a => a.to.startsWith(viewer.name + ' <'));
   const grouped = useMemo(() => db.activity, [db.activity]);
   return (<div className="page"><div className="ph"><div><h1>Activity</h1><p>A full log of who changed what and when, plus the alerts that went out.</p></div></div>
     <div className="grid2"><section className="card"><h3>Activity log</h3>{grouped.map(a => <div className="act" key={a.id}><div className="avt sm">{name(a.userId).split(' ').map(x => x[0]).join('')}</div><div><b>{name(a.userId)}</b> {a.text}<small>{new Date(a.ts).toLocaleString('en-GB', { timeZone: 'Europe/London', weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</small></div></div>)}</section>
-      <div><section className="card"><h3>7:00 morning digest <div className="seg sm" style={{ float: 'right' }}>{(['client', 'manager', 'cleaner'] as Role[]).map(r => <button key={r} className={role === r ? 'on' : ''} onClick={() => setRole(r)}>{r}</button>)}</div></h3><pre className="digest">{digest(role)}</pre><small className="muted">Sent by email every day at 07:00 Europe/London (scheduled job in production)</small></section>
+      <div><section className="card"><h3>7:00 morning digest <div className="seg sm" style={{ float: 'right' }}>{roles.map(r => <button key={r} className={role === r ? 'on' : ''} onClick={() => setRole(r)}>{r}</button>)}</div></h3><pre className="digest">{digest(role)}</pre><small className="muted">Sent by email every day at 07:00 Europe/London (scheduled job in production)</small></section>
         <section className="card"><h3>Alert outbox</h3><small className="muted">Queued with automatic retry. In production, push, email (Resend) and SMS (Twilio) are sent by the dispatcher.</small>
-          {db.alerts.slice(0, 14).map(a => <div className="al" key={a.id}><span className={'tag t-' + a.status}>{a.status}{a.attempts > 1 ? ` ·${a.attempts}` : ''}</span><span className="ch">{a.channel}</span><div><b>{a.subject}</b><small>{a.to}</small></div></div>)}
-          {!db.alerts.length && <p className="muted">No alerts yet. Make a change on the board.</p>}</section></div></div></div>);
+          {alerts.slice(0, 14).map(a => <div className="al" key={a.id}><span className={'tag t-' + a.status}>{a.status}{a.attempts > 1 ? ` ·${a.attempts}` : ''}</span><span className="ch">{a.channel}</span><div><b>{a.subject}</b><small>{viewer.role === 'manager' ? a.to : 'To you'}</small></div></div>)}
+          {!alerts.length && <p className="muted">No alerts yet. Make a change on the board.</p>}</section></div></div></div>);
 }
 
 function Login() {

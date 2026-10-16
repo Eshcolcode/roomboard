@@ -23,9 +23,9 @@ async function refresh() {
   publish({
     v: 1, currentUser: user.id,
     users: (pr.data ?? []).map((r: any) => ({ id: r.id, name: r.full_name, role: r.role, email: r.email, phone: r.phone ?? '' })),
-    properties: (pp.data ?? []).map((r: any) => ({ id: r.id, name: r.name, short: r.short_name, contracted: r.contracted, address: r.address ?? '', blurb: r.blurb ?? '', photo: r.photo_url ?? undefined, features: r.features ?? [], beds: r.beds_label ?? undefined })),
+    properties: (pp.data ?? []).map((r: any) => ({ id: r.id, name: r.name, short: r.short_name, contracted: r.contracted, address: r.address ?? '', blurb: r.blurb ?? '', photo: r.photo_url ?? undefined, features: r.features ?? [], beds: r.beds_label ?? undefined, brand: r.brand ?? undefined })),
     units: (un.data ?? []).map((r: any) => ({ id: r.id, propertyId: r.property_id, name: r.name })),
-    rooms: (rm.data ?? []).map((r: any) => ({ id: r.id, propertyId: r.property_id, unitId: r.unit_id, name: r.name, bath: r.bath, note: r.note ?? undefined, photo: r.photo_url ?? undefined })),
+    rooms: (rm.data ?? []).map((r: any) => ({ id: r.id, propertyId: r.property_id, unitId: r.unit_id, name: r.name, bath: r.bath, note: r.note ?? undefined, photo: r.photo_url ?? undefined, floor: r.floor ?? undefined })),
     workers: (wk.data ?? []).map((r: any) => ({ id: r.id, name: r.name, company: r.company ?? '', phone: r.phone ?? '', notes: r.notes ?? '', lastUsed: r.last_used ?? undefined, uses: r.uses ?? 0 })),
     stays: (st.data ?? []).map(mapStay), changeovers: (co.data ?? []).map(mapCo),
     activity: (ac.data ?? []).map((r: any) => ({ id: r.id, ts: r.ts, userId: r.user_id, text: r.text, propertyId: r.property_id })),

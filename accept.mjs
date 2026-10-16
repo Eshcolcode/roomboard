@@ -20,6 +20,16 @@ ok(await p.locator('.panel .err:has-text("Clashes")').count() === 1 && await p.l
 await p.click('.panel button:has-text("Close")');
 await p.goto(U + '#activity'); await p.waitForTimeout(6000);
 ok(await p.locator('.act:has-text("named hold")').count() >= 1, 'activity log entry'); ok(await p.locator('.al .t-sent').count() > 0, 'alerts sent from outbox');
+// structure
+await p.goto(U + '#board'); await p.waitForSelector('.bar');
+ok(await p.locator('.unit:has-text("Upstairs")').count() === 1 && await p.locator('.unit:has-text("Downstairs flat")').count() === 1, 'Loch Roag up/down + Eshcol flat group labels');
+ok((await p.locator('.grp').count()) === 2, 'Eshcol shown as one property');
+await p.goto(U + '#available'); ok(await p.locator('.brandh:has-text("Hebridean Holiday Cabins")').count() === 1 && await p.locator('.brandh:has-text("Whitefalls Spa Lodges") ~ .cards .ucard:has-text("Monadh")').count() === 1, 'upsell brands + Monadh');
+// client privacy
+await p.selectOption('select.who', 'u-client'); await p.waitForTimeout(200);
+let leak = false; for (const t of ['board', 'today', 'changeovers', 'activity', 'available', 'workers']) { await p.goto(U + '#' + t); await p.waitForTimeout(300); if (/Mairi/i.test(await p.locator('body').innerText())) { leak = true; console.log('  leak on', t); } }
+ok(!leak, 'client never sees cleaner name');
+await p.goto(U + '#changeovers'); ok(await p.locator('.cstat:has-text("Cleaning to be scheduled")').count() >= 1 && await p.locator('.ca').count() === 0, 'client sees status labels only, no cleaner actions');
 // cleaner
 await p.selectOption('select.who', 'u-mairi'); await p.waitForTimeout(200);
 ok(await p.locator('nav a').count() === 2, 'cleaner sees Today + Changeovers only');

@@ -14,6 +14,8 @@ await p.click('.bar.hold:has-text("electrician")'); await p.waitForSelector('.pa
 await p.screenshot({ path: 'screens/hold-room8.png' });
 await p.click('.panel button:has-text("Close")');
 await p.goto(U + '#changeovers'); await p.waitForTimeout(300); await p.screenshot({ path: 'screens/changeovers.png', fullPage: true });
+await p.selectOption('select.who', 'u-client'); await p.goto(U + '#changeovers'); await p.waitForTimeout(300); await p.screenshot({ path: 'screens/changeovers-client.png', fullPage: true });
+await p.selectOption('select.who', 'u-donald');
 await p.goto(U + '#available'); await p.waitForTimeout(300); await p.screenshot({ path: 'screens/available.png', fullPage: true });
 await p.goto(U + '#activity'); await p.waitForTimeout(2500); await p.screenshot({ path: 'screens/activity.png', fullPage: true });
 const m = await b.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true }); m.on('pageerror', e => errs.push(e.message));

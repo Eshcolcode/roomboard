@@ -3,9 +3,9 @@
 Run the demo (`npm run build && npx vite preview`, or open the uploaded site), then press **Reset demo**. Use the role switcher top-right.
 
 ## Structure
-- [ ] Board shows **Loch Roag Guest House Rooms 1–9**. Rooms 1–7 are labelled Ensuite and 8–9 Shared shower.
-- [ ] Board shows **Eshcol** with *Main accommodation* Rooms 1–7 and the *Downstairs flat* Rooms 8–10 as a separate unit, with each room's bathroom type.
-- [ ] The cabins and other units (Pod 1, Pod 2, Lodge, Cottage "2 bedrooms + office") appear **only** on *Available elsewhere*, not on the board.
+- [ ] Board shows **Loch Roag Guest House Rooms 1–9**, grouped *Upstairs · Rooms 1–5* / *Downstairs · Rooms 6–9*. Rooms 2 and 3 show a shared shower, Room 8 shows *Private shower room*, and the others show Ensuite. The room panel shows the floor and bathroom detail.
+- [ ] Board shows **Eshcol** as one property (10 rooms) with group labels *Main house · Rooms 1–7* and *Downstairs flat · Rooms 8–10*.
+- [ ] *Available elsewhere* shows **Hebridean Holiday Cabins** (Pod 1, Pod 2, The Lodge, The Cottage "2 bedrooms + office") and **Whitefalls Spa Lodges** (Monadh) as separate groups. None of them are on the board.
 
 ## Room 8 journey (Loch Roag)
 - [ ] Room 8 shows Neil Mackenzie as **Departing today ✓** (amber bar ending today, Fri 16 Oct 2026).
@@ -44,6 +44,10 @@ Run the demo (`npm run build && npx vite preview`, or open the uploaded site), t
 ## Showcase / upsell
 - [ ] *Available elsewhere* shows a branded hero and 4 cards with features and "Available now", plus a **Request** button that opens dates, long-term and people fields and a note.
 - [ ] Sending shows a confirmation. The manager sees it under "Requests received".
+
+## Client privacy (Sheena · RJ McLeod)
+- [ ] As Sheena, no cleaner name appears on the Board, Changeovers, Activity, digest or alerts. Changeovers show only *Cleaning scheduled / Ready* and similar statuses, and actions by cleaners show as "Housekeeping".
+- [ ] Sheena sees only her own digest and only the alerts addressed to her.
 
 ## Roles
 - [ ] The cleaner sees only Today and Changeovers, with first names, and can Start clean / Mark Ready.

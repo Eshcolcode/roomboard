@@ -4,9 +4,9 @@ import { addDays, londonToday, overlaps, diffDays, fmt } from '../dates';
 export type Role = 'client' | 'manager' | 'cleaner';
 export type Bath = 'ensuite' | 'private' | 'shared';
 export interface User { id: string; name: string; role: Role; email: string; phone: string }
-export interface Property { id: string; name: string; short: string; contracted: boolean; address: string; blurb: string; photo?: string; features: string[]; beds?: string }
+export interface Property { id: string; name: string; short: string; contracted: boolean; address: string; blurb: string; photo?: string; features: string[]; beds?: string; brand?: string }
 export interface Unit { id: string; propertyId: string; name: string }
-export interface Room { id: string; propertyId: string; unitId: string; name: string; bath: Bath; note?: string; photo?: string }
+export interface Room { id: string; propertyId: string; unitId: string; name: string; bath: Bath; note?: string; photo?: string; floor?: string }
 export interface Worker { id: string; name: string; company: string; phone: string; notes: string; lastUsed?: string; uses: number }
 export type DepStatus = 'planned' | 'confirmed' | 'tbc' | 'ufn';
 export interface Stay {
@@ -97,3 +97,7 @@ export function digest(role: Role) {
     `In house tonight: ${visible.filter(s => s.arrival <= T && (s.departure ?? '9') > T && !(s.away && s.away.from <= T && s.away.to > T)).length}`,
   ].join('\n');
 }
+
+export const CO_LABEL: Record<CoStatus, string> = { needs: 'Needs scheduling', scheduled: 'Scheduled', in_progress: 'In progress', ready: 'Ready' };
+export const CO_CLIENT_LABEL: Record<CoStatus, string> = { needs: 'Cleaning to be scheduled', scheduled: 'Cleaning scheduled', in_progress: 'Cleaning in progress', ready: 'Ready' };
+export const bathText = (r: Room) => r.bath === 'ensuite' ? 'Ensuite' : r.bath === 'private' ? 'Private shower room' : 'Shared shower room';

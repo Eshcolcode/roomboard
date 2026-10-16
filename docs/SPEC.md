@@ -9,10 +9,16 @@
 | Provider manager | Donald / team | Everything. Schedule changeovers and assign cleaners. See all requests and the alert outbox |
 | Cleaner | Housekeeping | Today/Upcoming and Changeovers only, with first names only. Move own tasks to In progress → Ready |
 
-## Properties (from Donald and the Eshcol share page)
-- **Loch Roag Guest House** (contracted): Rooms 1–9. 7 ensuite, and 2 share a shower room (*assumed Rooms 8 & 9; to confirm*). Two kitchens, a games room and a lounge.
-- **Eshcol Worker Accommodation** (contracted): **10 bedrooms in total, per the share page.** The main accommodation has Rooms 1–7: 2, 3, 4, 6 and 7 are ensuite, and 1 and 5 have an allocated private shower room. The **downstairs flat** is its own unit with Rooms 8–10: 10 is ensuite, and 8 and 9 share the flat's shower room. It has its own kitchen.
-- **Not contracted (upsell):** Pod 1 and Pod 2 (1 bed each). The Lodge (2 ensuite bedrooms). The Cottage (2 ensuite bedrooms plus a home office; the third room is reached through another room, so it is marketed as an office).
+## Properties (confirmed by Donald, 16 Oct 2026)
+- **Loch Roag Guest House** (contracted): 9 rooms. **Upstairs: Rooms 1–5. Downstairs: Rooms 6–9.** Rooms 2 and 3 share a shower room. Room 8 has a private shower room (not ensuite). Rooms 1, 4, 5, 6, 7 and 9 are ensuite. Two kitchens, a large games room and lounge. *Images to follow.*
+- **Eshcol Worker Accommodation** (contracted): **10 rooms in total, one property.** Main house Rooms 1–7: 2, 3, 4, 6 and 7 are ensuite, and 1 and 5 have an allocated private shower room. The downstairs flat (shown as a group label) has Rooms 8–10: 10 is ensuite, and 8 and 9 share the flat's shower room.
+- **Upsell (not contracted):**
+  - **Hebridean Holiday Cabins**: Pod 1 and Pod 2 (1 bed each), The Lodge (2 ensuite), The Cottage (2 ensuite plus an office).
+  - **Whitefalls Spa Lodges**: **Monadh**, the only lodge available. It is a separate card.
+
+## Client
+**Sheena, RJ McLeod** (client coordinator). Email and phone are still to come.
+**Privacy rule: the client never sees cleaner names or details.** That covers the board, changeovers, activity log (shown as "Housekeeping"), digests and alerts. She sees status only: *Cleaning to be scheduled / Cleaning scheduled / Cleaning in progress / Ready*. In Supabase, the RLS on `profiles` hides cleaner profiles from clients, and alert rows are visible only to their recipient.
 
 ## Data model (identical in `src/data/core.ts` and `supabase/migrations`)
 Property → Unit → Room (bath: ensuite/private/shared) · ContractAllocation (room, period) · Worker (saved profile) · **Stay** (room, worker or null = *Hold, name to follow*, arrival, departure, depStatus `planned|confirmed|tbc|ufn`, away range, version) · **Changeover** (room, from/to stay, afterDate, readyBy, status `needs|scheduled|in_progress|ready`, cleaner) · Activity · AlertOutbox · Enquiry · Profile (user + role).

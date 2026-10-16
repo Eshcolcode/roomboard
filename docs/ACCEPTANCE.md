@@ -87,7 +87,7 @@ Run the demo (`npm run build && npx vite preview`, or open the uploaded site), t
 - [ ] Usual rooms are preferred; any place's room can be changed in the preview.
 - [ ] Extend / Change end / Cancel rest act on the whole series; Undo reverts the whole step; a single occurrence can be edited on its own and survives a reshape.
 - [ ] **Drag:** moving a bar shows the new room/dates live (red with the reason on a clash), asks for confirmation on drop, and can be undone; a clash is refused. Dragging the right edge changes the departure. Enter on a bar still opens the panel.
-- [ ] `npm run lint` is clean; CI runs lint, types, unit, build and e2e on push.
+- [ ] `npm run lint` is clean; the CI workflow (`ci/github-actions-ci.yml`, to be moved into `.github/workflows/`) runs lint, types, unit, build and e2e on push.
 
 ## Roles
 - [ ] The cleaner sees only Today and Cleaning, with first names, and can tick Guest has left / Start clean / Mark ready.

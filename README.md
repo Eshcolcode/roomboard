@@ -10,7 +10,7 @@ A static React app for room occupancy across Loch Roag and Eshcol.
 
 ## Tests
 - `npm run lint`: ESLint + Prettier check (clean). `npm run typecheck`: `tsc --noEmit`.
-- CI: `.github/workflows/ci.yml` runs lint, type check, unit tests, build and e2e on every push.
+- CI: `ci/github-actions-ci.yml` (lint, type check, unit, build, e2e on every push). Move it to `.github/workflows/ci.yml` with a GitHub account or token that has the `workflow` scope; the deploy token cannot push workflow files.
 - `npm test`: unit tests (vitest): rules, dates, store and demo commands. Shared rule cases are in `rules/cases.json`.
 - `npm run test:sql`: local Postgres. Applies the migrations and runs the smoke test, then the same `rules/cases.json` through the SQL rule functions.
 - `npm run build && npx vite preview --port 4173`, then `npm run test:e2e`: Playwright end-to-end (desktop, phone, every role, axe).

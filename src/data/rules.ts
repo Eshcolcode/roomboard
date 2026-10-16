@@ -13,13 +13,16 @@ export { overlaps };
 export type Boundary = 'open' | 'continues' | 'zero_day' | 'changeover';
 
 /** What happens to a room when a stay ends. */
+/** `slot` is the crew-rotation slot key (series id + slot). Two back-to-back stays of the same slot continue
+ *  even while the slot is still an unnamed hold, so a kept room is not cleaned between cycles. */
 export function boundary(
-  dep: { workerId: string | null; departure: string | null; depStatus: DepStatusCode },
-  next: { workerId: string | null; arrival: string } | null,
+  dep: { workerId: string | null; departure: string | null; depStatus: DepStatusCode; slot?: string | null },
+  next: { workerId: string | null; arrival: string; slot?: string | null } | null,
 ): Boundary {
   if (!dep.departure || dep.depStatus === 'tbc' || dep.depStatus === 'ufn') return 'open';
   if (next && next.arrival === dep.departure) {
-    return next.workerId && next.workerId === dep.workerId ? 'continues' : 'zero_day';
+    if (next.workerId && next.workerId === dep.workerId) return 'continues';
+    return dep.slot && dep.slot === next.slot ? 'continues' : 'zero_day';
   }
   return 'changeover';
 }

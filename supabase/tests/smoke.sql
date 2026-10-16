@@ -45,3 +45,17 @@ select 'T11 dedupe key unique' t, count(*) = count(distinct dedupe_key) ok from 
 set request.uid = '00000000-0000-0000-0000-000000000002';
 insert into stays(room_id,worker_id,arrival,departure) values ('lr-6','00000000-0000-0000-0000-0000000000a2','2026-12-01','2026-12-05');
 select 'T12 no_address for blank email' t, count(*) > 0 ok from alert_outbox where status='no_address';
+-- crew rotation (0007): 2 unnamed holds, 5 on / 2 off, 3 cycles, room kept on off days
+set request.uid = '00000000-0000-0000-0000-000000000002';
+select count(*) as before_alerts from alert_outbox \gset
+select apply_series('{"label":"Crew T","property_id":"p-lr","start_date":"2027-02-01","on_days":5,"off_days":2,"off_mode":"keep","end_kind":"cycles","cycles":3,"slots":[]}'::jsonb,
+  (select jsonb_agg(jsonb_build_object('room_id', r, 'hold_label', 'Name TBC ' || sl, 'arrival', a, 'departure', d, 'away_from', af, 'away_to', at, 'slot', sl))
+   from (values ('lr-2', 0), ('lr-3', 1)) v(r, sl), lateral (select arrival a, departure d, away_from af, away_to at from rb_rotation('2027-02-01', 5, 2, 'cycles', null, 3, 'keep')) g),
+  '[]', '{}', 'booked') as sid \gset
+select 'T13 crew: 6 stays generated' t, count(*) = 6 ok from stays where series_id = :'sid';
+select 'T14 crew keep: one clean per room (end only)' t, count(*) = 2 ok from changeovers c join stays s on s.id = c.from_stay_id where s.series_id = :'sid';
+select 'T15 crew: one summary alert per recipient, not one per stay' t, count(*) - :before_alerts between 1 and 2 ok from alert_outbox;
+do $$ begin perform apply_series('{"label":"Clash","property_id":"p-lr","start_date":"2027-02-01","on_days":5,"off_days":2,"off_mode":"keep","end_kind":"cycles","cycles":1}'::jsonb,
+  '[{"room_id":"lr-2","hold_label":"X","arrival":"2027-02-03","departure":"2027-02-06","slot":0}]', '[]', '{}', 'booked'); raise notice 'FAIL crew clash';
+exception when others then raise notice 'PASS crew clash rolls back whole booking: %', sqlerrm; end $$;
+select 'T16 crew clash left nothing behind' t, count(*) = 0 ok from series where label = 'Clash';

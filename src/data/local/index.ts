@@ -6,6 +6,7 @@ import { tick } from './alerts';
 import { saveStay, deleteStay, confirmDeparture } from './stays';
 import { updateChangeover, dismissChangeover } from './changeovers';
 import { upsertWorker, addEnquiry } from './misc';
+import { createSeries, updateSeries } from './series';
 
 export const localRepo: Repo = {
   mode: 'demo',
@@ -54,6 +55,12 @@ export const localRepo: Repo = {
   },
   async upsertWorker(w) {
     return upsertWorker(w);
+  },
+  async createSeries(base, inputs) {
+    return createSeries(base, inputs);
+  },
+  async updateSeries(next, what) {
+    updateSeries(next, what);
   },
   async undo() {
     undo();

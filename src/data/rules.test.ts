@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import cases from '../../rules/cases.json';
 import { boundary, cleanWindow, nights, overlaps, statusGate, stayError } from './rules';
+import { occurrences, type Pattern } from './rotation';
 import type { DepStatusCode } from './rules';
 
 describe('nights', () => {
@@ -32,4 +33,13 @@ describe('stay validation', () => {
     it(c.name, () =>
       expect(stayError({ ...c.stay, depStatus: c.stay.depStatus as DepStatusCode }, c.others)).toBe(c.expect),
     );
+});
+
+describe('crew rotation generator', () => {
+  for (const c of cases.rotation)
+    it(c.name, () => {
+      const got = occurrences(c.pattern as Pattern);
+      if ('count' in c) expect(got.length).toBe(c.count);
+      else expect(got).toEqual(c.expect);
+    });
 });

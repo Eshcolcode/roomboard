@@ -1,6 +1,6 @@
 // The ONE data-access interface the UI talks to. Implementations: local.ts (demo) and supabase.ts.
 // Reads come from the shared snapshot in core.ts (useDB); writes go through these commands.
-import type { Changeover, Enquiry, Stay, StayInput, Worker } from './core';
+import type { Changeover, Enquiry, Series, Stay, StayInput, Worker } from './core';
 export interface Repo {
   mode: 'demo' | 'supabase';
   init(): Promise<void>;
@@ -13,6 +13,8 @@ export interface Repo {
   setPrefs(userId: string, p: { smsOptIn?: boolean; pushEnabled?: boolean }): Promise<void>;
   upsertWorker(w: Partial<Worker> & { name: string }): Promise<Worker>;
   addEnquiry(e: Omit<Enquiry, 'id' | 'ts' | 'status'>): Promise<void>;
+  createSeries(base: Omit<Series, 'id' | 'createdBy' | 'createdAt'>, stays: StayInput[]): Promise<Series>; // crew booking: all stays or none
+  updateSeries(next: Series, what: string): Promise<void>; // extend / shorten / cancel the whole series
   undo(): Promise<void>; // revert the last stay command made in this session
   canUndo(): boolean;
   setUser(id: string): Promise<void>; // demo: role switch. supabase: no-op (identity = login)

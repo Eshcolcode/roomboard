@@ -116,3 +116,20 @@ export interface PgError {
   code?: string;
   message: string;
 }
+export interface SeriesRow {
+  id: string;
+  label: string;
+  property_id: string;
+  start_date: string;
+  on_days: number;
+  off_days: number;
+  off_mode: 'keep' | 'release';
+  end_kind: 'date' | 'ufn' | 'cycles';
+  end_date: N<string>;
+  cycles: N<number>;
+  horizon: N<string>;
+  slots: N<{ slot: number; workerId: string | null; label: string }[]>;
+  cancelled_from: N<string>;
+  created_by: string;
+  created_at: string;
+}

@@ -2,7 +2,9 @@
 // outbox are written by database triggers, so this file only reads tables and performs the user's writes.
 import { createClient, type RealtimeChannel } from '@supabase/supabase-js';
 import { S, publish, ConflictError } from './core';
-import type { DB, Stay, Changeover, Worker } from './core';
+import type { DB, Stay, Changeover, Worker, Series, StayInput } from './core';
+import { reshape } from './crew';
+import { londonToday } from '../dates';
 import type { Repo } from './repo';
 import type * as R from './db-rows';
 
@@ -36,6 +38,54 @@ const mapStay = (r: R.StayRow): Stay => ({
   version: r.version,
   updatedBy: r.updated_by,
   updatedAt: r.updated_at,
+  seriesId: r.series_id ?? null,
+  slot: r.slot ?? null,
+});
+const mapSeries = (r: R.SeriesRow): Series => ({
+  id: r.id,
+  label: r.label,
+  propertyId: r.property_id,
+  start: r.start_date,
+  on: r.on_days,
+  off: r.off_days,
+  offMode: r.off_mode,
+  end:
+    r.end_kind === 'date'
+      ? { kind: 'date', date: r.end_date ?? r.start_date }
+      : r.end_kind === 'cycles'
+        ? { kind: 'cycles', n: r.cycles ?? 1 }
+        : { kind: 'ufn' },
+  horizon: r.horizon,
+  slots: r.slots ?? [],
+  cancelledFrom: r.cancelled_from,
+  createdBy: r.created_by,
+  createdAt: r.created_at,
+});
+const seriesRow = (s: Omit<Series, 'id' | 'createdBy' | 'createdAt'> & { id?: string }) => ({
+  id: s.id,
+  label: s.label,
+  property_id: s.propertyId,
+  start_date: s.start,
+  on_days: s.on,
+  off_days: s.off,
+  off_mode: s.offMode,
+  end_kind: s.end.kind,
+  end_date: s.end.kind === 'date' ? s.end.date : null,
+  cycles: s.end.kind === 'cycles' ? s.end.n : null,
+  horizon: s.horizon ?? null,
+  slots: s.slots,
+  cancelled_from: s.cancelledFrom ?? null,
+});
+const createRow = (i: StayInput) => ({
+  room_id: i.roomId,
+  worker_id: i.workerId,
+  hold_label: i.workerId ? null : i.holdLabel,
+  arrival: i.arrival,
+  departure: i.departure,
+  away_from: i.away?.from ?? null,
+  away_to: i.away?.to ?? null,
+  notes: i.notes,
+  slot: i.slot,
 });
 const mapCo = (r: R.ChangeoverRow): Changeover => ({
   id: r.id,
@@ -66,7 +116,7 @@ async function refresh() {
     return;
   }
   const q = (t: string, order = 'id') => sb.from(t).select('*').order(order);
-  const [pr, pp, un, rm, wk, st, co, ac, al, en] = await Promise.all([
+  const [pr, pp, un, rm, wk, st, co, ac, al, en, se] = await Promise.all([
     q('profiles'),
     q('properties', 'sort'),
     q('units', 'sort'),
@@ -77,6 +127,7 @@ async function refresh() {
     sb.from('activity').select('*').order('ts', { ascending: false }).limit(300),
     sb.from('alert_outbox').select('*').order('created_at', { ascending: false }).limit(50),
     q('enquiries', 'created_at'),
+    q('series', 'created_at'),
   ]);
   publish({
     v: 1,
@@ -145,6 +196,7 @@ async function refresh() {
       attempts: r.attempts,
       nextAttemptAt: Date.parse(r.next_attempt_at),
     })),
+    series: rows<R.SeriesRow>(se.data).map(mapSeries),
     enquiries: rows<R.EnquiryRow>(en.data).map(r => ({
       id: r.id,
       ts: r.created_at,
@@ -159,7 +211,8 @@ async function refresh() {
   });
 }
 // Undo = inverse operation through the same rules (triggers re-run, alerts go out for the undo too).
-type Inverse = { kind: 'create'; id: string } | { kind: 'update' | 'delete'; before: Stay };
+type Inverse =
+  { kind: 'create'; id: string } | { kind: 'update' | 'delete'; before: Stay } | { kind: 'series'; id: string };
 const undoStack: Inverse[] = [];
 const toRow = (
   i: Pick<Stay, 'roomId' | 'workerId' | 'holdLabel' | 'arrival' | 'departure' | 'depStatus' | 'away' | 'notes'>,
@@ -282,9 +335,52 @@ export const supabaseRepo: Repo = {
     );
     await refresh();
   },
+  async createSeries(base, inputs) {
+    const { data, error } = await sb.rpc('apply_series', {
+      p_series: seriesRow(base),
+      p_create: inputs.map(createRow),
+      p_update: [],
+      p_delete: [],
+      p_what: 'booked',
+    });
+    fail(error);
+    undoStack.push({ kind: 'series', id: data as string });
+    await refresh();
+    return S.db.series!.find(x => x.id === data)!;
+  },
+  async updateSeries(next, what) {
+    const cur = S.db.series?.find(x => x.id === next.id);
+    if (!cur) throw new Error('That crew booking no longer exists.');
+    const r = reshape(S.db, cur, next, londonToday());
+    fail(
+      (
+        await sb.rpc('apply_series', {
+          p_series: seriesRow(next),
+          p_create: r.create.map(createRow),
+          p_update: r.update.map(u => ({
+            id: u.id,
+            version: u.version,
+            departure: u.departure,
+            away_from: u.away?.from ?? null,
+            away_to: u.away?.to ?? null,
+          })),
+          p_delete: r.remove,
+          p_what: what,
+        })
+      ).error,
+    );
+    await refresh();
+  },
   async undo() {
     const u = undoStack.pop();
     if (!u) return;
+    if (u.kind === 'series') {
+      // undo a crew booking = remove the stays it generated (and the series row)
+      fail((await sb.from('stays').delete().eq('series_id', u.id)).error);
+      fail((await sb.from('series').delete().eq('id', u.id)).error);
+      await refresh();
+      return;
+    }
     if (u.kind === 'create') fail((await sb.from('stays').delete().eq('id', u.id)).error);
     else if (u.kind === 'delete') fail((await sb.from('stays').insert({ id: u.before.id, ...toRow(u.before) })).error);
     else {

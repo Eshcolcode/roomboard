@@ -1,5 +1,5 @@
 import { S, publish, uid, iso, reconcile } from '../core';
-import type { DB, Stay, Changeover } from '../core';
+import type { DB, Stay, Changeover, Series } from '../core';
 import { seed } from './seed';
 import { alertStayChange } from './alerts';
 
@@ -26,10 +26,16 @@ export interface Snap {
   label: string;
   stays: Stay[];
   changeovers: Changeover[];
+  series: Series[];
 }
 export const undoStack: Snap[] = [];
 export function snap(label: string) {
-  undoStack.push({ label, stays: structuredClone(S.db.stays), changeovers: structuredClone(S.db.changeovers) });
+  undoStack.push({
+    label,
+    stays: structuredClone(S.db.stays),
+    changeovers: structuredClone(S.db.changeovers),
+    series: structuredClone(S.db.series ?? []),
+  });
   if (undoStack.length > 20) undoStack.shift();
 }
 export function undo() {
@@ -43,6 +49,7 @@ export function undo() {
     updatedAt: iso(),
   }));
   S.db.changeovers = u.changeovers;
+  S.db.series = u.series;
   log(`Undid: ${u.label}`);
   alertStayChange('Change undone', `Undid: ${u.label}`);
   commit();

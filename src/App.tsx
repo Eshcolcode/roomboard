@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { data, useDB, me, roomOf, propOf, workerOf, stayLabel, roomLabel, depText, digest, validate, ConflictError, getDB, CO_LABEL, CO_CLIENT_LABEL, bathText } from './data';
+import { data, useDB, me, roomOf, propOf, workerOf, stayLabel, roomLabel, depText, digest, validate, ConflictError, getDB, CO_LABEL, CO_CLIENT_LABEL, bathText, coBucket, coDepartText } from './data';
 import type { Stay, StayInput, DepStatus, Changeover, CoStatus, Role } from './data';
 import { addDays, diffDays, fmt, londonToday } from './dates';
 
 type Tab = 'board' | 'today' | 'workers' | 'changeovers' | 'available' | 'activity';
+const ICON: Record<Tab, string> = { board: 'M3 5h18M3 12h18M3 19h18M8 3v18', today: 'M4 6h16v14H4zM4 10h16M9 3v4M15 3v4', workers: 'M9 11a4 4 0 100-8 4 4 0 000 8zM2 21c0-4 3-6 7-6s7 2 7 6M17 11a3 3 0 100-6M22 21c0-3-2-5-5-5', changeovers: 'M14 4l6 6M4 20c3 0 5-1 6-3l7-7-4-4-7 7c-2 1-3 3-2 7z', available: 'M3 11l9-7 9 7v9H3zM9 20v-6h6v6', activity: 'M3 12h4l3-8 4 16 3-8h4' };
+const TabIcon = ({ t }: { t: Tab }) => <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={ICON[t]} /></svg>;
 const TABS: { id: Tab; label: string; roles: Role[] }[] = [
   { id: 'board', label: 'Board', roles: ['client', 'manager'] },
   { id: 'today', label: 'Today', roles: ['client', 'manager', 'cleaner'] },
@@ -28,29 +30,30 @@ function Shell({ wide }: { wide: boolean }) {
   const cur = allowed.some(t => t.id === tab) ? tab : allowed[0].id;
   useEffect(() => { location.hash = cur; }, [cur]);
   const [panel, setPanel] = useState<null | { stay?: Stay; roomId?: string; date?: string; workerId?: string }>(null);
-  useEffect(() => { const h = () => setTab(location.hash.slice(1) as Tab); addEventListener('hashchange', h); return () => removeEventListener('hashchange', h); }, []);
+  useEffect(() => { const h = () => setTab((location.hash.slice(1) as Tab) || 'board'); addEventListener('hashchange', h); return () => removeEventListener('hashchange', h); }, []);
   const pendingAlerts = db.alerts.filter(a => a.status === 'queued').length;
   return (
     <div className={'app role-' + u.role}>
       <header className="top">
         <div className="brand"><span className="mark">LR</span><div><b>Roomboard</b><small>Loch Roag · Eshcol Worker Accommodation</small></div></div>
-        {wide && <nav>{allowed.map(t => <a key={t.id} className={cur === t.id ? 'on' : ''} onClick={() => setTab(t.id)}>{t.label}{t.id === 'changeovers' && <em>{db.changeovers.filter(c => c.status !== 'ready').length}</em>}</a>)}</nav>}
+        {wide && <nav aria-label="Main">{allowed.map(t => <button key={t.id} className={'tab' + (cur === t.id ? ' on' : '')} aria-current={cur === t.id ? 'page' : undefined} title={t.label} onClick={() => setTab(t.id)}><TabIcon t={t.id} /><span className="tlbl">{t.label}</span>{t.id === 'changeovers' && <em>{db.changeovers.filter(c => c.status !== 'ready' && !c.cancelled && coBucket(c, londonToday()) !== 'later').length}</em>}</button>)}</nav>}
         <div className="sp" />
-        <span className="live" title="Alerts queued">● Live{pendingAlerts ? ` · ${pendingAlerts} sending` : ''}</span>
-        {data.mode === 'demo' ? <select className="who" value={u.id} onChange={e => data.setUser(e.target.value)} title="Demo: switch role">
-          {db.users.map(x => <option key={x.id} value={x.id}>{x.role === 'cleaner' && u.role === 'client' ? 'Housekeeping view' : x.name} · {x.role === 'client' ? 'Client coordinator · RJ McLeod' : x.role === 'manager' ? 'Provider manager' : 'Cleaner'}</option>)}
+        {data.mode === 'demo' ? <span className="live demo-pill" title="Demo: nothing is really sent">● Demo</span> : <span className="live" title="Connected">● Live{pendingAlerts ? ` · ${pendingAlerts} queued` : ''}</span>}
+        {data.mode === 'demo' ? <select className="who" aria-label="Demo: switch role" value={u.id} onChange={e => data.setUser(e.target.value)} title="Demo: switch role">
+          {db.users.map(x => <option key={x.id} value={x.id}>{x.role === 'cleaner' && u.role === 'client' ? 'Housekeeping view' : x.name.split(' ')[0]} · {x.role === 'client' ? 'Client · RJ McLeod' : x.role === 'manager' ? 'Provider' : 'Cleaner'}</option>)}
         </select> : <span className="who">{u.name}</span>}
       </header>
-      {data.mode === 'demo' && <div className="demo">Demo mode · data is stored in this browser only · <a onClick={() => { if (confirm('Reset all demo data?')) data.reset(); }}>Reset demo</a></div>}
+      {data.mode === 'demo' && <div className="demo">Demo mode · data is stored in this browser only{u.role === 'manager' && <button className="btn sm reset" onClick={() => { if (confirm('Reset all demo data to the starting example?')) data.reset(); }}>Reset demo data</button>}</div>}
       <main>
         {cur === 'board' && (wide ? <Board onOpen={setPanel} /> : <TodayList upcoming onOpen={setPanel} />)}
+        {!wide && cur === 'board' && u.role !== 'cleaner' && <div className="fab"><button className="btn ghost" onClick={() => setPanel({ date: londonToday(), stay: { holdLabel: 'Name to follow' } as Stay })}>Hold</button><button className="btn" onClick={() => setPanel({ date: londonToday() })}>+ Add stay</button></div>}
         {cur === 'today' && <TodayList onOpen={setPanel} />}
         {cur === 'workers' && <Workers onBook={w => setPanel({ date: londonToday(), workerId: w })} />}
         {cur === 'changeovers' && <Changeovers />}
         {cur === 'available' && <Available />}
         {cur === 'activity' && <ActivityView />}
       </main>
-      {!wide && <nav className="bottom">{allowed.map(t => <a key={t.id} className={cur === t.id ? 'on' : ''} onClick={() => setTab(t.id)}>{t.label.split(' ')[0]}</a>)}</nav>}
+      {!wide && <nav className="bottom" aria-label="Main">{allowed.map(t => <button key={t.id} className={cur === t.id ? 'on' : ''} aria-current={cur === t.id ? 'page' : undefined} onClick={() => setTab(t.id)}><TabIcon t={t.id} /><span>{t.id === 'available' ? 'More rooms' : t.label}</span></button>)}</nav>}
       {panel && <StayPanel init={panel} onClose={() => setPanel(null)} />}
     </div>
   );
@@ -64,11 +67,12 @@ function Board({ onOpen }: { onOpen: (p: { stay?: Stay; roomId?: string; date?: 
   const dates = Array.from({ length: days }, (_, i) => addDays(start, i));
   const props = db.properties.filter(p => p.contracted && (filter === 'all' || p.id === filter));
   const vis = db.stays.filter(s => propOf(roomOf(s.roomId).propertyId).contracted);
-  const inHouse = vis.filter(s => s.arrival <= T && (s.departure ?? '9') > T).length;
+  const inHouse = vis.filter(s => s.arrival <= T && (s.departure ?? '9') > T && !(s.away && s.away.from <= T && s.away.to > T)).length;
   const totalRooms = db.rooms.filter(r => propOf(r.propertyId).contracted).length;
   const x = (d: string) => Math.max(0, Math.min(days, diffDays(start, d))) * W;
   const kpi = [
-    ['In house tonight', `${inHouse}/${totalRooms}`, 'across contracted rooms'],
+    ['Rooms allocated tonight', `${vis.filter(s => s.arrival <= T && (s.departure ?? '9') > T).length}/${totalRooms}`, 'incl. away, room kept'],
+    ['Expected on site', inHouse, `${vis.filter(s => s.away && s.away.from <= T && s.away.to > T).length} away tonight`],
     ['Departing today', vis.filter(s => s.departure === T && s.depStatus !== 'tbc').length, vis.filter(s => s.departure === T && s.depStatus === 'planned').length + ' planned, not confirmed'],
     ['Arriving (7 days)', vis.filter(s => s.arrival >= T && s.arrival < addDays(T, 7)).length, 'incl. holds'],
     ['Holds · name to follow', vis.filter(s => !s.workerId && (s.departure ?? '9') > T).length, 'name them when known'],
@@ -77,13 +81,14 @@ function Board({ onOpen }: { onOpen: (p: { stay?: Stay; roomId?: string; date?: 
   return (<div className="page">
     <div className="ph"><div><h1>Occupancy board</h1><p>{fmt(T, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} · Europe/London · arrival day counts as a night, departure day does not</p></div><div className="sp" />
       <select value={filter} onChange={e => setFilter(e.target.value)}><option value="all">All contracted properties</option>{db.properties.filter(p => p.contracted).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
-      <div className="seg"><button onClick={() => setStart(addDays(start, -7))}>‹</button><button onClick={() => setStart(addDays(T, -3))}>Today</button><button onClick={() => setStart(addDays(start, 7))}>›</button></div>
+      <div className="seg"><button aria-label="Previous week" onClick={() => setStart(addDays(start, -7))}>‹</button><button onClick={() => setStart(addDays(T, -3))}>Today</button><button aria-label="Next week" onClick={() => setStart(addDays(start, 7))}>›</button></div>
+      <input type="date" className="jump" aria-label="Jump to date" value={start} onChange={e => e.target.value && setStart(e.target.value)} />
       <div className="seg"><button className={days === 21 ? 'on' : ''} onClick={() => setDays(21)}>3 wks</button><button className={days === 42 ? 'on' : ''} onClick={() => setDays(42)}>6 wks</button></div>
       <button className="btn ghost" onClick={() => onOpen({ date: T, stay: { holdLabel: 'Name to follow' } as Stay })}>Hold room</button>
       <button className="btn" onClick={() => onOpen({ date: T })}>+ Add stay</button></div>
-    <div className="kpis">{kpi.map(([a, b, c]) => <div className="k" key={a as string}><span>{a}</span><b>{b}</b><small>{c}</small></div>)}</div>
+    <div className="kpis k6">{kpi.map(([a, b, c]) => <div className="k" key={a as string}><span>{a}</span><b>{b}</b><small>{c}</small></div>)}</div>
     <div className="board"><div className="scroll"><div style={{ width: 230 + days * W }}>
-      <div className="bh"><div className="corner">Property / room</div>{dates.map(d => { const wd = new Date(d + 'T12:00Z').getUTCDay(); return <div key={d} className={'day' + (d === T ? ' today' : '') + (wd === 0 || wd === 6 ? ' we' : '')} style={{ width: W }}><span>{fmt(d, { weekday: 'short' }).slice(0, W < 50 ? 1 : 3)}</span><b>{fmt(d, { day: 'numeric' })}</b>{fmt(d, { day: 'numeric' }) === '1' && <i>{fmt(d, { month: 'short' })}</i>}</div>; })}</div>
+      <div className="bh"><div className="corner">Property / room</div>{dates.map(d => { const wd = new Date(d + 'T12:00Z').getUTCDay(); return <div key={d} className={'day' + (d === T ? ' today' : '') + (wd === 0 || wd === 6 ? ' we' : '')} style={{ width: W }}><span className={d.endsWith('-01') ? 'mo' : ''}>{d.endsWith('-01') || d === start ? fmt(d, { month: 'short' }) : fmt(d, { weekday: 'short' }).slice(0, W < 50 ? 1 : 3)}</span><b>{fmt(d, { day: 'numeric' })}</b></div>; })}</div>
       {props.map(p => (<div key={p.id}>
         <div className="grp"><div className="gl">{p.photo && <img src={p.photo} alt="" />}<div><b>{p.name}</b><span>{db.rooms.filter(r => r.propertyId === p.id).length} rooms · {vis.filter(s => roomOf(s.roomId).propertyId === p.id && s.arrival <= T && (s.departure ?? '9') > T).length} in house</span></div></div></div>
         {db.units.filter(un => un.propertyId === p.id).map(un => (<div key={un.id}>
@@ -99,18 +104,21 @@ function Board({ onOpen }: { onOpen: (p: { stay?: Stay; roomId?: string; date?: 
                   const l = x(s.arrival) + (s.arrival >= start ? W / 2 : 0); const rr = s.departure && s.departure < end ? x(s.departure) + W / 2 : days * W;
                   const open = !s.departure; const hold = !s.workerId; const dep = s.departure === T;
                   const nights = diffDays(s.arrival, T < s.arrival ? s.arrival : T);
-                  return <div key={s.id} className={'bar' + (hold ? ' hold' : '') + (dep ? ' dep' : '') + (open ? ' open' : '') + (s.arrival < start ? ' cutl' : '')} style={{ left: l + 2, width: Math.max(rr - l - 4, 14) }} onClick={() => onOpen({ stay: s })} title={`${stayLabel(s)} · ${fmt(s.arrival)} → ${depText(s)}`}>
-                    <b>{hold ? 'Hold · ' : ''}{stayLabel(s)}</b>
-                    <span>{hold ? (s.arrival > T ? 'from ' + fmt(s.arrival) : '') : s.arrival > T ? 'Arrives ' + fmt(s.arrival) : dep ? (s.depStatus === 'confirmed' ? 'Departs today ✓' : 'Planned departure today') : `Night ${nights + 1}`}{open ? ' · ' + depText(s) : ''}</span>
+                  const width = Math.max(rr - l - 4, 14); const prev = db.stays.find(p => p.roomId === s.roomId && p.departure === s.arrival && p.workerId && p.workerId === s.workerId);
+                  const name = stayLabel(s); const short = width < 150 ? (hold ? 'Hold' : name.split(' ').slice(-1)[0]) : (hold ? 'Hold · ' : '') + name;
+                  const sub = prev ? 'Continues · no clean' : hold ? (s.arrival > T ? 'from ' + fmt(s.arrival) : 'name to follow') : s.arrival > T ? 'Arrives ' + fmt(s.arrival) : dep ? (s.depStatus === 'confirmed' ? 'Departs today (confirmed)' : 'Departs today (planned)') : `Night ${nights + 1}`;
+                  const tip = `${hold ? 'Hold · ' : ''}${name} · ${fmt(s.arrival)} → ${depText(s)} · ${sub}`;
+                  return <div key={s.id} role="button" tabIndex={0} aria-label={tip} className={'bar' + (hold ? ' hold' : '') + (dep ? ' dep' : '') + (open ? ' open' : '') + (prev ? ' cont' : '') + (s.arrival < start ? ' cutl' : '') + (width < 90 ? ' tiny' : '')} style={{ left: l + 2, width }} onClick={() => onOpen({ stay: s })} onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onOpen({ stay: s }))} title={tip}>
+                    {width < 90 ? <b>{short}{!hold && s.arrival <= T && <i className="nc">{nights + 1}n</i>}</b> : <><b>{short}</b><span>{width < 150 && !hold && s.arrival <= T && !dep && !prev ? `N${nights + 1}${open ? ' · ' + (s.depStatus === 'ufn' ? 'UFN' : 'TBC') : ''}` : sub + (open && width >= 150 ? ' · ' + depText(s) : '')}</span></>}
                     {s.away && <i className="away" style={{ left: Math.max(0, x(s.away.from) - l + W / 2), width: (diffDays(s.away.from, s.away.to)) * W }}>Away · room kept</i>}
                   </div>;
                 })}
-                {cos.map(c => <div key={c.id} className={'co co-' + c.status} style={{ left: x(c.afterDate) + W / 2 - 11 }} title={`Changeover · ${c.status}${c.readyBy ? ' · ready by ' + fmt(c.readyBy) : ''}`}><BrushIcon /></div>)}
+                {cos.map(c => <div key={c.id} className={'co co-' + c.status + (c.zeroDay ? ' zero' : '') + (c.cancelled ? ' cancelled' : '') + (c.exception ? ' exc' : '')} style={{ left: x(c.afterDate) + W / 2 - 11 }} title={`Changeover · ${(me().role === 'client' ? CO_CLIENT_LABEL : CO_LABEL)[c.status]}${c.readyBy ? ' · ready by ' + fmt(c.readyBy) : ''}${c.zeroDay ? ' · SAME-DAY turnaround' : ''}${c.exception ? ' · ⚠ EXCEPTION: ' + c.exception : ''}`}><BrushIcon /></div>)}
               </div></div>);
           })}</div>))}
       </div>))}
     </div></div>
-      <div className="legend"><span><i className="lg occ" />In house</span><span><i className="lg dep" />Departing today</span><span><i className="lg hold" />Hold, name to follow</span><span><i className="lg open" />Until further notice / TBC</span><span><span className="co co-scheduled mini"><BrushIcon /></span>Changeover</span><span><i className="lg away" />Away, room retained (no clean)</span><span className="tl">│ Today</span><span className="hint">Click an empty day to add a stay · click a bar to edit</span></div>
+      <div className="legend"><span><i className="lg occ" />In house</span><span><i className="lg dep" />Departing today</span><span><i className="lg hold" />Hold, name to follow</span><span><i className="lg open" />Until further notice / TBC</span><span><span className="co co-scheduled mini"><BrushIcon /></span>Changeover</span><span><i className="lg away" />Away, room retained (no clean)</span><span><span className="co co-needs zero mini"><BrushIcon /></span>Same-day turnaround</span><span className="tl">│ Today</span><span className="hint">Click an empty day to add a stay · click a bar to edit</span></div>
     </div>
   </div>);
 }
@@ -137,33 +145,34 @@ function StayPanel({ init, onClose }: { init: { stay?: Stay; roomId?: string; da
     catch (e) { if (e instanceof ConflictError) setConflict(e.message); else setErr((e as Error).message); }
   };
   const W = workerOf(f.workerId);
-  return (<div className="scrim" onClick={onClose}><aside className="panel" onClick={e => e.stopPropagation()}>
-    <div className="pt"><div><small>{existing ? (existing.workerId ? 'Edit stay' : 'Hold · name to follow') : 'Add stay'}</small><h2>{room ? roomLabel(room.id) : 'Choose a room'}</h2></div><button className="x" onClick={onClose}>×</button></div>
+  useEffect(() => { const k = (e: KeyboardEvent) => e.key === 'Escape' && onClose(); addEventListener('keydown', k); return () => removeEventListener('keydown', k); }, [onClose]);
+  return (<div className="scrim" onClick={onClose}><aside className="panel" role="dialog" aria-modal="true" aria-labelledby="ptitle" onClick={e => e.stopPropagation()}>
+    <div className="pt"><div><small>{existing ? (existing.workerId ? 'Edit stay' : 'Hold · name to follow') : 'Add stay'}</small><h2 id="ptitle">{room ? roomLabel(room.id) : 'Choose a room'}</h2></div><button className="x" aria-label="Close" onClick={onClose}>×</button></div>
     {room?.photo ? <img className="rp" src={room.photo} alt={room.name} /> : room && <div className="rp ph-img">Images to follow</div>}
     {room && <div className="rinfo"><span>{room.floor}</span><span className={'bt bt-' + room.bath}>{bathText(room)}</span>{room.note && room.note !== 'Ensuite' && <span>{room.note}</span>}</div>}
     {conflict && <div className="warn"><b>Someone else changed this stay.</b> {conflict}<div><button className="btn sm" onClick={onClose}>Close and reload</button></div></div>}
     <div className="seg full"><button className={mode === 'worker' ? 'on' : ''} onClick={() => setMode('worker')}>Named worker</button><button className={mode === 'hold' ? 'on' : ''} onClick={() => setMode('hold')}>Hold · name to follow</button></div>
     {mode === 'worker' ? (<div className="fs">
-      <label>Worker</label>
+      <label htmlFor="f-wq">Worker</label>
       {W ? <div className="chosen"><div className="avt">{W.name.split(' ').map(x => x[0]).join('')}</div><div><b>{W.name}</b><small>{W.company} · {W.phone}</small>{W.notes && <small className="note">{W.notes}</small>}</div><button className="link" onClick={() => set({ workerId: null })}>Change</button></div> : <>
-        <input autoFocus placeholder="Search saved workers…" value={q} onChange={e => setQ(e.target.value)} />
+        <input id="f-wq" autoFocus placeholder="Search saved workers…" value={q} onChange={e => setQ(e.target.value)} />
         <div className="chips">{(q ? found : recents).map(w => <button key={w.id} className="chip" onClick={() => { set({ workerId: w.id }); setQ(''); }}>{w.name}<small>{w.company.split(' ')[0]}</small></button>)}</div>
         {!q && <small className="muted">Recent workers · one tap to pick</small>}
         {newW ? <NewWorker onDone={id => { setNewW(false); if (id) set({ workerId: id }); }} /> : <button className="link" onClick={() => setNewW(true)}>+ New worker</button>}
       </>}
       {existing && !existing.workerId && <small className="muted">Naming this hold keeps the same booking. No new record is made.</small>}
-    </div>) : (<div className="fs"><label>Hold label</label><input value={f.holdLabel} onChange={e => set({ holdLabel: e.target.value })} placeholder="Name to follow · e.g. electrician" /></div>)}
-    <div className="fs"><label>Room</label><select value={f.roomId} onChange={e => set({ roomId: e.target.value })}><option value="">Select…</option>
+    </div>) : (<div className="fs"><label htmlFor="f-hold">Hold label</label><input id="f-hold" value={f.holdLabel} onChange={e => set({ holdLabel: e.target.value })} placeholder="Name to follow · e.g. electrician" /></div>)}
+    <div className="fs"><label htmlFor="f-room">Room</label><select id="f-room" value={f.roomId} onChange={e => set({ roomId: e.target.value })}><option value="">Select…</option>
       {db.properties.filter(p => p.contracted).map(p => <optgroup key={p.id} label={p.name}>{db.rooms.filter(r => r.propertyId === p.id).map(r => <option key={r.id} value={r.id}>{r.name} · {r.bath}{freeRooms.includes(r) ? '' : ' (busy)'}</option>)}</optgroup>)}</select>
       {!f.roomId && <small className="muted">{freeRooms.length} rooms free for these dates</small>}</div>
-    <div className="two"><div className="fs"><label>Arrival (first night)</label><input type="date" value={f.arrival} onChange={e => set({ arrival: e.target.value })} /></div>
-      <div className="fs"><label>Departure (leaves that day)</label><input type="date" disabled={f.depStatus === 'tbc' || f.depStatus === 'ufn'} value={f.departure ?? ''} onChange={e => set({ departure: e.target.value || null })} /></div></div>
-    <div className="seg full sm">{([['planned', 'Planned'], ['confirmed', 'Confirmed'], ['tbc', 'Departure TBC'], ['ufn', 'Until further notice']] as [DepStatus, string][]).map(([k, l]) => <button key={k} className={f.depStatus === k ? 'on' : ''} onClick={() => set({ depStatus: k, departure: (k === 'tbc' || k === 'ufn') ? null : (f.departure ?? addDays(f.arrival, 7)) })}>{l}</button>)}</div>
+    <div className="two"><div className="fs"><label htmlFor="f-arr">Arrival (first night)</label><input id="f-arr" type="date" value={f.arrival} onChange={e => set({ arrival: e.target.value })} /></div>
+      <div className="fs"><label htmlFor="f-dep">Departure (leaves that day)</label><input id="f-dep" type="date" disabled={f.depStatus === 'tbc' || f.depStatus === 'ufn'} value={f.departure ?? ''} onChange={e => set({ departure: e.target.value || null })} /></div></div>
+    <div className="seg full sm" role="group" aria-label="Departure status">{([['planned', 'Planned'], ['confirmed', 'Confirmed'], ['tbc', 'Departure TBC'], ['ufn', 'Until further notice']] as [DepStatus, string][]).map(([k, l]) => <button key={k} className={f.depStatus === k ? 'on' : ''} onClick={() => set({ depStatus: k, departure: (k === 'tbc' || k === 'ufn') ? null : (f.departure ?? addDays(f.arrival, 7)) })}>{l}</button>)}</div>
     <small className="muted">{nights !== null ? `${nights} night${nights === 1 ? '' : 's'} · ${fmt(f.arrival)} → ${fmt(f.departure!)}` : 'Open-ended. The room stays allocated and no clean is scheduled.'}{f.depStatus === 'planned' && nights !== null ? ' · A planned departure is not yet confirmed.' : ''}</small>
     {mode === 'worker' && existing && <details className="fs" open={!!f.away}><summary>Away, room retained</summary>
-      <div className="two"><input type="date" value={f.away?.from ?? ''} onChange={e => set({ away: { from: e.target.value, to: f.away?.to ?? addDays(e.target.value, 3) } })} /><input type="date" value={f.away?.to ?? ''} onChange={e => set({ away: f.away ? { ...f.away, to: e.target.value } : null })} /></div>
+      <div className="two"><input type="date" aria-label="Away from" value={f.away?.from ?? ''} onChange={e => set({ away: { from: e.target.value, to: f.away?.to ?? addDays(e.target.value, 3) } })} /><input type="date" aria-label="Back on" value={f.away?.to ?? ''} onChange={e => set({ away: f.away ? { ...f.away, to: e.target.value } : null })} /></div>
       <small className="muted">The room is kept and their things stay. No changeover is triggered. {f.away && <button className="link" onClick={() => set({ away: null })}>Clear</button>}</small></details>}
-    <div className="fs"><label>Notes for the team</label><textarea rows={2} value={f.notes} onChange={e => set({ notes: e.target.value })} placeholder="e.g. late arrival after 10pm ferry" /></div>
+    <div className="fs"><label htmlFor="f-notes">Notes for the team</label><textarea id="f-notes" rows={2} value={f.notes} onChange={e => set({ notes: e.target.value })} placeholder="e.g. late arrival after 10pm ferry" /></div>
     {(err || (live && f.roomId)) && <div className="err">{err || live}</div>}
     <div className="pa">
       {existing && <button className="btn danger ghost" onClick={() => { if (confirm('Cancel this stay?')) { data.deleteStay(existing.id).then(onClose); } }}>Cancel stay</button>}
@@ -181,7 +190,7 @@ function NewWorker({ onDone }: { onDone: (id?: string) => void }) {
 
 // ---------------- Today / Upcoming ----------------
 function TodayList({ onOpen, upcoming }: { onOpen: (p: { stay?: Stay }) => void; upcoming?: boolean }) {
-  const db = useDB(); const u = me(); const T = londonToday(); const [view, setView] = useState<'today' | 'upcoming'>(upcoming ? 'upcoming' : 'today');
+  const db = useDB(); const u = me(); const T = londonToday(); const [view, setView] = useState<'today' | 'upcoming' | 'rooms'>(upcoming ? 'upcoming' : 'today');
   const vis = db.stays.filter(s => propOf(roomOf(s.roomId).propertyId).contracted);
   const nm = (s: Stay) => u.role === 'cleaner' ? stayLabel(s).split(' ')[0] : stayLabel(s);
   const canEdit = u.role !== 'cleaner';
@@ -195,47 +204,68 @@ function TodayList({ onOpen, upcoming }: { onOpen: (p: { stay?: Stay }) => void;
   };
   const t = day(T);
   return (<div className="page narrow">
-    <div className="ph"><div><h1>{view === 'today' ? 'Today' : 'Upcoming'}</h1><p>{fmt(T, { weekday: 'long', day: 'numeric', month: 'long' })}</p></div><div className="sp" /><div className="seg"><button className={view === 'today' ? 'on' : ''} onClick={() => setView('today')}>Today</button><button className={view === 'upcoming' ? 'on' : ''} onClick={() => setView('upcoming')}>Upcoming</button></div></div>
-    {view === 'today' ? <>
+    <div className="ph"><div><h1>{view === 'today' ? 'Today' : view === 'rooms' ? 'Rooms' : 'Upcoming'}</h1><p>{fmt(T, { weekday: 'long', day: 'numeric', month: 'long' })}</p></div><div className="sp" /><div className="seg"><button className={view === 'today' ? 'on' : ''} onClick={() => setView('today')}>Today</button><button className={view === 'upcoming' ? 'on' : ''} onClick={() => setView('upcoming')}>Upcoming</button><button className={view === 'rooms' ? 'on' : ''} onClick={() => setView('rooms')}>Rooms</button></div></div>
+    {view === 'rooms' && db.properties.filter(p => p.contracted).map(p => <section className="card" key={p.id}><h3>{p.name}</h3>{db.rooms.filter(r => r.propertyId === p.id).map(r => { const rs = vis.filter(s => s.roomId === r.id).sort((a, b) => a.arrival.localeCompare(b.arrival)); const now = rs.find(s => s.arrival <= T && (s.departure ?? '9') > T); const nx = rs.find(s => s.arrival > T);
+      return <div className={'rr' + (now && canEdit ? ' click' : '')} key={r.id} onClick={() => now && canEdit && onOpen({ stay: now })}><div className="rn"><b>{r.name}</b><small>{bathText(r)}</small></div><div className="rw">{now ? <><b>{nm(now)}</b><small>Night {diffDays(now.arrival, T) + 1} · departs {depText(now)}</small></> : <span className="muted">Vacant</span>}<small className="nx">Next: {nx ? `${nm(nx)} · ${fmt(nx.arrival)}` : '—'}</small>{(() => { const co = db.changeovers.filter(c => c.roomId === r.id && !c.cancelled && c.status !== 'ready').sort((a, b) => a.afterDate.localeCompare(b.afterDate))[0]; const rd = db.changeovers.find(c => c.roomId === r.id && c.status === 'ready' && c.toStayId === nx?.id); return co ? <small className={'rdy cs-' + co.status}>{(u.role === 'client' ? CO_CLIENT_LABEL : CO_LABEL)[co.status]}{co.exception ? ' · ⚠ exception' : ''}</small> : rd ? <small className="rdy cs-ready">Ready</small> : null; })()}</div></div>; })}</section>)}
+    {view === 'rooms' ? null : view === 'today' ? <>
       <div className="stats"><div><b>{t.dep.length}</b>Departures</div><div><b>{t.arr.length}</b>Arrivals</div><div><b>{t.stay.length}</b>Stayovers</div><div><b>{t.cos.length}</b>Changeovers</div></div>
       <section className="card"><h3>Departures</h3>{t.dep.length ? t.dep.map(s => <Item key={s.id} s={s} tag={s.depStatus === 'confirmed' ? 'Departs' : 'Planned'} sub={s.depStatus === 'confirmed' ? 'Departure confirmed' : 'Planned only. Confirm with the client before stripping the room.'} />) : <p className="muted">No departures today</p>}</section>
       <section className="card"><h3>Changeovers</h3>{t.cos.length ? t.cos.map(c => <CoRow key={c.id} c={c} />) : <p className="muted">No changeovers today</p>}</section>
-      <section className="card"><h3>Arrivals</h3>{t.arr.length ? t.arr.map(s => <Item key={s.id} s={s} tag={s.workerId ? 'Arrives' : 'Hold'} sub={depText(s)} />) : <p className="muted">No arrivals today</p>}</section>
+      <section className="card"><h3>Arrivals</h3>{t.arr.length ? t.arr.map(s => <Item key={s.id} s={s} tag={s.workerId ? 'Arrives' : 'Hold'} sub={'until ' + depText(s)} />) : <p className="muted">No arrivals today</p>}</section>
       <section className="card"><h3>Stayovers</h3>{t.stay.map(s => <Item key={s.id} s={s} tag={s.away && s.away.from <= T && s.away.to > T ? 'Away' : 'In'} sub={`Night ${diffDays(s.arrival, T) + 1} · ${depText(s)}`} />)}</section>
     </> : Array.from({ length: 10 }, (_, i) => addDays(T, i + 1)).map(d => { const x = day(d); if (!x.dep.length && !x.arr.length && !x.cos.length) return null; return <section className="card" key={d}><h3>{fmt(d, { weekday: 'long', day: 'numeric', month: 'short' })}</h3>
       {x.dep.map(s => <Item key={s.id} s={s} tag={s.depStatus === 'confirmed' ? 'Departs' : 'Planned'} sub="Departure" />)}
       {x.cos.map(c => <CoRow key={c.id} c={c} />)}
-      {x.arr.map(s => <Item key={s.id} s={s} tag={s.workerId ? 'Arrives' : 'Hold'} sub={s.workerId ? depText(s) : 'Name to follow'} />)}</section>; })}
+      {x.arr.map(s => <Item key={s.id} s={s} tag={s.workerId ? 'Arrives' : 'Hold'} sub={(s.workerId ? '' : 'Name to follow · ') + 'until ' + depText(s)} />)}</section>; })}
   </div>);
 }
 
 // ---------------- Changeovers ----------------
-const CO_COLS: [CoStatus, string][] = [['needs', 'Needs scheduling'], ['scheduled', 'Scheduled'], ['in_progress', 'In progress'], ['ready', 'Ready']];
+const CO_COLS: CoStatus[] = ['needs', 'scheduled', 'in_progress', 'ready'];
 function CoRow({ c }: { c: Changeover }) {
-  return <div className="li"><span className={'co co-' + c.status} style={{ position: 'static' }}><BrushIcon /></span><div><b>{roomLabel(c.roomId)} changeover</b><small>{c.scheduledFor ? 'Scheduled ' + fmt(c.scheduledFor) : 'After departure ' + fmt(c.afterDate)} · {c.readyBy ? 'ready by ' + fmt(c.readyBy) : 'no arrival booked'}</small></div></div>;
+  const client = me().role === 'client';
+  return <div className="li"><span className={'co co-' + c.status} style={{ position: 'static' }}><BrushIcon /></span><div><b>{roomLabel(c.roomId)} changeover{c.zeroDay && <span className="zchip">Same day</span>}{c.exception && <span className="zchip exc">Exception</span>}{c.invalidated && <span className="zchip exc">Needs rescheduling</span>}</b><small>{coDepartText(c)} · {c.readyBy ? 'ready by ' + fmt(c.readyBy) : 'no arrival booked'} · {(client ? CO_CLIENT_LABEL : CO_LABEL)[c.status]}{c.scheduledFor && c.status !== 'ready' ? ' ' + fmt(c.scheduledFor) : ''}</small></div></div>;
+}
+function CoCard({ c }: { c: Changeover }) {
+  const db = useDB(); const u = me(); const T = londonToday(); const k = c.status; const client = u.role === 'client';
+  const cleaners = db.users.filter(x => x.role === 'cleaner');
+  const [date, setDate] = useState(c.afterDate < T ? T : c.afterDate); const [cl, setCl] = useState(cleaners[0]?.id ?? ''); const [err, setErr] = useState('');
+  const run = (p: Partial<Changeover>) => data.updateChangeover(c.id, p).then(() => setErr(''), e => setErr((e as Error).message));
+  const slack = c.readyBy ? diffDays(T, c.readyBy) : null; const next = db.stays.find(x => x.id === c.toStayId);
+  const canWork = u.role === 'manager' || (u.role === 'cleaner' && (!c.cleanerId || c.cleanerId === u.id));
+  return <div className={'cc' + (slack !== null && slack <= 1 && k !== 'ready' ? ' urgent' : '') + (c.cancelled ? ' flagged' : '')} data-room={c.roomId}>
+    <b>{roomLabel(c.roomId)}{c.zeroDay && <span className="zchip" title="Next guest arrives the same day">Same-day turnaround</span>}</b>
+    <small>{coDepartText(c)} · {c.readyBy ? <>Ready by <strong>{fmt(c.readyBy)}</strong></> : 'No next arrival'}</small>
+    {next && <small>Next: {u.role === 'cleaner' ? (next.workerId ? 'named guest' : 'hold') : stayLabel(next)}</small>}
+    {c.invalidated && <div className="inv">⚠ {c.invalidated}</div>}
+    {c.cancelled && <div className="inv">⚠ {c.cancelled}</div>}
+    {c.exception && <div className="inv exc">⚠ Exception: {c.exception}</div>}
+    {c.zeroDay && (() => { const p = propOf(roomOf(c.roomId).propertyId); return <small className="zwin">Checkout {p.checkout ?? '10:00'} → check-in {p.checkin ?? '15:00'}</small>; })()}
+    {c.note && <small className="note">{c.note}</small>}
+    {client ? <div className={'cstat cs-' + k}>{CO_CLIENT_LABEL[k]}{c.scheduledFor && k !== 'ready' ? ' · ' + fmt(c.scheduledFor) : ''}</div>
+      : <div className="ca">
+        {canWork && k !== 'needs' && (T >= c.afterDate ? <label className="vac"><input type="checkbox" checked={!!c.vacated} onChange={e => run({ vacated: e.target.checked })} /> Vacated (guest has left)</label> : <small className="muted">Vacated can be recorded from {fmt(c.afterDate)}</small>)}
+        {c.cancelled && u.role === 'manager' ? <button className="btn sm ghost" onClick={() => data.dismissChangeover(c.id)}>Dismiss</button>
+        : k === 'needs' ? (u.role === 'manager' && <><input type="date" aria-label="Clean date" value={date} min={c.afterDate} max={c.readyBy ?? undefined} onChange={e => setDate(e.target.value)} />
+            <select aria-label="Cleaner" value={cl} onChange={e => setCl(e.target.value)}>{cleaners.map(x => <option key={x.id} value={x.id}>{x.name.split(' ')[0]}</option>)}</select>
+            <button className="btn sm" onClick={() => { const out = date < c.afterDate || (!!c.readyBy && date > c.readyBy); if (out) { if (!confirm(`${fmt(date)} is outside the window (departs ${fmt(c.afterDate)}${c.readyBy ? ', next arrival ' + fmt(c.readyBy) : ''}). Schedule anyway as a provider exception? It will stay flagged until resolved.`)) return; run({ status: 'scheduled', scheduledFor: date, cleanerId: cl, exception: `Clean ${fmt(date)} is outside departure ${fmt(c.afterDate)} → arrival ${c.readyBy ? fmt(c.readyBy) : '—'}` }); } else run({ status: 'scheduled', scheduledFor: date, cleanerId: cl }); }}>Schedule</button></>)
+        : k === 'scheduled' ? canWork && <button className="btn sm" disabled={!c.vacated} title={c.vacated ? '' : 'Record the actual departure first'} onClick={() => run({ status: 'in_progress' })}>Start clean</button>
+        : k === 'in_progress' ? canWork && <button className="btn sm" disabled={!c.vacated} title={c.vacated ? '' : 'Tick Vacated first'} onClick={() => run({ status: 'ready' })}>Mark Ready ✓</button> : null}
+        {c.cleanerId && u.role === 'manager' && <small className="muted">{db.users.find(x => x.id === c.cleanerId)?.name}</small>}
+      </div>}
+    {err && <div className="err" role="alert">{err}</div>}
+  </div>;
 }
 function Changeovers() {
-  const db = useDB(); const u = me(); const T = londonToday();
-  const cleaners = db.users.filter(x => x.role === 'cleaner');
-  const next: Record<CoStatus, CoStatus | null> = { needs: 'scheduled', scheduled: 'in_progress', in_progress: 'ready', ready: null };
-  return (<div className="page"><div className="ph"><div><h1>Changeovers</h1><p>Room readiness is tracked separately from stays. The client can see every status. Extending a stay or bringing an arrival forward resets Ready.</p></div></div>
-    <div className="kanban">{CO_COLS.map(([k]) => { const l = (u.role === 'client' ? CO_CLIENT_LABEL : CO_LABEL)[k]; const list = db.changeovers.filter(c => c.status === k).sort((a, b) => (a.readyBy ?? '9').localeCompare(b.readyBy ?? '9'));
-      return <div className="col" key={k}><h3><span className={'co co-' + k} style={{ position: 'static' }}><BrushIcon /></span>{l}<em>{list.length}</em></h3>
-        {list.map(c => { const slack = c.readyBy ? diffDays(T, c.readyBy) : null; return <div className={'cc' + (slack !== null && slack <= 1 && k !== 'ready' ? ' urgent' : '')} key={c.id}>
-          <b>{roomLabel(c.roomId)}</b>
-          <small>Vacated {fmt(c.afterDate)} · {c.readyBy ? <>Ready by <strong>{fmt(c.readyBy)}</strong></> : 'No next arrival'}</small>
-          {c.toStayId && <small>Next: {(() => { const s = db.stays.find(x => x.id === c.toStayId); return s ? (u.role === 'cleaner' ? (s.workerId ? 'named guest' : 'hold') : stayLabel(s)) : ''; })()}</small>}
-          {c.invalidated && <div className="inv">⚠ {c.invalidated}</div>}
-          {c.note && <small className="note">{c.note}</small>}
-          {u.role === 'client' && <div className={'cstat cs-' + k}>{CO_CLIENT_LABEL[k]}{c.scheduledFor && k !== 'ready' ? ' · ' + fmt(c.scheduledFor) : ''}</div>}
-          {u.role !== 'client' && <div className="ca">
-            {k === 'needs' && u.role === 'manager' ? <><input type="date" defaultValue={addDays(c.afterDate, 0)} id={'d' + c.id} /><select id={'c' + c.id}>{cleaners.map(x => <option key={x.id} value={x.id}>{x.name.split(' ')[0]}</option>)}</select>
-              <button className="btn sm" onClick={() => data.updateChangeover(c.id, { status: 'scheduled', scheduledFor: (document.getElementById('d' + c.id) as HTMLInputElement).value, cleanerId: (document.getElementById('c' + c.id) as HTMLSelectElement).value })}>Schedule</button></>
-              : next[k] && k !== 'needs' && <button className="btn sm" onClick={() => data.updateChangeover(c.id, { status: next[k]! })}>{k === 'scheduled' ? 'Start clean' : 'Mark Ready ✓'}</button>}
-            {c.cleanerId && u.role === 'manager' && <small className="muted">{db.users.find(x => x.id === c.cleanerId)?.name}</small>}
-          </div>}
-        </div>; })}
-        {!list.length && <p className="muted empty">Nothing here</p>}</div>; })}</div></div>);
+  const db = useDB(); const u = me(); const T = londonToday(); const client = u.role === 'client';
+  const recent = db.changeovers.filter(c => !(c.status === 'ready' && (c.readyBy ?? c.afterDate) < addDays(T, -2)));
+  const cols: (CoStatus | 'later')[] = [...CO_COLS, 'later'];
+  const title = (k: CoStatus | 'later') => k === 'later' ? 'Later' : (client ? CO_CLIENT_LABEL : CO_LABEL)[k];
+  return (<div className="page"><div className="ph"><div><h1>Changeovers</h1><p>Room readiness is tracked separately from stays. "Needs scheduling" shows the next 7 days or rooms with a next arrival booked. Ready needs the guest marked as vacated.</p></div><div className="sp" />{u.role === 'manager' && db.properties.filter(p => p.contracted).map(p => <div className="times" key={p.id}><b>{p.short}</b><label>Checkout <input type="time" value={p.checkout ?? '10:00'} onChange={e => data.updateProperty(p.id, { checkout: e.target.value, checkin: p.checkin ?? '15:00' })} /></label><label>Check-in <input type="time" value={p.checkin ?? '15:00'} onChange={e => data.updateProperty(p.id, { checkout: p.checkout ?? '10:00', checkin: e.target.value })} /></label></div>)}</div>
+    <div className="kanban k5">{cols.map(k => { const list = recent.filter(c => { const b = coBucket(c, T); return b === k || (b === 'cancelled' && k === 'needs'); }).sort((a, b) => (a.readyBy ?? a.afterDate).localeCompare(b.readyBy ?? b.afterDate));
+      return <section className={'col col-' + k} key={k} aria-label={title(k)}><h3><span className={'co co-' + (k === 'later' ? 'later' : k)} style={{ position: 'static' }}><BrushIcon /></span>{title(k)}<em>{list.length}</em></h3>
+        {list.map(c => <CoCard key={c.id} c={c} />)}
+        {!list.length && <p className="muted empty">Nothing here</p>}</section>; })}</div></div>);
 }
 
 // ---------------- Workers ----------------
@@ -255,22 +285,22 @@ function Workers({ onBook }: { onBook: (id: string) => void }) {
 // ---------------- Available elsewhere ----------------
 function Available() {
   const db = useDB(); const T = londonToday(); const [req, setReq] = useState<string | null>(null);
-  const [form, setForm] = useState({ from: addDays(T, 3), to: addDays(T, 17), longTerm: false, people: 1, note: '' }); const [sent, setSent] = useState<string | null>(null);
+  const [form, setForm] = useState({ from: addDays(T, 3), to: addDays(T, 17), longTerm: false, people: 1, note: '' }); const [sent, setSent] = useState<string | null>(null); const [rerr, setRerr] = useState('');
   const others = db.properties.filter(p => !p.contracted);
   const art: Record<string, string> = { 'p-pod1': 'pod', 'p-pod2': 'pod', 'p-lodge': 'lodge', 'p-cottage': 'cottage', 'p-monadh': 'lodge' };
   return (<div className="page"><div className="hero" style={{ backgroundImage: 'linear-gradient(90deg,rgba(7,24,47,.92),rgba(7,24,47,.55)),url(img/eshcol-exterior.jpg)' }}><small>Need more rooms?</small><h1>Available elsewhere on Lewis</h1><p>Hebridean Holiday Cabins and Whitefalls Spa Lodges, from the same team. Same standards, one coordinator. Short stays or long-term.</p></div>
-    {sent && <div className="ok">✓ Request sent to Donald for {sent}. You'll get a reply by email, usually the same day.</div>}
+    {sent && <div className="ok" role="status">✓ Enquiry sent for {sent}. This is not a booking yet: Donald will confirm availability by email, usually the same day.</div>}
     {[...new Set(others.map(p => p.brand ?? 'Other'))].map(brand => <div key={brand}><h2 className="brandh">{brand}<small>{others.filter(p => (p.brand ?? 'Other') === brand).length} available</small></h2>
     <div className="cards">{others.filter(p => (p.brand ?? 'Other') === brand).map(p => <div className="ucard" key={p.id}>
       <div className={'art art-' + art[p.id]}><span>{p.beds}</span><em>Photos to follow</em></div>
       <div className="ub"><h3>{p.name}</h3><p>{p.blurb}</p><div className="feat">{p.features.map(f => <span key={f}>{f}</span>)}</div>
-        <div className="avl"><span className="dot" />Available now</div>
+        <div className="avl">Enquire for dates · Donald confirms availability</div>
         {req === p.id ? <div className="rq"><div className="two"><label>From<input type="date" value={form.from} onChange={e => setForm({ ...form, from: e.target.value })} /></label><label>To<input type="date" disabled={form.longTerm} value={form.to} onChange={e => setForm({ ...form, to: e.target.value })} /></label></div>
           <label className="cb"><input type="checkbox" checked={form.longTerm} onChange={e => setForm({ ...form, longTerm: e.target.checked })} /> Long-term / until further notice</label>
           <label>People<input type="number" min={1} value={form.people} onChange={e => setForm({ ...form, people: +e.target.value })} /></label>
-          <textarea rows={2} placeholder="Anything we should know?" value={form.note} onChange={e => setForm({ ...form, note: e.target.value })} />
-          <div className="pa"><button className="link" onClick={() => setReq(null)}>Cancel</button><div className="sp" /><button className="btn" onClick={() => { data.addEnquiry({ propertyId: p.id, from: form.from, to: form.longTerm ? null : form.to, longTerm: form.longTerm, people: form.people, note: form.note }); setSent(p.name); setReq(null); }}>Send request</button></div></div>
-          : <button className="btn full" onClick={() => setReq(p.id)}>Request</button>}
+          <textarea rows={2} aria-label="Note" placeholder="Anything we should know?" value={form.note} onChange={e => setForm({ ...form, note: e.target.value })} />
+          <div className="pa"><button className="link" onClick={() => setReq(null)}>Cancel</button><div className="sp" /><button className="btn" onClick={() => data.addEnquiry({ propertyId: p.id, from: form.from, to: form.longTerm ? null : form.to, longTerm: form.longTerm, people: form.people, note: form.note }).then(() => { setSent(`${p.name} · ${form.people} ${form.people === 1 ? 'person' : 'people'} · ${fmt(form.from)}${form.longTerm ? ' (long-term)' : ' → ' + fmt(form.to)}`); setReq(null); setRerr(''); }, e => setRerr((e as Error).message))}>Send enquiry</button></div>{rerr && <div className="err" role="alert">{rerr}</div>}</div>
+          : <button className="btn full" onClick={() => setReq(p.id)}>Request dates</button>}
       </div></div>)}</div></div>)}
     {me().role === 'manager' && db.enquiries.length > 0 && <section className="card"><h3>Requests received</h3>{db.enquiries.map(e => <div className="li" key={e.id}><span className="tag t-new">New</span><div><b>{propOf(e.propertyId).name} · {e.people} people</b><small>From {fmt(e.from)} {e.longTerm ? '· long-term' : e.to ? '→ ' + fmt(e.to) : ''} {e.note && '· ' + e.note}</small></div></div>)}</section>}
   </div>);
@@ -286,8 +316,12 @@ function ActivityView() {
   return (<div className="page"><div className="ph"><div><h1>Activity</h1><p>A full log of who changed what and when, plus the alerts that went out.</p></div></div>
     <div className="grid2"><section className="card"><h3>Activity log</h3>{grouped.map(a => <div className="act" key={a.id}><div className="avt sm">{name(a.userId).split(' ').map(x => x[0]).join('')}</div><div><b>{name(a.userId)}</b> {a.text}<small>{new Date(a.ts).toLocaleString('en-GB', { timeZone: 'Europe/London', weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</small></div></div>)}</section>
       <div><section className="card"><h3>7:00 morning digest <div className="seg sm" style={{ float: 'right' }}>{roles.map(r => <button key={r} className={role === r ? 'on' : ''} onClick={() => setRole(r)}>{r}</button>)}</div></h3><pre className="digest">{digest(role)}</pre><small className="muted">Sent by email every day at 07:00 Europe/London (scheduled job in production)</small></section>
-        <section className="card"><h3>Alert outbox</h3><small className="muted">Queued with automatic retry. In production, push, email (Resend) and SMS (Twilio) are sent by the dispatcher.</small>
-          {alerts.slice(0, 14).map(a => <div className="al" key={a.id}><span className={'tag t-' + a.status}>{a.status}{a.attempts > 1 ? ` ·${a.attempts}` : ''}</span><span className="ch">{a.channel}</span><div><b>{a.subject}</b><small>{viewer.role === 'manager' ? a.to : 'To you'}</small></div></div>)}
+        <section className="card"><h3>My alerts</h3><small className="muted">Email is on by default. SMS is optional. The person who makes a change is never alerted.</small>
+          <label className="cb"><input type="checkbox" checked disabled /> Email {viewer.email ? `(${viewer.email})` : '(address to follow)'}</label>
+          <label className="cb"><input type="checkbox" checked={!!viewer.smsOptIn} onChange={e => data.setPrefs(viewer.id, { smsOptIn: e.target.checked })} /> SMS {viewer.phone ? `(${viewer.phone})` : '(number to follow)'}</label>
+          <label className="cb"><input type="checkbox" checked={!!viewer.pushEnabled} onChange={e => data.setPrefs(viewer.id, { pushEnabled: e.target.checked })} /> Push / in-app</label></section>
+        <section className="card"><h3>Alert outbox</h3><small className="muted">Queued with automatic retry. Demo: alerts are simulated, not sent. Live states are queued → accepted → delivered (where known) / failed → acknowledged.</small>
+          {alerts.slice(0, 14).map(a => <div className="al" key={a.id}><span className={'tag t-' + a.status}>{a.status === 'no_address' ? 'no address' : a.status}{a.attempts > 1 ? ` · try ${a.attempts}` : ''}</span><span className="ch">{a.channel}</span><div><b>{a.subject}</b><small>{viewer.role === 'manager' ? a.to : 'To you'}</small></div></div>)}
           {!alerts.length && <p className="muted">No alerts yet. Make a change on the board.</p>}</section></div></div></div>);
 }
 

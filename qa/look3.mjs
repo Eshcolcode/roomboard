@@ -65,10 +65,15 @@ if (want('crew')) {
   const p = await pg(1440, 1000, 'u-client');
   await p.goto(U + '#crew');
   await p.waitForTimeout(300);
-  await p.fill('#c-label', 'RJ McLeod night crew');
+  await p.fill('#c-label', 'RJ McLeod subsea crew');
+  await p.selectOption('#c-prop', 'p-es');
+  const T = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/London' }).format(new Date());
+  const d = new Date(Date.parse(T + 'T00:00Z') + 35 * 864e5).toISOString().slice(0, 10);
+  await p.fill('#c-start', `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}`);
+  await p.locator('#c-start').blur();
   const boxes = p.locator('.wpick input[type=checkbox]');
   for (let i = 0; i < 3; i++) await boxes.nth(i).check();
-  await p.fill('#c-holds', '5');
+  await p.fill('#c-holds', '4');
   await p.waitForTimeout(200);
   await p.screenshot({ path: OUT + '/v2-crew-preview.png', fullPage: true });
 }
@@ -77,6 +82,20 @@ if (want('phone')) {
   await p.goto(U + '#rooms');
   await p.waitForTimeout(300);
   await p.screenshot({ path: OUT + '/v2-phone-rooms.png' });
+}
+if (want('phonecrew')) {
+  const p = await pg(390, 844, 'u-client', true);
+  await p.goto(U + '#crew');
+  await p.waitForTimeout(300);
+  await p.fill('#c-holds', '3');
+  await p.waitForTimeout(200);
+  await p.screenshot({ path: OUT + '/v2-phone-crew.png', fullPage: true });
+}
+if (want('w1280')) {
+  const p = await pg(1280, 800);
+  await p.goto(U + '#rooms');
+  await p.waitForTimeout(300);
+  await p.screenshot({ path: OUT + '/v2-rooms-1280.png' });
 }
 if (want('phonemgr')) {
   const p = await pg(390, 844, 'u-donald', true);

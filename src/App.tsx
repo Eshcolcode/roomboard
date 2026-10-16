@@ -31,7 +31,7 @@ const LABEL: Record<Tab, string> = {
   workers: 'Workers',
   available: 'More rooms',
   activity: 'Activity',
-  crew: 'Crew booking',
+  crew: 'Crew',
   more: 'More',
 };
 const DESKTOP: Record<Role, Tab[]> = {

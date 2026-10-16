@@ -2952,3 +2952,29 @@ button:focus-visible {
 .rooms.rgroup h3 small {
   float: none;
 }
+/* v2: nine tabs for the provider — tighten, then keep only the current tab's label */
+.top {
+  gap: 18px;
+}
+@media (max-width: 1500px) {
+  nav .tab {
+    padding: 19px 7px;
+    gap: 5px;
+  }
+  .top {
+    gap: 12px;
+  }
+}
+@media (max-width: 1400px) {
+  .role-manager nav .tab:not(.on) .tlbl {
+    display: none;
+  }
+}
+@media (max-width: 1250px) {
+  nav .tab:not(.on) .tlbl {
+    display: none;
+  }
+}
+.row3 {
+  grid-template-columns: 1.7fr 0.8fr 0.8fr;
+}

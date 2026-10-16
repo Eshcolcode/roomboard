@@ -8,6 +8,9 @@ export interface Repo {
   deleteStay(id: string): Promise<void>;
   confirmDeparture(id: string): Promise<void>;
   updateChangeover(id: string, patch: Partial<Changeover>): Promise<void>;
+  dismissChangeover(id: string): Promise<void>;                      // provider clears a flagged (cancelled) changeover
+  updateProperty(id: string, p: { checkout?: string; checkin?: string }): Promise<void>;
+  setPrefs(userId: string, p: { smsOptIn?: boolean; pushEnabled?: boolean }): Promise<void>;
   upsertWorker(w: Partial<Worker> & { name: string }): Promise<Worker>;
   addEnquiry(e: Omit<Enquiry, 'id' | 'ts' | 'status'>): Promise<void>;
   setUser(id: string): Promise<void>;                  // demo: role switch. supabase: no-op (identity = login)

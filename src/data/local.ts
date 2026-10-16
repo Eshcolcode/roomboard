@@ -1,21 +1,21 @@
 // Demo backend: everything lives in this browser (localStorage). Same commands as the Supabase backend.
 import { addDays, londonToday, diffDays, fmt } from '../dates';
-import { S, publish, uid, iso, reconcile, validate, ConflictError, roomOf, propOf, workerOf, stayLabel, roomLabel, depText } from './core';
-import type { DB, Role, User, Alert, Stay, StayInput, DepStatus, Changeover, Worker, Enquiry, Property, Unit, Room, Bath, Activity, CoStatus } from './core';
+import { S, publish, uid, iso, reconcile, CO_LABEL, validate, ConflictError, roomOf, propOf, workerOf, stayLabel, roomLabel, depText } from './core';
+import type { CoEvent, DB, Role, User, Alert, Stay, StayInput, DepStatus, Changeover, Worker, Enquiry, Property, Unit, Room, Bath, Activity, CoStatus } from './core';
 import type { Repo } from './repo';
-const KEY = 'roomboard-demo-v1';
+const KEY = 'roomboard-demo-v2'; // bumped: changeover model changed
 // ---------------- seed (fictitious people) ----------------
 function seed(): DB {
   const T = londonToday();
   const d = (n: number) => addDays(T, n);
   const users: User[] = [
     { id: 'u-client', name: 'Sheena', role: 'client', email: '', phone: '' },
-    { id: 'u-donald', name: 'Donald Macarthur', role: 'manager', email: 'donaldlochroag@gmail.com', phone: '' },
+    { id: 'u-donald', name: 'Donald Macarthur', role: 'manager', email: 'donaldlochroag@gmail.com', phone: '', pushEnabled: true },
     { id: 'u-mairi', name: 'Mairi (demo cleaner)', role: 'cleaner', email: '', phone: '' },
   ];
   const properties: Property[] = [
-    { id: 'p-lr', name: 'Loch Roag Guest House', short: 'Loch Roag', contracted: true, address: '22A Breasclete, Isle of Lewis HS2 9EF', blurb: '9 bedrooms: Rooms 1–5 upstairs, 6–9 downstairs. Rooms 2 and 3 share a shower room, Room 8 has a private shower room, the rest are ensuite. Two kitchens, large games room and lounge. Images to follow.', features: ['9 bedrooms', '2 kitchens', 'Games room & lounge'] },
-    { id: 'p-es', name: 'Eshcol Worker Accommodation', short: 'Eshcol', contracted: true, address: 'Formerly Eshcol Guest House, Breasclete', blurb: 'A newly renovated property with private rooms, modern shower facilities, communal kitchen, lounges, games room and a separate downstairs flat.', photo: 'img/eshcol-exterior.jpg', features: ['Parking', 'High-speed Wi-Fi', 'Laundry', 'Games room'] },
+    { id: 'p-lr', name: 'Loch Roag Guest House', short: 'Loch Roag', contracted: true, checkout: '10:00', checkin: '15:00', address: '22A Breasclete, Isle of Lewis HS2 9EF', blurb: '9 bedrooms: Rooms 1–5 upstairs, 6–9 downstairs. Rooms 2 and 3 share a shower room, Room 8 has a private shower room, the rest are ensuite. Two kitchens, large games room and lounge. Images to follow.', features: ['9 bedrooms', '2 kitchens', 'Games room & lounge'] },
+    { id: 'p-es', name: 'Eshcol Worker Accommodation', short: 'Eshcol', contracted: true, checkout: '10:00', checkin: '15:00', address: 'Formerly Eshcol Guest House, Breasclete', blurb: 'A newly renovated property with private rooms, modern shower facilities, communal kitchen, lounges, games room and a separate downstairs flat.', photo: 'img/eshcol-exterior.jpg', features: ['Parking', 'High-speed Wi-Fi', 'Laundry', 'Games room'] },
     { id: 'p-pod1', brand: 'Hebridean Holiday Cabins', name: 'Pod 1', short: 'Pod 1', contracted: false, address: 'Isle of Lewis', blurb: 'Self-contained 1-bedroom pod. Ideal for a supervisor or a longer solo stay.', beds: '1 bedroom', features: ['1 bed', 'Self-contained', 'Parking'] },
     { id: 'p-pod2', brand: 'Hebridean Holiday Cabins', name: 'Pod 2', short: 'Pod 2', contracted: false, address: 'Isle of Lewis', blurb: 'Self-contained 1-bedroom pod beside Pod 1. Book both together for a pair.', beds: '1 bedroom', features: ['1 bed', 'Self-contained', 'Parking'] },
     { id: 'p-lodge', brand: 'Hebridean Holiday Cabins', name: 'The Lodge', short: 'Lodge', contracted: false, address: 'Isle of Lewis', blurb: '2-bedroom lodge, both bedrooms ensuite. Suits two colleagues on a long rotation.', beds: '2 bedrooms · both ensuite', features: ['2 ensuite bedrooms', 'Kitchen', 'Long-term welcome'] },
@@ -44,7 +44,7 @@ function seed(): DB {
     ['Daniel Reid', 'RJ McLeod', ''], ['Tomasz Zieliński', 'RJ McLeod', ''],
     ['Fraser Munro', 'RJ McLeod', 'Van parking needed'], ['Kenny Maciver', 'RJ McLeod', ''],
     ['Gary Buchanan', 'RJ McLeod', ''], ['Lewis Paterson', 'RJ McLeod', ''], ['Piotr Wiśniewski', 'RJ McLeod', ''],
-    ['Alasdair Matheson', 'RJ McLeod', 'Site supervisor'], ['Jamie Ross', 'RJ McLeod', ''],
+    ['Alasdair Matheson', 'RJ McLeod', 'Site supervisor'], ['Jamie Ross', 'RJ McLeod', ''], ['Craig Henderson', 'RJ McLeod', ''],
   ];
   const workers: Worker[] = names.map(([n, c, notes], i) => ({ id: `w-${i + 1}`, name: n, company: c, phone: `+44 7700 9${String(10200 + i).slice(-5)}`, notes, uses: 3 + (i * 7) % 9, lastUsed: d(-(i % 6)) }));
   const S = (roomId: string, w: number | null, a: number, dep: number | null, depStatus: DepStatus = 'planned', extra: Partial<Stay> = {}): Stay =>
@@ -54,12 +54,12 @@ function seed(): DB {
   const stays: Stay[] = [
     S('lr-1', 1, -22, 14), S('lr-2', 2, -9, 7), S('lr-2', 2, 8, 21), S('lr-3', 3, -41, null, 'ufn'), S('lr-4', 4, -4, 5),
     S('lr-4', null, 6, 20), S('lr-5', 5, -16, null, 'ufn', { away: { from: d(1), to: d(5) } }), S('lr-6', 6, -2, 10), S('lr-7', 7, -30, null, 'tbc'),
-    room8, hold8, S('lr-9', 9, -12, 12),
+    room8, hold8, S('lr-9', 9, -12, 12), S('lr-9', 9, 12, 26),
     S('es-1', 16, -20, null, 'ufn'), S('es-2', 10, -6, 9), S('es-3', 11, -3, 2, 'confirmed'), S('es-4', 13, -10, 18), S('es-6', 14, 1, 15),
-    S('es-7', 15, -18, null, 'ufn'), S('es-8', 12, -5, 1, 'confirmed'), S('es-10', 17, -1, 13),
+    S('es-7', 15, -18, null, 'ufn'), S('es-8', 12, -5, 1, 'confirmed'), S('es-8', 18, 1, 15), S('es-10', 17, -1, 13),
   ];
   const changeovers: Changeover[] = [
-    { id: uid(), roomId: 'lr-8', fromStayId: room8.id, toStayId: hold8.id, afterDate: d(0), readyBy: d(4), status: 'scheduled', scheduledFor: d(1), cleanerId: 'u-mairi', note: 'Full turnover, fresh linen, check shared shower room' },
+    { id: uid(), roomId: 'lr-8', fromStayId: room8.id, toStayId: hold8.id, afterDate: d(0), readyBy: d(4), status: 'scheduled', scheduledFor: d(1), cleanerId: 'u-mairi', vacated: false, note: 'Full turnover, fresh linen, check shared shower room' },
   ];
   const activity: Activity[] = [
     { id: uid(), ts: new Date(Date.now() - 36e5 * 5).toISOString(), userId: 'u-client', text: `Confirmed departure tonight for Neil Mackenzie · Loch Roag Room 8`, propertyId: 'p-lr' },
@@ -73,12 +73,36 @@ function seed(): DB {
 function load(): DB { try { const s = localStorage.getItem(KEY); if (s) return JSON.parse(s); } catch { /* ignore */ } const x = seed(); reconcile(x); return x; }
 function commit() { const n = { ...S.db }; localStorage.setItem(KEY, JSON.stringify(n)); publish(n); }
 function log(text: string, propertyId?: string) { S.db.activity = [{ id: uid(), ts: iso(), userId: S.db.currentUser, text, propertyId }, ...S.db.activity].slice(0, 300); }
-function queue(channel: Alert['channel'], to: User, subject: string, body: string) {
-  S.db.alerts = [{ id: uid(), ts: iso(), channel, to: `${to.name} <${channel === 'sms' ? to.phone : to.email}>`, subject, body, status: 'queued' as const, attempts: 0, nextAttemptAt: Date.now() + 1500 }, ...S.db.alerts].slice(0, 200);
+// ---- alert routing (mirrors enqueue_for() in 0002_rules.sql) ----
+// One channel per user by default (email). SMS only if the user opted in; push only if enabled. Never alert the actor.
+function queueFor(u: User, subject: string, body: string) {
+  if (u.id === S.db.currentUser) return;
+  const chans: Alert['channel'][] = ['email']; if (u.smsOptIn) chans.push('sms'); if (u.pushEnabled) chans.push('push');
+  for (const ch of chans) {
+    const addr = ch === 'sms' ? u.phone : ch === 'email' ? u.email : 'app';
+    S.db.alerts = [{ id: uid(), ts: iso(), channel: ch, toUserId: u.id, to: `${u.name} <${addr || 'no address yet'}>`, subject, body, status: addr ? 'queued' as const : 'no_address' as const, attempts: 0, nextAttemptAt: Date.now() + 1500 }, ...S.db.alerts].slice(0, 200);
+  }
 }
-function notify(audience: Role[], subject: string, body: string, sms = false) {
-  for (const u of S.db.users) if (audience.includes(u.role) && u.id !== S.db.currentUser) {
-    queue('push', u, subject, body); queue('email', u, subject, body); if (sms) queue('sms', u, subject, body);
+const usersOf = (r: Role) => S.db.users.filter(u => u.role === r);
+const actorRole = () => S.db.users.find(u => u.id === S.db.currentUser)?.role;
+/** stay changes: provider edits → client; client edits → provider */
+function alertStayChange(subject: string, body: string) {
+  const a = actorRole(); const to = a === 'client' ? usersOf('manager') : a === 'manager' ? usersOf('client') : [];
+  to.forEach(u => queueFor(u, subject, body));
+}
+/** changeover events → cleaners (assigned one if set); invalidations/cancellations also → provider */
+function alertChangeover(c: Changeover, subject: string, body: string, alsoProvider = false) {
+  const cl = c.cleanerId ? S.db.users.filter(u => u.id === c.cleanerId) : usersOf('cleaner');
+  cl.forEach(u => queueFor(u, subject, body)); if (alsoProvider) usersOf('manager').forEach(u => queueFor(u, subject, body));
+}
+function handle(ev: CoEvent[]) {
+  for (const e of ev) {
+    const rl = roomLabel(e.roomId); const pid = roomOf(e.roomId).propertyId;
+    if (e.kind === 'invalidated' && e.co) { log(`⚠ Changeover ${rl} needs rescheduling: dates changed`, pid); alertChangeover(e.co, `⚠ ${rl} changeover needs rescheduling`, e.text, true); }
+    if (e.kind === 'cancelled' && e.co) { log(`⚠ Changeover ${rl} kept but flagged: departure removed after it was scheduled`, pid); alertChangeover(e.co, `⚠ ${rl} changeover may not be needed`, e.text, true); }
+    if (e.kind === 'moved' && e.co) { log(`Changeover ${rl}: ${e.text}`, pid); if (e.co.status !== 'needs') alertChangeover(e.co, `${rl} ready-by moved`, e.text); }
+    if (e.kind === 'continues') log(`${rl}: same worker continues, no clean needed`, pid);
+    if (e.kind === 'created' && e.co?.zeroDay) log(`⚠ ${rl}: same-day changeover (departure and arrival ${fmt(e.co.afterDate)})`, pid);
   }
 }
 
@@ -88,7 +112,8 @@ function saveStay(inp: StayInput): Stay {
   const r = roomOf(inp.roomId); const who = inp.workerId ? workerOf(inp.workerId)!.name : inp.holdLabel || 'Name to follow';
   if (inp.workerId) { const w = workerOf(inp.workerId)!; w.uses++; w.lastUsed = londonToday(); }
   if (inp.id) {
-    const cur = S.db.stays.find(s => s.id === inp.id)!;
+    const cur = S.db.stays.find(s => s.id === inp.id);
+    if (!cur) throw new ConflictError('This stay was cancelled by someone else.');
     if (cur.version !== inp.version) throw new ConflictError(`This stay was changed by ${S.db.users.find(u => u.id === cur.updatedBy)?.name ?? 'someone else'} while you were editing. Reload to see the latest before saving.`);
     const changes: string[] = [];
     if (!cur.workerId && inp.workerId) changes.push(`named hold as ${who}`);
@@ -96,51 +121,71 @@ function saveStay(inp: StayInput): Stay {
     if (cur.roomId !== inp.roomId) changes.push(`moved to ${r.name}`);
     if (cur.arrival !== inp.arrival) changes.push(`arrival ${fmt(cur.arrival)} → ${fmt(inp.arrival)}`);
     if (cur.departure !== inp.departure || cur.depStatus !== inp.depStatus) changes.push(`departure ${depText(cur)} → ${depText({ ...cur, ...inp } as Stay)}`);
-    if (JSON.stringify(cur.away ?? null) !== JSON.stringify(inp.away)) changes.push(inp.away ? `away (room retained) ${fmt(inp.away.from)}–${fmt(inp.away.to)}` : 'cleared away dates');
-    const extended = (cur.departure ?? '9') < (inp.departure ?? '9~') || (inp.depStatus !== cur.depStatus && (inp.depStatus === 'ufn' || inp.depStatus === 'tbc'));
-    const broughtForward = inp.arrival < cur.arrival;
+    if (JSON.stringify(cur.away ?? null) !== JSON.stringify(inp.away ?? null)) changes.push(inp.away ? `away (room retained) ${fmt(inp.away.from)}–${fmt(inp.away.to)}` : 'cleared away dates');
+    if ((cur.notes ?? '') !== (inp.notes ?? '')) changes.push('notes updated');
     Object.assign(cur, inp, { version: cur.version + 1, updatedBy: S.db.currentUser, updatedAt: iso() });
-    const text = `${roomLabel(cur.roomId)} · ${stayLabel(cur)}: ${changes.join(', ') || 'details updated'}`;
-    log(text, r.propertyId);
-    const before = S.db.changeovers.map(c => c.status + c.id);
-    reconcile(S.db);
-    const invalid = S.db.changeovers.filter(c => c.invalidated && before.some(b => b.endsWith(c.id) && !b.startsWith('needs')));
-    for (const c of invalid) notify(['manager', 'cleaner', 'client'], `⚠ ${roomLabel(c.roomId)} no longer ready`, `${c.invalidated}. ${extended ? 'Stay was extended.' : broughtForward ? 'Arrival brought forward.' : ''}`, true);
-    notify(['manager', 'cleaner', 'client'], `Stay updated · ${roomLabel(cur.roomId)}`, text, cur.departure === londonToday() || broughtForward);
+    const text = `${roomLabel(cur.roomId)} · ${stayLabel(cur)}: ${changes.join(', ') || 'no changes'}`;
+    log(text, r.propertyId); handle(reconcile(S.db));
+    if (changes.length) alertStayChange(`Stay updated · ${roomLabel(cur.roomId)}`, text);
     commit(); return cur;
   }
   const s: Stay = { id: uid(), ...inp, version: 1, updatedBy: S.db.currentUser, updatedAt: iso() } as Stay;
   S.db.stays.push(s);
   const text = `${inp.workerId ? 'Booked' : 'Held'} ${roomLabel(s.roomId)} for ${who} from ${fmt(s.arrival)} → ${depText(s)}`;
-  log(text, r.propertyId); reconcile(S.db);
-  notify(['manager', 'cleaner', 'client'], inp.workerId ? `New arrival · ${roomLabel(s.roomId)}` : `Room held · ${roomLabel(s.roomId)}`, text, diffDays(londonToday(), s.arrival) <= 2);
+  log(text, r.propertyId); handle(reconcile(S.db));
+  alertStayChange(inp.workerId ? `New arrival · ${roomLabel(s.roomId)}` : `Room held · ${roomLabel(s.roomId)}`, text);
   commit(); return s;
 }
 function deleteStay(id: string) {
-  const s = S.db.stays.find(x => x.id === id)!; S.db.stays = S.db.stays.filter(x => x.id !== id);
-  log(`Cancelled ${stayLabel(s)} · ${roomLabel(s.roomId)} (${fmt(s.arrival)})`, roomOf(s.roomId).propertyId); reconcile(S.db);
-  notify(['manager', 'cleaner', 'client'], `Stay cancelled · ${roomLabel(s.roomId)}`, `${stayLabel(s)} from ${fmt(s.arrival)} cancelled`); commit();
+  const s = S.db.stays.find(x => x.id === id); if (!s) return; S.db.stays = S.db.stays.filter(x => x.id !== id);
+  log(`Cancelled ${stayLabel(s)} · ${roomLabel(s.roomId)} (${fmt(s.arrival)})`, roomOf(s.roomId).propertyId); handle(reconcile(S.db));
+  alertStayChange(`Stay cancelled · ${roomLabel(s.roomId)}`, `${stayLabel(s)} from ${fmt(s.arrival)} cancelled`); commit();
 }
 function confirmDeparture(id: string) {
   const s = S.db.stays.find(x => x.id === id)!; s.depStatus = 'confirmed'; s.version++; s.updatedBy = S.db.currentUser; s.updatedAt = iso();
-  log(`Confirmed departure of ${stayLabel(s)} · ${roomLabel(s.roomId)} on ${fmt(s.departure!)}`, roomOf(s.roomId).propertyId);
-  notify(['manager', 'cleaner'], `Departure confirmed · ${roomLabel(s.roomId)}`, `${stayLabel(s)} leaves ${fmt(s.departure!)}`, true); commit();
+  const t = `Confirmed departure of ${stayLabel(s)} · ${roomLabel(s.roomId)} on ${fmt(s.departure!)}`;
+  log(t, roomOf(s.roomId).propertyId); alertStayChange(`Departure confirmed · ${roomLabel(s.roomId)}`, t); commit();
 }
 function updateChangeover(id: string, patch: Partial<Changeover>) {
-  const c = S.db.changeovers.find(x => x.id === id)!; Object.assign(c, patch);
+  const c = S.db.changeovers.find(x => x.id === id); if (!c) throw new Error('This changeover no longer exists.');
+  const next = { ...c, ...patch };
+  const T = londonToday();
+  // Sequence: departure → clean → ready, all before the next arrival. Out-of-window only as an explicit provider exception.
+  if (patch.scheduledFor !== undefined && next.scheduledFor) {
+    const bad = next.scheduledFor < c.afterDate ? `Can't clean before the departure (${fmt(c.afterDate)}).` : c.readyBy && next.scheduledFor > c.readyBy ? `Clean must be on or before the next arrival (${fmt(c.readyBy)}).` : '';
+    if (bad && !patch.exception) throw new Error(bad);
+    if (!bad) c.exception = undefined;
+  }
+  if (patch.vacated && T < c.afterDate) throw new Error(`Can't record vacated before the departure date (${fmt(c.afterDate)}).`);
+  if (next.status === 'in_progress' && !next.vacated) throw new Error('Record that the guest has actually left (tick Vacated) before starting the changeover clean.');
+  if (next.status === 'ready' && (!next.vacated || T < c.afterDate)) throw new Error('Ready needs a recorded actual departure (Vacated) first.');
+  if (next.status === 'ready' && c.exception) c.exception = undefined;
+  const was = c.status; Object.assign(c, patch);
+  if (patch.exception) log(`⚠ Provider exception on ${roomLabel(c.roomId)}: ${patch.exception}`, roomOf(c.roomId).propertyId);
   if (patch.status) c.invalidated = undefined;
-  const label: Record<CoStatus, string> = { needs: 'Needs scheduling', scheduled: 'Scheduled', in_progress: 'In progress', ready: 'Ready' };
-  const t = `Changeover ${roomLabel(c.roomId)} → ${label[c.status]}${c.scheduledFor ? ' · ' + fmt(c.scheduledFor) : ''}`;
-  log(t, roomOf(c.roomId).propertyId); notify(c.status === 'ready' ? ['client', 'manager'] : ['manager', 'cleaner', 'client'], t, t, c.status === 'scheduled'); commit();
+  const rl = roomLabel(c.roomId); const pid = roomOf(c.roomId).propertyId;
+  if (patch.vacated !== undefined && patch.status === undefined) { log(`${rl}: guest ${c.vacated ? 'confirmed vacated' : 'vacated tick removed'}`, pid); commit(); return; }
+  const t = `Changeover ${rl} → ${CO_LABEL[c.status]}${c.scheduledFor && c.status !== 'ready' ? ' · ' + fmt(c.scheduledFor) : ''}`;
+  log(t, pid);
+  if (c.status === 'ready') usersOf('client').forEach(u => queueFor(u, `${rl} is ready`, `${rl} is ready for the next arrival`));
+  else if (c.status === 'scheduled') alertChangeover(c, was === 'needs' && c.scheduledFor ? `Clean scheduled · ${rl}` : `Clean rescheduled · ${rl}`, t);
+  commit();
+}
+function dismissChangeover(id: string) {
+  const c = S.db.changeovers.find(x => x.id === id); if (!c) return; S.db.changeovers = S.db.changeovers.filter(x => x.id !== id);
+  log(`Dismissed flagged changeover ${roomLabel(c.roomId)}`, roomOf(c.roomId).propertyId); alertChangeover(c, `Clean cancelled · ${roomLabel(c.roomId)}`, 'No longer needed'); commit();
 }
 function upsertWorker(w: Partial<Worker> & { name: string }) {
   if (w.id) Object.assign(workerOf(w.id)!, w); else { const nw: Worker = { id: uid(), company: '', phone: '', notes: '', uses: 0, ...w } as Worker; S.db.workers.push(nw); log(`Added worker ${nw.name}`); commit(); return nw; }
   log(`Updated worker ${w.name}`); commit(); return workerOf(w.id!)!;
 }
 function addEnquiry(e: Omit<Enquiry, 'id' | 'ts' | 'status'>) {
+  if (!e.from) throw new Error('Choose a start date.');
+  if (!e.longTerm && (!e.to || e.to <= e.from)) throw new Error('End date must be after the start date, or tick long-term.');
+  if (!(e.people >= 1 && e.people <= 50)) throw new Error('People must be between 1 and 50.');
   S.db.enquiries = [{ ...e, id: uid(), ts: iso(), status: 'new' }, ...S.db.enquiries];
   const t = `Enquiry for ${propOf(e.propertyId).name}: ${e.people} people from ${fmt(e.from)}${e.longTerm ? ' (long-term)' : e.to ? ' to ' + fmt(e.to) : ''}`;
-  log(t, e.propertyId); notify(['manager'], 'New accommodation request', t + (e.note ? ` — "${e.note}"` : ''), true); commit();
+  log(t, e.propertyId); usersOf('manager').forEach(u => queueFor(u, 'New accommodation request', t + (e.note ? ` — "${e.note}"` : ''))); commit();
 }
 // Simulated alert outbox with retry/backoff — mirrors the Supabase dispatcher.
 function tick() {
@@ -148,8 +193,8 @@ function tick() {
   for (const a of S.db.alerts) if (a.status === 'queued' && a.nextAttemptAt <= now) {
     a.attempts++; changed = true;
     const fail = a.channel === 'sms' && a.attempts === 1 && Math.random() < 0.35; // demo a transient SMS failure
-    if (fail) { a.nextAttemptAt = now + 4000 * a.attempts; } else a.status = 'sent';
-    if (a.attempts >= 5 && a.status !== 'sent') a.status = 'failed';
+    if (fail) { a.nextAttemptAt = now + 4000 * a.attempts; } else a.status = 'simulated'; // demo: nothing is actually sent
+    if (a.attempts >= 5 && a.status === 'queued') a.status = 'failed';
   }
   if (changed) commit();
 }
@@ -157,11 +202,18 @@ function tick() {
 
 export const localRepo: Repo = {
   mode: 'demo',
-  async init() { publish(load()); setInterval(tick, 1000); },
+  async init() {
+    publish(load()); setInterval(tick, 1000);
+    // keep tabs in sync so stale edits are detected across tabs too
+    addEventListener('storage', e => { if (e.key === KEY && e.newValue) { const cur = S.db.currentUser; publish({ ...JSON.parse(e.newValue), currentUser: cur }); } });
+  },
   async saveStay(i) { return saveStay(i); },
   async deleteStay(id) { deleteStay(id); },
   async confirmDeparture(id) { confirmDeparture(id); },
   async updateChangeover(id, p) { updateChangeover(id, p); },
+  async dismissChangeover(id) { dismissChangeover(id); },
+  async updateProperty(id, p) { Object.assign(S.db.properties.find(x => x.id === id)!, p); log(`Updated default times for ${S.db.properties.find(x => x.id === id)!.name}: checkout ${p.checkout ?? ''} check-in ${p.checkin ?? ''}`); commit(); },
+  async setPrefs(id, p) { Object.assign(S.db.users.find(u => u.id === id)!, p); commit(); },
   async upsertWorker(w) { return upsertWorker(w); },
   async addEnquiry(e) { addEnquiry(e); },
   async setUser(id) { S.db.currentUser = id; commit(); },

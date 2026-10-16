@@ -12,7 +12,7 @@ const empty = (): DB => ({ v: 1, users: [], properties: [], units: [], rooms: []
 const mapStay = (r: any): Stay => ({ id: r.id, roomId: r.room_id, workerId: r.worker_id, holdLabel: r.hold_label ?? '', arrival: r.arrival, departure: r.departure, depStatus: r.dep_status,
   away: r.away_from ? { from: r.away_from, to: r.away_to } : null, notes: r.notes ?? '', version: r.version, updatedBy: r.updated_by, updatedAt: r.updated_at });
 const mapCo = (r: any): Changeover => ({ id: r.id, roomId: r.room_id, fromStayId: r.from_stay_id, toStayId: r.to_stay_id, afterDate: r.after_date, readyBy: r.ready_by, status: r.status,
-  scheduledFor: r.scheduled_for, cleanerId: r.cleaner_id, note: r.note ?? '', invalidated: r.invalidated_reason ?? undefined });
+  scheduledFor: r.scheduled_for, cleanerId: r.cleaner_id, note: r.note ?? '', invalidated: r.invalidated_reason ?? undefined, vacated: r.vacated, zeroDay: r.zero_day, cancelled: r.cancelled_reason ?? undefined, exception: r.exception_reason ?? undefined });
 
 async function refresh() {
   const { data: { user } } = await sb.auth.getUser();
@@ -22,8 +22,8 @@ async function refresh() {
     sb.from('activity').select('*').order('ts', { ascending: false }).limit(300), sb.from('alert_outbox').select('*').order('created_at', { ascending: false }).limit(50), q('enquiries', 'created_at')]);
   publish({
     v: 1, currentUser: user.id,
-    users: (pr.data ?? []).map((r: any) => ({ id: r.id, name: r.full_name, role: r.role, email: r.email, phone: r.phone ?? '' })),
-    properties: (pp.data ?? []).map((r: any) => ({ id: r.id, name: r.name, short: r.short_name, contracted: r.contracted, address: r.address ?? '', blurb: r.blurb ?? '', photo: r.photo_url ?? undefined, features: r.features ?? [], beds: r.beds_label ?? undefined, brand: r.brand ?? undefined })),
+    users: (pr.data ?? []).map((r: any) => ({ id: r.id, name: r.full_name, role: r.role, email: r.email ?? '', phone: r.phone ?? '', smsOptIn: r.sms_opt_in, pushEnabled: r.push_enabled })),
+    properties: (pp.data ?? []).map((r: any) => ({ id: r.id, name: r.name, short: r.short_name, contracted: r.contracted, address: r.address ?? '', blurb: r.blurb ?? '', photo: r.photo_url ?? undefined, features: r.features ?? [], beds: r.beds_label ?? undefined, brand: r.brand ?? undefined, checkout: r.checkout_time?.slice(0, 5), checkin: r.checkin_time?.slice(0, 5) })),
     units: (un.data ?? []).map((r: any) => ({ id: r.id, propertyId: r.property_id, name: r.name })),
     rooms: (rm.data ?? []).map((r: any) => ({ id: r.id, propertyId: r.property_id, unitId: r.unit_id, name: r.name, bath: r.bath, note: r.note ?? undefined, photo: r.photo_url ?? undefined, floor: r.floor ?? undefined })),
     workers: (wk.data ?? []).map((r: any) => ({ id: r.id, name: r.name, company: r.company ?? '', phone: r.phone ?? '', notes: r.notes ?? '', lastUsed: r.last_used ?? undefined, uses: r.uses ?? 0 })),
@@ -33,7 +33,7 @@ async function refresh() {
     enquiries: (en.data ?? []).map((r: any) => ({ id: r.id, ts: r.created_at, propertyId: r.property_id, from: r.date_from, to: r.date_to, longTerm: r.long_term, people: r.people, note: r.note ?? '', status: r.status })),
   });
 }
-const fail = (e: any) => { if (e?.code === '23P01') throw new Error('That room is already taken for some of those nights.'); if (e) throw new Error(e.message); };
+const fail = (e: any) => { if (e?.code === '23P01') throw new Error('That room is already taken for some of those nights.'); if (e?.code === 'P0001') throw new Error(e.message); if (e) throw new Error(e.message); };
 
 export const supabaseRepo: Repo = {
   mode: 'supabase',
@@ -47,7 +47,9 @@ export const supabaseRepo: Repo = {
       departure: i.depStatus === 'tbc' || i.depStatus === 'ufn' ? null : i.departure, dep_status: i.depStatus, away_from: i.away?.from ?? null, away_to: i.away?.to ?? null, notes: i.notes };
     if (i.id) {
       // optimistic concurrency: only update if nobody bumped the version meanwhile
-      const { data, error } = await sb.from('stays').update(row).eq('id', i.id).eq('version', i.version!).select(); fail(error);
+      // expected_version is checked by the stays_version trigger (raises 40001 on a stale edit)
+      const { data, error } = await sb.from('stays').update({ ...row, version: i.version }).eq('id', i.id).select();
+      if (error?.code === '40001') throw new ConflictError('This stay was changed by someone else while you were editing. Reload to see the latest before saving.'); fail(error);
       if (!data?.length) throw new ConflictError('This stay was changed by someone else while you were editing. Reload to see the latest before saving.');
       await refresh(); return mapStay(data[0]);
     }
@@ -56,8 +58,12 @@ export const supabaseRepo: Repo = {
   async deleteStay(id) { fail((await sb.from('stays').delete().eq('id', id)).error); await refresh(); },
   async confirmDeparture(id) { fail((await sb.from('stays').update({ dep_status: 'confirmed' }).eq('id', id)).error); await refresh(); },
   async updateChangeover(id, p) {
-    fail((await sb.from('changeovers').update({ status: p.status, scheduled_for: p.scheduledFor, cleaner_id: p.cleanerId, note: p.note }).eq('id', id)).error); await refresh();
+    const row: Record<string, unknown> = {}; if (p.status !== undefined) row.status = p.status; if (p.scheduledFor !== undefined) row.scheduled_for = p.scheduledFor; if (p.cleanerId !== undefined) row.cleaner_id = p.cleanerId; if (p.vacated !== undefined) row.vacated = p.vacated; if (p.note !== undefined) row.note = p.note; if (p.exception !== undefined) row.exception_reason = p.exception;
+    fail((await sb.from('changeovers').update(row).eq('id', id)).error); await refresh();
   },
+  async dismissChangeover(id) { fail((await sb.rpc('dismiss_changeover', { co_id: id })).error); await refresh(); },
+  async updateProperty(id, p) { fail((await sb.from('properties').update({ checkout_time: p.checkout, checkin_time: p.checkin }).eq('id', id)).error); await refresh(); },
+  async setPrefs(id, p) { fail((await sb.from('profiles').update({ sms_opt_in: p.smsOptIn, push_enabled: p.pushEnabled }).eq('id', id)).error); await refresh(); },
   async upsertWorker(w) {
     const row = { name: w.name, company: w.company, phone: w.phone, notes: w.notes };
     const r = w.id ? await sb.from('workers').update(row).eq('id', w.id).select().single() : await sb.from('workers').insert(row).select().single(); fail(r.error);

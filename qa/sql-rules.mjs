@@ -1,4 +1,4 @@
-// Runs rules/cases.json against the SQL rule functions (0006) in a local Postgres.
+// Runs rules/cases.json against the SQL rule functions (0006, 0007) in a local Postgres.
 // Usage: node qa/sql-rules.mjs  (expects PGHOST/PGPORT/PGDATABASE pointing at a DB with the migrations applied)
 import { readFileSync } from 'fs';
 import { execFileSync } from 'child_process';
@@ -15,7 +15,7 @@ for (const c of C.boundary)
   add(
     'boundary',
     c,
-    `rb_boundary(${u(c.dep.workerId)}, ${d(c.dep.departure)}, ${q(c.dep.depStatus)}, ${u(c.next?.workerId)}, ${d(c.next?.arrival)})`,
+    `rb_boundary(${u(c.dep.workerId)}, ${d(c.dep.departure)}, ${q(c.dep.depStatus)}, ${u(c.next?.workerId)}, ${d(c.next?.arrival)}, ${q(c.dep.slot)}, ${q(c.next?.slot)})`,
   );
 for (const c of C.cleanWindow)
   add('cleanWindow', c, `rb_clean_window(${d(c.afterDate)}, ${d(c.readyBy)}, ${d(c.date)})`);
@@ -27,6 +27,17 @@ for (const c of C.stay)
     c,
     `rb_stay_error(${d(c.stay.arrival || null)}, ${d(c.stay.departure)}, ${q(c.stay.depStatus)}, ${d(c.stay.away?.from)}, ${d(c.stay.away?.to)}, ${q(JSON.stringify(c.others))}::jsonb)`,
   );
+for (const c of C.rotation) {
+  const p = c.pattern;
+  const call = `rb_rotation(${d(p.start)}, ${p.on}, ${p.off}, ${q(p.end.kind)}, ${d(p.end.date)}, ${p.end.n ?? 'null'}, ${q(p.offMode)})`;
+  if ('count' in c) rows.push({ name: `rotation: ${c.name}`, expr: `(select count(*) from ${call})::text`, expect: c.count });
+  else
+    rows.push({
+      name: `rotation: ${c.name}`,
+      expr: `(select string_agg(arrival || '>' || departure || '~' || coalesce(away_from || '/' || away_to, '-'), ' ' order by arrival) from ${call})`,
+      expect: c.expect.map(o => `${o.arrival}>${o.departure}~${o.away ? o.away.from + '/' + o.away.to : '-'}`).join(' '),
+    });
+}
 const sql = rows.map((r, i) => `select ${i} || '|' || coalesce((${r.expr}), 'null');`).join('\n');
 const out = execFileSync('psql', ['-X', '-At', '-v', 'ON_ERROR_STOP=1'], { input: sql }).toString().trim().split('\n');
 let pass = 0,

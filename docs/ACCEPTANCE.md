@@ -77,6 +77,18 @@ Run the demo (`npm run build && npx vite preview`, or open the uploaded site), t
 - [ ] Same worker in two rooms → a warning, still saveable.
 - [ ] Rooms list: open-ended stays say "Until further notice" / "Departure TBC"; *Next* never repeats the same worker continuing; away guests show "Away · room kept".
 
+## v2 (look, crew booking, drag, copy summary)
+- [ ] Rooms shows one card per room with status pill, nights badge, departure, next arrival with the gap, incoming guest, cleaning strip and Quick update (desktop and phone).
+- [ ] Tapping a tile (Departing today, Needs clean, Name TBC, Long stay) filters the cards; the matching pill is highlighted; tapping again shows all. Extra capacity makes no availability claim.
+- [ ] The urgent banner reflects a real changeover; the provider can book the clean in one tap (with a confirm); Sheena sees "Ready by" only. No hard-coded dates anywhere.
+- [ ] On the phone, the first screen shows the banner, the tile row and the first room card.
+- [ ] **Copy summary** puts today's and tomorrow's movements and cleans on the clipboard; Sheena's copy contains no cleaner names.
+- [ ] **Crew booking:** 2 workers + 3 × Name TBC, 10 on / 4 off, 3 rotations → a 5 × 3 preview; clashes in red block Confirm; Confirm asks first and creates 15 stays under one crew id; one clean per room at the end (room kept on off days) or one per block (released).
+- [ ] Usual rooms are preferred; any place's room can be changed in the preview.
+- [ ] Extend / Change end / Cancel rest act on the whole series; Undo reverts the whole step; a single occurrence can be edited on its own and survives a reshape.
+- [ ] **Drag:** moving a bar shows the new room/dates live (red with the reason on a clash), asks for confirmation on drop, and can be undone; a clash is refused. Dragging the right edge changes the departure. Enter on a bar still opens the panel.
+- [ ] `npm run lint` is clean; the CI workflow (`ci/github-actions-ci.yml`, to be moved into `.github/workflows/`) runs lint, types, unit, build and e2e on push.
+
 ## Roles
 - [ ] The cleaner sees only Today and Cleaning, with first names, and can tick Guest has left / Start clean / Mark ready.
 - [ ] Only the provider books cleans or takes an out-of-window exception.

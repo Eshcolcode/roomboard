@@ -10,7 +10,9 @@
     "test": "vitest run",
     "test:sql": "bash qa/sql.sh",
     "test:e2e": "node qa/qa.mjs",
-    "format": "prettier --write \"src/**/*.{ts,tsx}\" \"qa/*.mjs\""
+    "format": "prettier --write \"src/**/*.{ts,tsx}\" \"qa/*.mjs\"",
+    "lint": "eslint . && prettier --check src",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.118.0",
@@ -18,13 +20,18 @@
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.5",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.1",
     "axe-core": "^4.14.0",
+    "eslint": "^9.39.5",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "globals": "^17.13.0",
     "playwright": "^1.47.0",
     "prettier": "^3.9.10",
     "typescript": "^5.5.4",
+    "typescript-eslint": "^8.71.2",
     "vite": "^5.4.2",
     "vitest": "^2.1.9"
   }

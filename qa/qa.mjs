@@ -19,7 +19,10 @@ const fmt = iso =>
     month: 'short',
     timeZone: 'UTC',
   });
-const b = await chromium.launch({ executablePath: '/usr/bin/google-chrome', args: ['--no-sandbox'] });
+const b = await chromium.launch({
+  executablePath: process.env.QA_CHROME || '/usr/bin/google-chrome',
+  args: ['--no-sandbox'],
+});
 let pass = 0,
   fail = 0;
 const errs = [];
@@ -562,7 +565,7 @@ await p.click('.row[data-room="lr-6"] .bar');
 ok((await p.locator('#f-notes').inputValue()) === '', 'reset restores starting example');
 await p.keyboard.press('Escape');
 // ---------- a11y ----------
-for (const t of ['board', 'free', 'changeovers', 'available', 'activity', 'workers', 'today']) {
+for (const t of ['board', 'rooms', 'crew', 'free', 'changeovers', 'available', 'activity', 'workers', 'today']) {
   await go(p, t);
   await p.addScriptTag({ content: AXE });
   const r = await p.evaluate(async () =>
@@ -639,7 +642,7 @@ await m.click('.fab button:has-text("Add stay")');
 const box = await m.locator('.panel').boundingBox();
 ok(box && box.width >= 389 && box.height >= 843, 'phone: stay panel is a full-screen sheet', 'phone');
 await m.keyboard.press('Escape');
-for (const t of ['today', 'changeovers', 'free', 'available', 'activity', 'workers']) {
+for (const t of ['today', 'changeovers', 'free', 'available', 'activity', 'workers', 'crew']) {
   await m.goto(U + '#' + t);
   await m.waitForTimeout(200);
   ok(
@@ -679,6 +682,234 @@ ok(
 );
 await m.click('.bottom button:has-text("More")');
 ok(await m.locator('.sheet button:has-text("More rooms")').isVisible(), 'phone: More sheet', 'phone');
+
+// ==================== v2: rooms cards, tiles, banner, copy summary, crew booking, drag ====================
+{
+  const ctx = await b.newContext({
+    viewport: { width: 1440, height: 950 },
+    permissions: ['clipboard-read', 'clipboard-write'],
+  });
+  const q = await page(1440, 950, ctx);
+  await reset(q, 'rooms');
+  const V = 'v2';
+  ok((await q.locator('.rcard').count()) === 19, 'v2 Rooms: one card per contracted room (19)', V);
+  const r8 = await q.locator('.rcard[data-room="lr-8"]').innerText();
+  ok(
+    /Departing today/i.test(r8) && /Quick update/.test(r8) && /Next arrival/i.test(r8),
+    'v2 card: status pill, dates, Quick update',
+    V,
+  );
+  ok(/\d+ days? gap|same day/i.test(await q.locator('main').innerText()), 'v2 card: next arrival shows the gap', V);
+  const depN = +(await q.locator('.tile.t-amber b').innerText());
+  await q.click('.tile.t-amber');
+  await q.waitForTimeout(100);
+  ok((await q.locator('.rcard').count()) === depN && depN >= 1, 'v2 tile "Departing today" filters the cards', V);
+  ok(
+    (await q.locator('.fpills button.on').innerText()).includes('Departing today'),
+    'v2 tile and filter pill stay in step',
+    V,
+  );
+  await q.click('.fpills button:has-text("Name TBC")');
+  await q.waitForTimeout(100);
+  ok(
+    (await q.locator('.rcard').count()) === +(await q.locator('.tile.t-purple b').innerText()) &&
+      (await q.locator('.rcard').allInnerTexts()).every(t => /name to follow|Name TBC/i.test(t)),
+    'v2 Name TBC filter shows only rooms with a hold',
+    V,
+  );
+  await q.click('.fpills button:has-text("All rooms")');
+  ok(
+    /more properties · ask about dates/.test(await q.locator('.tile.t-dark').innerText()),
+    'v2 Extra capacity tile makes no availability claim',
+    V,
+  );
+  ok(await q.locator('.urgent').isVisible(), 'v2 urgent banner computed from changeovers', V);
+  const ub = await q.locator('.urgent').innerText();
+  ok(
+    /turnaround/.test(ub) && (await q.locator('.urgent button:has-text("Book clean")').count()) === 1,
+    'v2 banner: one-tap Book clean (provider)',
+    V,
+  );
+  await q.click('.urgent button:has-text("Book clean")');
+  await q.click('.dialog button:has-text("Book clean")');
+  await q.waitForTimeout(200);
+  ok(/Clean booked/.test(await q.locator('.toasts').innerText()), 'v2 banner: Book clean confirms then books', V);
+  // copy summary
+  await q.click('button:has-text("Copy summary")');
+  await q.waitForTimeout(200);
+  const mgr = await q.evaluate(() => navigator.clipboard.readText());
+  ok(
+    /^Roomboard summary/.test(mgr) && /Today ·/.test(mgr) && /Tomorrow ·/.test(mgr) && /Leaving:/.test(mgr),
+    'v2 Copy summary: today + tomorrow movements as text',
+    V,
+  );
+  const cleaners = await q.evaluate(() =>
+    JSON.parse(localStorage.getItem('roomboard-demo-v2'))
+      .users.filter(u => u.role === 'cleaner')
+      .map(u => u.name),
+  );
+  ok(
+    cleaners.some(n => mgr.includes(n)),
+    'v2 Copy summary (provider) names the cleaner',
+    V,
+  );
+  await as(q, 'u-client');
+  await go(q, 'rooms');
+  ok(
+    !/Book clean/.test(await q.locator('main').innerText()) && !cleaners.some(n => ub.includes(n)),
+    'v2 banner (client): no scheduling buttons, no cleaner names',
+    V,
+  );
+  await q.click('button:has-text("Copy summary")');
+  await q.waitForTimeout(200);
+  const cli = await q.evaluate(() => navigator.clipboard.readText());
+  ok(
+    cli.length > 50 && !cleaners.some(n => cli.includes(n)) && !/Clean to book|Clean booked/.test(cli),
+    "v2 Copy summary (Sheena): no cleaner names, only 'Ready by'",
+    V,
+  );
+  // crew booking
+  await go(q, 'crew');
+  const before = await q.evaluate(() => JSON.parse(localStorage.getItem('roomboard-demo-v2')).stays.length);
+  await q.selectOption('#c-prop', 'p-es');
+  await q.fill('#c-start', uk(D(150)));
+  await q.locator('#c-start').blur();
+  await q.fill('#c-label', 'E2E crew');
+  await q.locator('.wpick input[type=checkbox]').nth(0).check();
+  await q.locator('.wpick input[type=checkbox]').nth(1).check();
+  await q.fill('#c-holds', '3');
+  await q.waitForTimeout(150);
+  ok(
+    (await q.locator('.pgrid tbody tr').count()) === 5 && (await q.locator('.pgrid thead th').count()) === 2 + 3,
+    'v2 crew preview: 5 places × 3 rotations grid',
+    V,
+  );
+  ok(
+    (await q.locator('.pgrid td.clash').count()) === 0 && (await q.locator('.pok').isVisible()),
+    'v2 crew preview: no clashes far ahead',
+    V,
+  );
+  await q.click('button:has-text("Confirm 15 stays")');
+  ok(/Book E2E crew\?/.test(await q.locator('.dialog').innerText()), 'v2 crew: confirm step before saving', V);
+  await q.click('.dialog button:has-text("Book 15 stays")');
+  await q.waitForTimeout(300);
+  const after = await q.evaluate(() => JSON.parse(localStorage.getItem('roomboard-demo-v2')));
+  ok(
+    after.stays.length === before + 15 && after.stays.filter(s => s.seriesId).length === 15,
+    'v2 crew: 15 real stays grouped under one series id',
+    V,
+  );
+  const sid = after.series[0].id;
+  const cos = after.changeovers.filter(c => after.stays.some(s => s.seriesId === sid && s.id === c.fromStayId)).length;
+  ok(cos === 5, 'v2 crew (room kept on off days): one clean per room, at the end only', V);
+  ok((await q.locator('.srow').count()) === 1, 'v2 crew: series listed with Extend / Change end / Cancel', V);
+  await q.click('.srow button:has-text("Extend")');
+  await q.click('.dialog button:has-text("Extend")');
+  await q.waitForTimeout(300);
+  ok(
+    (await q.evaluate(
+      () => JSON.parse(localStorage.getItem('roomboard-demo-v2')).stays.filter(s => s.seriesId).length,
+    )) === 20,
+    'v2 crew: Extend adds a rotation for everyone',
+    V,
+  );
+  await q.click('.toast button:has-text("Undo")');
+  await q.waitForTimeout(300);
+  ok(
+    (await q.evaluate(
+      () => JSON.parse(localStorage.getItem('roomboard-demo-v2')).stays.filter(s => s.seriesId).length,
+    )) === 15,
+    'v2 crew: Undo reverts the whole extension',
+    V,
+  );
+  await q.click('.srow button:has-text("Cancel rest")');
+  await q.click('.dialog button:has-text("Cancel the rest")');
+  await q.waitForTimeout(300);
+  ok(
+    (await q.evaluate(
+      () => JSON.parse(localStorage.getItem('roomboard-demo-v2')).stays.filter(s => s.seriesId).length,
+    )) === 0,
+    'v2 crew: Cancel rest removes future stays',
+    V,
+  );
+  // clash shown before confirming: pick one busy room for 2 people starting tomorrow
+  await q.selectOption('#c-prop', 'p-lr');
+  await q.fill('#c-start', uk(D(1)));
+  await q.locator('#c-start').blur();
+  await q.fill('#c-holds', '2');
+  await q.click('.chips button:has-text("Room 1")');
+  await q.waitForTimeout(150);
+  ok(
+    (await q.locator('.pgrid td.clash').count()) > 0 && (await q.locator('button:has-text("Confirm")').isDisabled()),
+    'v2 crew: clashes highlighted and Confirm blocked',
+    V,
+  );
+  // drag on the board
+  await as(q, 'u-donald');
+  await go(q, 'board');
+  const a0 = await q.evaluate(
+    () => JSON.parse(localStorage.getItem('roomboard-demo-v2')).stays.find(s => s.roomId === 'lr-6').arrival,
+  );
+  const bar = q.locator('.row[data-room="lr-6"] .bar').first();
+  const bb = await bar.boundingBox();
+  const W = 56;
+  await q.mouse.move(bb.x + 40, bb.y + bb.height / 2);
+  await q.mouse.down();
+  await q.mouse.move(bb.x + 40 + W, bb.y + bb.height / 2, { steps: 4 });
+  await q.mouse.move(bb.x + 40 + 2 * W, bb.y + bb.height / 2, { steps: 4 });
+  ok(/Loch Roag Room 6 ·/.test(await q.locator('.dghost.ok').innerText()), 'v2 drag: live preview of the new dates', V);
+  await q.mouse.up();
+  await q.waitForTimeout(150);
+  ok(/Move Stuart Graham/.test(await q.locator('.dialog').innerText()), 'v2 drag: confirm step on drop', V);
+  await q.click('.dialog button:has-text("Move stay")');
+  await q.waitForTimeout(200);
+  const moved = await q.evaluate(() =>
+    JSON.parse(localStorage.getItem('roomboard-demo-v2')).stays.find(s => s.roomId === 'lr-6'),
+  );
+  ok(
+    moved.arrival === new Date(Date.parse(a0 + 'T00:00Z') + 2 * 864e5).toISOString().slice(0, 10),
+    'v2 drag: stay moved by 2 days',
+    V,
+  );
+  await q.click('.toast button:has-text("Undo")');
+  await q.waitForTimeout(250);
+  ok(
+    (await q.evaluate(
+      () => JSON.parse(localStorage.getItem('roomboard-demo-v2')).stays.find(s => s.roomId === 'lr-6').arrival,
+    )) === a0,
+    'v2 drag: Undo puts it back',
+    V,
+  );
+  // drag onto an occupied room → red ghost, nothing saved
+  const bb2 = await q.locator('.row[data-room="lr-6"] .bar').first().boundingBox();
+  const target = await q.locator('.row[data-room="lr-7"]').boundingBox();
+  await q.mouse.move(bb2.x + 40, bb2.y + bb2.height / 2);
+  await q.mouse.down();
+  await q.mouse.move(bb2.x + 40, target.y + target.height / 2, { steps: 6 });
+  ok((await q.locator('.row[data-room="lr-7"] .dghost.bad').count()) === 1, 'v2 drag: clash shown live in red', V);
+  await q.mouse.up();
+  await q.waitForTimeout(200);
+  ok(
+    (await q.locator('.dialog').count()) === 0 && /Not moved/.test(await q.locator('.toasts').innerText()),
+    'v2 drag: clash is refused, nothing saved',
+    V,
+  );
+  // resize
+  const bb3 = await q.locator('.row[data-room="lr-6"] .bar .grip').first().boundingBox();
+  await q.mouse.move(bb3.x + 4, bb3.y + bb3.height / 2);
+  await q.mouse.down();
+  await q.mouse.move(bb3.x + 4 + W, bb3.y + bb3.height / 2, { steps: 4 });
+  await q.mouse.up();
+  await q.waitForTimeout(150);
+  ok(/departure to/.test(await q.locator('.dialog').innerText()), 'v2 drag: right edge resizes (changes departure)', V);
+  await q.click('.dialog button:has-text("Go back")');
+  ok(
+    (await q.locator('.bar[role=button]').first().getAttribute('tabindex')) === '0',
+    'v2 drag: keyboard alternative kept (bars focusable, Enter opens panel)',
+    V,
+  );
+  await q.close();
+}
 
 ok(errs.length === 0, 'no console/page errors or native dialogs ' + errs.slice(0, 3).join(' | '));
 console.log(`\n${pass} passed, ${fail} failed`);

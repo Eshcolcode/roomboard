@@ -1,4 +1,5 @@
-export type Tab = 'board' | 'rooms' | 'free' | 'today' | 'changeovers' | 'workers' | 'available' | 'activity' | 'more';
+export type Tab =
+  'board' | 'rooms' | 'free' | 'today' | 'changeovers' | 'workers' | 'available' | 'activity' | 'crew' | 'more';
 
 const PATHS: Record<string, string> = {
   board: 'M3 5h18M3 12h18M3 19h18M8 3v18',
@@ -14,6 +15,9 @@ const PATHS: Record<string, string> = {
   print: 'M6 9V3h12v6M6 18H4v-7h16v7h-2M8 14h8v7H8z',
   info: 'M12 22a10 10 0 100-20 10 10 0 000 20zM12 16v-5M12 8h.01',
   close: 'M6 6l12 12M18 6L6 18',
+  copy: 'M9 9h11v11H9zM5 15H4V4h11v1',
+  crew: 'M7 10a3 3 0 100-6 3 3 0 000 6zM17 10a3 3 0 100-6 3 3 0 000 6zM2 20c0-3 2-5 5-5s5 2 5 5M12 20c0-3 2-5 5-5s5 2 5 5',
+  repeat: 'M17 2l4 4-4 4M3 11V9a3 3 0 013-3h15M7 22l-4-4 4-4M21 13v2a3 3 0 01-3 3H3',
 };
 
 export function Icon({ name, size = 16 }: { name: string; size?: number }) {

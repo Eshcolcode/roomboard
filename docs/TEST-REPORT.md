@@ -1,15 +1,15 @@
 # Test report
 
-- **Run:** Friday, 16 October 2026 at 22:43 (UK time)
-- **Commit:** `0dd540eb0043e1f5a81ef0a56c2d37274b66f6ed`
-- **Target for end-to-end tests:** https://roomboard.pages.dev/ serving `assets/index-alk6E_xM.js`
-- **Local production build:** `assets/index-alk6E_xM.js` (same asset as the target: the deployed site is this commit)
-- **Totals:** unit 68/68 passed · SQL 58/58 passed · end-to-end 126/126 passed
+- **Run:** Saturday, 17 October 2026 at 00:39 (UK time)
+- **Commit:** `1c1e85687bb8cde9e5990a66e698aeca9beb7d8c`
+- **Target for end-to-end tests:** https://roomboard.pages.dev/ serving `assets/index-Mky4h06u.js`
+- **Local production build:** `assets/index-Mky4h06u.js` (same asset as the target: the deployed site is this commit)
+- **Totals:** unit 93/93 passed · SQL 74/74 passed · end-to-end 161/161 passed · lint (ESLint + Prettier) clean
 
 All demo-mode checks below run without any of Donald's accounts. The live database, email and SMS checks need a real Supabase project, a Resend key and a Twilio account, and are **pending** (bottom section).
 
-## 1. Unit tests (vitest) – 68/68 passed
-Pure rules (`src/data/rules.ts`) driven by the shared `rules/cases.json`, date helpers, store rules (`core.ts`) and demo commands (`local.ts`: exception override, undo).
+## 1. Unit tests (vitest) – 93/93 passed
+Pure rules (`src/data/rules.ts`) and the rotation generator (`src/data/rotation.ts`) driven by the shared `rules/cases.json`, date helpers, store rules (`core.ts`), demo commands (`local/`: exception override, undo), crew booking (`crew.ts`: allocation, all-or-nothing, extend / shorten / single occurrence) and the role-aware Copy summary.
 
 | # | Check | Result |
 |---|---|---|
@@ -33,57 +33,82 @@ Pure rules (`src/data/rules.ts`) driven by the shared `rules/cases.json`, date h
 | 18 | data/core.test.ts › readiness (single status source) › client sees "Ready by" only; provider sees the cleaning state | PASS |
 | 19 | data/core.test.ts › readiness (single status source) › no next arrival: nothing shown to the client | PASS |
 | 20 | data/core.test.ts › readiness (single status source) › exception keeps a warning tone until ready | PASS |
-| 21 | data/local.test.ts › clean outside the window (Room 4: leaves +5, next arrival +6) › is refused without an exception | PASS |
-| 22 | data/local.test.ts › clean outside the window (Room 4: leaves +5, next arrival +6) › is allowed as a provider exception and stays flagged until ready | PASS |
-| 23 | data/local.test.ts › clean outside the window (Room 4: leaves +5, next arrival +6) › cannot be taken by the client as an exception | PASS |
-| 24 | data/local.test.ts › clean outside the window (Room 4: leaves +5, next arrival +6) › ready needs "guest has left" | PASS |
-| 25 | data/local.test.ts › undo › restores a cancelled stay with the same id and its booked clean | PASS |
-| 26 | data/local.test.ts › undo › reverts an edit and bumps the version so other tabs see it | PASS |
-| 27 | data/rules.test.ts › nights › one night | PASS |
-| 28 | data/rules.test.ts › nights › across clocks going back (25 Oct) | PASS |
-| 29 | data/rules.test.ts › nights › across clocks going forward (29 Mar) | PASS |
-| 30 | data/rules.test.ts › nights › month boundary | PASS |
-| 31 | data/rules.test.ts › nights › leap day | PASS |
-| 32 | data/rules.test.ts › nights › year boundary | PASS |
-| 33 | data/rules.test.ts › overlaps (arrival inclusive, departure exclusive) › back to back is not a clash | PASS |
-| 34 | data/rules.test.ts › overlaps (arrival inclusive, departure exclusive) › one night overlap | PASS |
-| 35 | data/rules.test.ts › overlaps (arrival inclusive, departure exclusive) › inside | PASS |
-| 36 | data/rules.test.ts › overlaps (arrival inclusive, departure exclusive) › open-ended blocks later stays | PASS |
-| 37 | data/rules.test.ts › overlaps (arrival inclusive, departure exclusive) › open-ended after a finished stay | PASS |
-| 38 | data/rules.test.ts › overlaps (arrival inclusive, departure exclusive) › two open-ended | PASS |
-| 39 | data/rules.test.ts › overlaps (arrival inclusive, departure exclusive) › entirely before | PASS |
-| 40 | data/rules.test.ts › boundary: continues / zero-day / changeover › same worker same day continues | PASS |
-| 41 | data/rules.test.ts › boundary: continues / zero-day / changeover › different worker same day is zero-day | PASS |
-| 42 | data/rules.test.ts › boundary: continues / zero-day / changeover › hold arriving same day is zero-day | PASS |
-| 43 | data/rules.test.ts › boundary: continues / zero-day / changeover › same worker after a gap needs a clean | PASS |
-| 44 | data/rules.test.ts › boundary: continues / zero-day / changeover › no next arrival needs a clean | PASS |
-| 45 | data/rules.test.ts › boundary: continues / zero-day / changeover › until further notice: no clean | PASS |
-| 46 | data/rules.test.ts › boundary: continues / zero-day / changeover › departure TBC: no clean | PASS |
-| 47 | data/rules.test.ts › clean window › on departure day | PASS |
-| 48 | data/rules.test.ts › clean window › on next arrival day | PASS |
-| 49 | data/rules.test.ts › clean window › before departure | PASS |
-| 50 | data/rules.test.ts › clean window › after next arrival (Room 4 exception case) | PASS |
-| 51 | data/rules.test.ts › clean window › no next arrival: any date after departure | PASS |
-| 52 | data/rules.test.ts › status gate (vacated → clean → ready) › vacated before departure refused | PASS |
-| 53 | data/rules.test.ts › status gate (vacated → clean → ready) › vacated on departure day | PASS |
-| 54 | data/rules.test.ts › status gate (vacated → clean → ready) › ready without vacated refused | PASS |
-| 55 | data/rules.test.ts › status gate (vacated → clean → ready) › ready with vacated | PASS |
-| 56 | data/rules.test.ts › status gate (vacated → clean → ready) › start clean without vacated refused | PASS |
-| 57 | data/rules.test.ts › status gate (vacated → clean → ready) › ready before departure refused even if ticked | PASS |
-| 58 | data/rules.test.ts › stay validation › valid planned stay | PASS |
-| 59 | data/rules.test.ts › stay validation › missing arrival | PASS |
-| 60 | data/rules.test.ts › stay validation › planned without departure | PASS |
-| 61 | data/rules.test.ts › stay validation › ufn ignores departure | PASS |
-| 62 | data/rules.test.ts › stay validation › departure same as arrival | PASS |
-| 63 | data/rules.test.ts › stay validation › away back before leaves | PASS |
-| 64 | data/rules.test.ts › stay validation › away outside stay | PASS |
-| 65 | data/rules.test.ts › stay validation › away inside open-ended stay | PASS |
-| 66 | data/rules.test.ts › stay validation › clash with existing stay | PASS |
-| 67 | data/rules.test.ts › stay validation › back to back is fine | PASS |
-| 68 | data/rules.test.ts › stay validation › open-ended new stay clashes with later stay | PASS |
+| 21 | data/crew.test.ts › crew planning › gives each person a different free room and flags nothing | PASS |
+| 22 | data/crew.test.ts › crew planning › prefers a worker's usual room | PASS |
+| 23 | data/crew.test.ts › crew planning › flags a clash before anything is saved when there are not enough rooms | PASS |
+| 24 | data/crew.test.ts › crew booking › keep mode: one stay per cycle, joined back to back, away on off days, one clean per room at the end | PASS |
+| 25 | data/crew.test.ts › crew booking › release mode: every on block ends in a changeover | PASS |
+| 26 | data/crew.test.ts › crew booking › is all or nothing when a stay clashes | PASS |
+| 27 | data/crew.test.ts › crew booking › undo removes the whole booking in one step | PASS |
+| 28 | data/crew.test.ts › crew booking › extend adds cycles and turns the old last stay into a full cycle | PASS |
+| 29 | data/crew.test.ts › crew booking › shorten to an end date drops later cycles | PASS |
+| 30 | data/crew.test.ts › crew booking › a single occurrence can be changed on its own and is kept when the series is reshaped | PASS |
+| 31 | data/crew.test.ts › crew booking › naming a hold keeps the room continuing across cycles | PASS |
+| 32 | data/local.test.ts › clean outside the window (Room 4: leaves +5, next arrival +6) › is refused without an exception | PASS |
+| 33 | data/local.test.ts › clean outside the window (Room 4: leaves +5, next arrival +6) › is allowed as a provider exception and stays flagged until ready | PASS |
+| 34 | data/local.test.ts › clean outside the window (Room 4: leaves +5, next arrival +6) › cannot be taken by the client as an exception | PASS |
+| 35 | data/local.test.ts › clean outside the window (Room 4: leaves +5, next arrival +6) › ready needs "guest has left" | PASS |
+| 36 | data/local.test.ts › undo › restores a cancelled stay with the same id and its booked clean | PASS |
+| 37 | data/local.test.ts › undo › reverts an edit and bumps the version so other tabs see it | PASS |
+| 38 | data/rules.test.ts › nights › one night | PASS |
+| 39 | data/rules.test.ts › nights › across clocks going back (25 Oct) | PASS |
+| 40 | data/rules.test.ts › nights › across clocks going forward (29 Mar) | PASS |
+| 41 | data/rules.test.ts › nights › month boundary | PASS |
+| 42 | data/rules.test.ts › nights › leap day | PASS |
+| 43 | data/rules.test.ts › nights › year boundary | PASS |
+| 44 | data/rules.test.ts › overlaps (arrival inclusive, departure exclusive) › back to back is not a clash | PASS |
+| 45 | data/rules.test.ts › overlaps (arrival inclusive, departure exclusive) › one night overlap | PASS |
+| 46 | data/rules.test.ts › overlaps (arrival inclusive, departure exclusive) › inside | PASS |
+| 47 | data/rules.test.ts › overlaps (arrival inclusive, departure exclusive) › open-ended blocks later stays | PASS |
+| 48 | data/rules.test.ts › overlaps (arrival inclusive, departure exclusive) › open-ended after a finished stay | PASS |
+| 49 | data/rules.test.ts › overlaps (arrival inclusive, departure exclusive) › two open-ended | PASS |
+| 50 | data/rules.test.ts › overlaps (arrival inclusive, departure exclusive) › entirely before | PASS |
+| 51 | data/rules.test.ts › boundary: continues / zero-day / changeover › same worker same day continues | PASS |
+| 52 | data/rules.test.ts › boundary: continues / zero-day / changeover › different worker same day is zero-day | PASS |
+| 53 | data/rules.test.ts › boundary: continues / zero-day / changeover › hold arriving same day is zero-day | PASS |
+| 54 | data/rules.test.ts › boundary: continues / zero-day / changeover › same worker after a gap needs a clean | PASS |
+| 55 | data/rules.test.ts › boundary: continues / zero-day / changeover › no next arrival needs a clean | PASS |
+| 56 | data/rules.test.ts › boundary: continues / zero-day / changeover › until further notice: no clean | PASS |
+| 57 | data/rules.test.ts › boundary: continues / zero-day / changeover › departure TBC: no clean | PASS |
+| 58 | data/rules.test.ts › boundary: continues / zero-day / changeover › crew slot (unnamed hold) back to back continues | PASS |
+| 59 | data/rules.test.ts › boundary: continues / zero-day / changeover › crew slot named on one cycle only still continues | PASS |
+| 60 | data/rules.test.ts › boundary: continues / zero-day / changeover › different crew slots same day is zero-day | PASS |
+| 61 | data/rules.test.ts › boundary: continues / zero-day / changeover › same crew slot after released off days needs a clean | PASS |
+| 62 | data/rules.test.ts › clean window › on departure day | PASS |
+| 63 | data/rules.test.ts › clean window › on next arrival day | PASS |
+| 64 | data/rules.test.ts › clean window › before departure | PASS |
+| 65 | data/rules.test.ts › clean window › after next arrival (Room 4 exception case) | PASS |
+| 66 | data/rules.test.ts › clean window › no next arrival: any date after departure | PASS |
+| 67 | data/rules.test.ts › status gate (vacated → clean → ready) › vacated before departure refused | PASS |
+| 68 | data/rules.test.ts › status gate (vacated → clean → ready) › vacated on departure day | PASS |
+| 69 | data/rules.test.ts › status gate (vacated → clean → ready) › ready without vacated refused | PASS |
+| 70 | data/rules.test.ts › status gate (vacated → clean → ready) › ready with vacated | PASS |
+| 71 | data/rules.test.ts › status gate (vacated → clean → ready) › start clean without vacated refused | PASS |
+| 72 | data/rules.test.ts › status gate (vacated → clean → ready) › ready before departure refused even if ticked | PASS |
+| 73 | data/rules.test.ts › stay validation › valid planned stay | PASS |
+| 74 | data/rules.test.ts › stay validation › missing arrival | PASS |
+| 75 | data/rules.test.ts › stay validation › planned without departure | PASS |
+| 76 | data/rules.test.ts › stay validation › ufn ignores departure | PASS |
+| 77 | data/rules.test.ts › stay validation › departure same as arrival | PASS |
+| 78 | data/rules.test.ts › stay validation › away back before leaves | PASS |
+| 79 | data/rules.test.ts › stay validation › away outside stay | PASS |
+| 80 | data/rules.test.ts › stay validation › away inside open-ended stay | PASS |
+| 81 | data/rules.test.ts › stay validation › clash with existing stay | PASS |
+| 82 | data/rules.test.ts › stay validation › back to back is fine | PASS |
+| 83 | data/rules.test.ts › stay validation › open-ended new stay clashes with later stay | PASS |
+| 84 | data/rules.test.ts › crew rotation generator › 10 on 4 off, 3 cycles, keep room | PASS |
+| 85 | data/rules.test.ts › crew rotation generator › 10 on 4 off, 3 cycles, release room | PASS |
+| 86 | data/rules.test.ts › crew rotation generator › end date cuts the last block short | PASS |
+| 87 | data/rules.test.ts › crew rotation generator › end date inside off days, keep: last stay ends at its block | PASS |
+| 88 | data/rules.test.ts › crew rotation generator › across clocks going back | PASS |
+| 89 | data/rules.test.ts › crew rotation generator › no off days: back-to-back blocks | PASS |
+| 90 | data/rules.test.ts › crew rotation generator › until further notice: 12 weeks generated | PASS |
+| 91 | ui/summary.test.ts › copy summary › covers today and tomorrow | PASS |
+| 92 | ui/summary.test.ts › copy summary › provider version names the cleaner | PASS |
+| 93 | ui/summary.test.ts › copy summary › client version has no cleaner names and only 'Ready by' wording | PASS |
 
-## 2. SQL tests on local Postgres 17 – 58/58 passed
-Fresh database, migrations 0001–0004 and 0006 (pg_cron 0005 skipped), `supabase/tests/smoke.sql` (trigger behaviour), then **the same `rules/cases.json`** through the `rb_*` SQL functions that the triggers call. Runs as a superuser, so row-level security is **not** exercised here.
+## 2. SQL tests on local Postgres 17 – 74/74 passed
+Fresh database, migrations 0001–0004, 0006 and 0007 (pg_cron 0005 skipped), `supabase/tests/smoke.sql` (trigger behaviour, including crew bookings through `apply_series()`), then **the same `rules/cases.json`** through the `rb_*` SQL functions that the triggers call. Runs as a superuser, so row-level security is **not** exercised here.
 
 | # | Check | Result |
 |---|---|---|
@@ -103,51 +128,67 @@ Fresh database, migrations 0001–0004 and 0006 (pg_cron 0005 skipped), `supabas
 | 14 | T10 zero-day changeover | PASS |
 | 15 | T11 dedupe key unique | PASS |
 | 16 | T12 no_address for blank email | PASS |
-| 17 | nights: one night | PASS |
-| 18 | nights: across clocks going back (25 Oct) | PASS |
-| 19 | nights: across clocks going forward (29 Mar) | PASS |
-| 20 | nights: month boundary | PASS |
-| 21 | nights: leap day | PASS |
-| 22 | nights: year boundary | PASS |
-| 23 | overlaps: back to back is not a clash | PASS |
-| 24 | overlaps: one night overlap | PASS |
-| 25 | overlaps: inside | PASS |
-| 26 | overlaps: open-ended blocks later stays | PASS |
-| 27 | overlaps: open-ended after a finished stay | PASS |
-| 28 | overlaps: two open-ended | PASS |
-| 29 | overlaps: entirely before | PASS |
-| 30 | boundary: same worker same day continues | PASS |
-| 31 | boundary: different worker same day is zero-day | PASS |
-| 32 | boundary: hold arriving same day is zero-day | PASS |
-| 33 | boundary: same worker after a gap needs a clean | PASS |
-| 34 | boundary: no next arrival needs a clean | PASS |
-| 35 | boundary: until further notice: no clean | PASS |
-| 36 | boundary: departure TBC: no clean | PASS |
-| 37 | cleanWindow: on departure day | PASS |
-| 38 | cleanWindow: on next arrival day | PASS |
-| 39 | cleanWindow: before departure | PASS |
-| 40 | cleanWindow: after next arrival (Room 4 exception case) | PASS |
-| 41 | cleanWindow: no next arrival: any date after departure | PASS |
-| 42 | statusGate: vacated before departure refused | PASS |
-| 43 | statusGate: vacated on departure day | PASS |
-| 44 | statusGate: ready without vacated refused | PASS |
-| 45 | statusGate: ready with vacated | PASS |
-| 46 | statusGate: start clean without vacated refused | PASS |
-| 47 | statusGate: ready before departure refused even if ticked | PASS |
-| 48 | stay: valid planned stay | PASS |
-| 49 | stay: missing arrival | PASS |
-| 50 | stay: planned without departure | PASS |
-| 51 | stay: ufn ignores departure | PASS |
-| 52 | stay: departure same as arrival | PASS |
-| 53 | stay: away back before leaves | PASS |
-| 54 | stay: away outside stay | PASS |
-| 55 | stay: away inside open-ended stay | PASS |
-| 56 | stay: clash with existing stay | PASS |
-| 57 | stay: back to back is fine | PASS |
-| 58 | stay: open-ended new stay clashes with later stay | PASS |
+| 17 | T13 crew: 6 stays generated | PASS |
+| 18 | T14 crew keep: one clean per room (end only) | PASS |
+| 19 | T15 crew: one summary alert per recipient, not one per stay | PASS |
+| 20 | crew clash rolls back whole booking: Clashes with Name TBC 0 (2027-02-01 → 2027-02-08) in Loch Roag Room 2 | PASS |
+| 21 | T16 crew clash left nothing behind | PASS |
+| 22 | nights: one night | PASS |
+| 23 | nights: across clocks going back (25 Oct) | PASS |
+| 24 | nights: across clocks going forward (29 Mar) | PASS |
+| 25 | nights: month boundary | PASS |
+| 26 | nights: leap day | PASS |
+| 27 | nights: year boundary | PASS |
+| 28 | overlaps: back to back is not a clash | PASS |
+| 29 | overlaps: one night overlap | PASS |
+| 30 | overlaps: inside | PASS |
+| 31 | overlaps: open-ended blocks later stays | PASS |
+| 32 | overlaps: open-ended after a finished stay | PASS |
+| 33 | overlaps: two open-ended | PASS |
+| 34 | overlaps: entirely before | PASS |
+| 35 | boundary: same worker same day continues | PASS |
+| 36 | boundary: different worker same day is zero-day | PASS |
+| 37 | boundary: hold arriving same day is zero-day | PASS |
+| 38 | boundary: same worker after a gap needs a clean | PASS |
+| 39 | boundary: no next arrival needs a clean | PASS |
+| 40 | boundary: until further notice: no clean | PASS |
+| 41 | boundary: departure TBC: no clean | PASS |
+| 42 | boundary: crew slot (unnamed hold) back to back continues | PASS |
+| 43 | boundary: crew slot named on one cycle only still continues | PASS |
+| 44 | boundary: different crew slots same day is zero-day | PASS |
+| 45 | boundary: same crew slot after released off days needs a clean | PASS |
+| 46 | cleanWindow: on departure day | PASS |
+| 47 | cleanWindow: on next arrival day | PASS |
+| 48 | cleanWindow: before departure | PASS |
+| 49 | cleanWindow: after next arrival (Room 4 exception case) | PASS |
+| 50 | cleanWindow: no next arrival: any date after departure | PASS |
+| 51 | statusGate: vacated before departure refused | PASS |
+| 52 | statusGate: vacated on departure day | PASS |
+| 53 | statusGate: ready without vacated refused | PASS |
+| 54 | statusGate: ready with vacated | PASS |
+| 55 | statusGate: start clean without vacated refused | PASS |
+| 56 | statusGate: ready before departure refused even if ticked | PASS |
+| 57 | stay: valid planned stay | PASS |
+| 58 | stay: missing arrival | PASS |
+| 59 | stay: planned without departure | PASS |
+| 60 | stay: ufn ignores departure | PASS |
+| 61 | stay: departure same as arrival | PASS |
+| 62 | stay: away back before leaves | PASS |
+| 63 | stay: away outside stay | PASS |
+| 64 | stay: away inside open-ended stay | PASS |
+| 65 | stay: clash with existing stay | PASS |
+| 66 | stay: back to back is fine | PASS |
+| 67 | stay: open-ended new stay clashes with later stay | PASS |
+| 68 | rotation: 10 on 4 off, 3 cycles, keep room | PASS |
+| 69 | rotation: 10 on 4 off, 3 cycles, release room | PASS |
+| 70 | rotation: end date cuts the last block short | PASS |
+| 71 | rotation: end date inside off days, keep: last stay ends at its block | PASS |
+| 72 | rotation: across clocks going back | PASS |
+| 73 | rotation: no off days: back-to-back blocks | PASS |
+| 74 | rotation: until further notice: 12 weeks generated | PASS |
 
-## 3. End-to-end (Playwright, Chrome) – 126/126 passed
-Desktop 1440px plus 820/900/1000px layout checks, phone 390×844, every role (provider, Sheena, cleaner), axe WCAG 2 A/AA.
+## 3. End-to-end (Playwright, Chrome) – 161/161 passed
+Desktop 1440px plus 820/900/1000px layout checks, phone 390×844, every role (provider, Sheena, cleaner), axe WCAG 2 A/AA. Group `[v2]`: room cards, filtering tiles, urgent banner, Copy summary (clipboard read back), crew booking end to end, drag to move / resize with clash feedback and undo.
 
 | # | Check | Result |
 |---|---|---|
@@ -241,42 +282,77 @@ Desktop 1440px plus 820/900/1000px layout checks, phone 390×844, every role (pr
 | 88 | corrupt storage → falls back to seed | PASS |
 | 89 | reset restores starting example | PASS |
 | 90 | [a11y] a11y board: no WCAG A/AA violations | PASS |
-| 91 | [a11y] a11y free: no WCAG A/AA violations | PASS |
-| 92 | [a11y] a11y changeovers: no WCAG A/AA violations | PASS |
-| 93 | [a11y] a11y available: no WCAG A/AA violations | PASS |
-| 94 | [a11y] a11y activity: no WCAG A/AA violations | PASS |
-| 95 | [a11y] a11y workers: no WCAG A/AA violations | PASS |
-| 96 | [a11y] a11y today: no WCAG A/AA violations | PASS |
-| 97 | [a11y] a11y stay panel: ok | PASS |
-| 98 | [a11y] closing the panel returns focus to the button that opened it | PASS |
-| 99 | [a11y] keyboard: first Tab reaches the main nav | PASS |
-| 100 | first login: welcome with 3 hints | PASS |
-| 101 | welcome dismissed and remembered | PASS |
-| 102 | [layout] 820px header one line (56px) | PASS |
-| 103 | [layout] 820px no clipped bar text  | PASS |
-| 104 | [layout] 900px header one line (56px) | PASS |
-| 105 | [layout] 900px no clipped bar text  | PASS |
-| 106 | [layout] 1000px header one line (56px) | PASS |
-| 107 | [layout] 1000px no clipped bar text  | PASS |
-| 108 | [layout] 1440px header one line (56px) | PASS |
-| 109 | [layout] 1440px no clipped bar text  | PASS |
-| 110 | [phone] phone: no horizontal overflow | PASS |
-| 111 | [phone] C5 phone FAB Add stay / Hold | PASS |
-| 112 | [phone] 6/C5 phone per-room list (19 rooms) | PASS |
-| 113 | [phone] phone: stay panel is a full-screen sheet | PASS |
-| 114 | [phone] phone today: no horizontal overflow | PASS |
-| 115 | [phone] phone changeovers: no horizontal overflow | PASS |
-| 116 | [phone] phone free: no horizontal overflow | PASS |
-| 117 | [phone] phone available: no horizontal overflow | PASS |
-| 118 | [phone] phone activity: no horizontal overflow | PASS |
-| 119 | [phone] phone workers: no horizontal overflow | PASS |
-| 120 | [phone] phone cleaner tabs | PASS |
-| 121 | [phone] Sheena's phone opens on Rooms (5 tabs) | PASS |
-| 122 | [phone] Sheena's phone: only 'Ready by …' statuses | PASS |
-| 123 | [phone] phone Rooms: Ruairidh (Room 5) shows 'Away · room kept' | PASS |
-| 124 | [phone] phone: Find a room in the bottom bar | PASS |
-| 125 | [phone] phone: More sheet | PASS |
-| 126 | no console/page errors or native dialogs  | PASS |
+| 91 | [a11y] a11y rooms: no WCAG A/AA violations | PASS |
+| 92 | [a11y] a11y crew: no WCAG A/AA violations | PASS |
+| 93 | [a11y] a11y free: no WCAG A/AA violations | PASS |
+| 94 | [a11y] a11y changeovers: no WCAG A/AA violations | PASS |
+| 95 | [a11y] a11y available: no WCAG A/AA violations | PASS |
+| 96 | [a11y] a11y activity: no WCAG A/AA violations | PASS |
+| 97 | [a11y] a11y workers: no WCAG A/AA violations | PASS |
+| 98 | [a11y] a11y today: no WCAG A/AA violations | PASS |
+| 99 | [a11y] a11y stay panel: ok | PASS |
+| 100 | [a11y] closing the panel returns focus to the button that opened it | PASS |
+| 101 | [a11y] keyboard: first Tab reaches the main nav | PASS |
+| 102 | first login: welcome with 3 hints | PASS |
+| 103 | welcome dismissed and remembered | PASS |
+| 104 | [layout] 820px header one line (56px) | PASS |
+| 105 | [layout] 820px no clipped bar text  | PASS |
+| 106 | [layout] 900px header one line (56px) | PASS |
+| 107 | [layout] 900px no clipped bar text  | PASS |
+| 108 | [layout] 1000px header one line (56px) | PASS |
+| 109 | [layout] 1000px no clipped bar text  | PASS |
+| 110 | [layout] 1440px header one line (56px) | PASS |
+| 111 | [layout] 1440px no clipped bar text  | PASS |
+| 112 | [phone] phone: no horizontal overflow | PASS |
+| 113 | [phone] C5 phone FAB Add stay / Hold | PASS |
+| 114 | [phone] 6/C5 phone per-room list (19 rooms) | PASS |
+| 115 | [phone] phone: stay panel is a full-screen sheet | PASS |
+| 116 | [phone] phone today: no horizontal overflow | PASS |
+| 117 | [phone] phone changeovers: no horizontal overflow | PASS |
+| 118 | [phone] phone free: no horizontal overflow | PASS |
+| 119 | [phone] phone available: no horizontal overflow | PASS |
+| 120 | [phone] phone activity: no horizontal overflow | PASS |
+| 121 | [phone] phone workers: no horizontal overflow | PASS |
+| 122 | [phone] phone crew: no horizontal overflow | PASS |
+| 123 | [phone] phone cleaner tabs | PASS |
+| 124 | [phone] Sheena's phone opens on Rooms (5 tabs) | PASS |
+| 125 | [phone] Sheena's phone: only 'Ready by …' statuses | PASS |
+| 126 | [phone] phone Rooms: Ruairidh (Room 5) shows 'Away · room kept' | PASS |
+| 127 | [phone] phone: Find a room in the bottom bar | PASS |
+| 128 | [phone] phone: More sheet | PASS |
+| 129 | [v2] v2 Rooms: one card per contracted room (19) | PASS |
+| 130 | [v2] v2 card: status pill, dates, Quick update | PASS |
+| 131 | [v2] v2 card: next arrival shows the gap | PASS |
+| 132 | [v2] v2 tile "Departing today" filters the cards | PASS |
+| 133 | [v2] v2 tile and filter pill stay in step | PASS |
+| 134 | [v2] v2 Name TBC filter shows only rooms with a hold | PASS |
+| 135 | [v2] v2 Extra capacity tile makes no availability claim | PASS |
+| 136 | [v2] v2 urgent banner computed from changeovers | PASS |
+| 137 | [v2] v2 banner: one-tap Book clean (provider) | PASS |
+| 138 | [v2] v2 banner: Book clean confirms then books | PASS |
+| 139 | [v2] v2 Copy summary: today + tomorrow movements as text | PASS |
+| 140 | [v2] v2 Copy summary (provider) names the cleaner | PASS |
+| 141 | [v2] v2 banner (client): no scheduling buttons, no cleaner names | PASS |
+| 142 | [v2] v2 Copy summary (Sheena): no cleaner names, only 'Ready by' | PASS |
+| 143 | [v2] v2 crew preview: 5 places × 3 rotations grid | PASS |
+| 144 | [v2] v2 crew preview: no clashes far ahead | PASS |
+| 145 | [v2] v2 crew: confirm step before saving | PASS |
+| 146 | [v2] v2 crew: 15 real stays grouped under one series id | PASS |
+| 147 | [v2] v2 crew (room kept on off days): one clean per room, at the end only | PASS |
+| 148 | [v2] v2 crew: series listed with Extend / Change end / Cancel | PASS |
+| 149 | [v2] v2 crew: Extend adds a rotation for everyone | PASS |
+| 150 | [v2] v2 crew: Undo reverts the whole extension | PASS |
+| 151 | [v2] v2 crew: Cancel rest removes future stays | PASS |
+| 152 | [v2] v2 crew: clashes highlighted and Confirm blocked | PASS |
+| 153 | [v2] v2 drag: live preview of the new dates | PASS |
+| 154 | [v2] v2 drag: confirm step on drop | PASS |
+| 155 | [v2] v2 drag: stay moved by 2 days | PASS |
+| 156 | [v2] v2 drag: Undo puts it back | PASS |
+| 157 | [v2] v2 drag: clash shown live in red | PASS |
+| 158 | [v2] v2 drag: clash is refused, nothing saved | PASS |
+| 159 | [v2] v2 drag: right edge resizes (changes departure) | PASS |
+| 160 | [v2] v2 drag: keyboard alternative kept (bars focusable, Enter opens panel) | PASS |
+| 161 | no console/page errors or native dialogs  | PASS |
 
 ## 4. Live database, email and SMS – pending (needs Donald's accounts)
 | Check | Status |
@@ -294,3 +370,18 @@ Desktop 1440px plus 820/900/1000px layout checks, phone 390×844, every role (pr
 | 07:00 digest on both sides of the 25 Oct clock change | pending |
 | Restore from backup into an isolated project | pending |
 | Cloudflare Access in front of roomboard.pages.dev | pending |
+| Crew booking through `apply_series()` with real RLS (client + manager tokens) | pending |
+
+## 5. Scores (strict self-review, v2)
+| Area | Score | Why not higher |
+|---|---|---|
+| Rules and consistency (TS = SQL) | 9.0 | Shared cases cover rules + rotation; reconcile itself is mirrored, not shared |
+| Crew booking with rotations | 8.0 | No "move the whole series to other rooms" action (one occurrence at a time); live RPC not yet run on a real project |
+| Drag to move / resize | 8.0 | Desktop mouse/pen only (phone keeps the panel); no auto-scroll while dragging past the visible weeks |
+| Look (v2) and clarity | 8.5 | Board bars keep the earlier navy style; tiles wrap to 3 per row below 1100px |
+| Copy summary | 9.0 | Plain text only (no per-property split) |
+| Phone | 8.5 | Crew booking works on the phone but the preview grid needs sideways scrolling |
+| Accessibility | 8.5 | axe clean on every screen; drag has the panel as its keyboard route |
+| Code quality | 8.5 | Lint/type clean, typed Supabase rows, store split, CI; Board.tsx and StayPanel.tsx are still the largest files |
+| Live readiness | 6.0 | Supabase, email and SMS still need Donald's accounts (section 4) |
+| **Overall** | **8.3** | |

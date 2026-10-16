@@ -1,0 +1,21 @@
+import { chromium } from 'playwright';
+const b = await chromium.launch({ executablePath: '/usr/bin/google-chrome', args: ['--no-sandbox'] });
+const U = 'http://localhost:4173/';
+const errs = [];
+const p = await b.newPage({ viewport: { width: 1560, height: 1000 } }); p.on('pageerror', e => errs.push(e.message));
+await p.goto(U + '#board'); await p.evaluate(() => localStorage.clear()); await p.reload(); await p.waitForSelector('.bar');
+await p.screenshot({ path: 'screens/board.png', fullPage: true });
+await p.click('text=+ Add stay'); await p.waitForSelector('.panel');
+await p.click('.chip >> nth=0'); await p.selectOption('.panel select', 'es-5');
+await p.screenshot({ path: 'screens/add-stay.png' });
+await p.click('.panel .btn:has-text("Add stay")'); await p.waitForTimeout(300);
+// name the Room 8 hold (same record)
+await p.click('.bar.hold:has-text("electrician")'); await p.waitForSelector('.panel');
+await p.screenshot({ path: 'screens/hold-room8.png' });
+await p.click('.panel button:has-text("Close")');
+await p.goto(U + '#changeovers'); await p.waitForTimeout(300); await p.screenshot({ path: 'screens/changeovers.png', fullPage: true });
+await p.goto(U + '#available'); await p.waitForTimeout(300); await p.screenshot({ path: 'screens/available.png', fullPage: true });
+await p.goto(U + '#activity'); await p.waitForTimeout(2500); await p.screenshot({ path: 'screens/activity.png', fullPage: true });
+const m = await b.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true }); m.on('pageerror', e => errs.push(e.message));
+await m.goto(U + '#today'); await m.waitForSelector('.stats'); await m.screenshot({ path: 'screens/today-phone.png' });
+console.log('errors:', errs); await b.close();

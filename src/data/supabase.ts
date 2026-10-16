@@ -267,16 +267,14 @@ export const supabaseRepo: Repo = {
   async addEnquiry(e) {
     fail(
       (
-        await sb
-          .from('enquiries')
-          .insert({
-            property_id: e.propertyId,
-            date_from: e.from,
-            date_to: e.to,
-            long_term: e.longTerm,
-            people: e.people,
-            note: e.note,
-          })
+        await sb.from('enquiries').insert({
+          property_id: e.propertyId,
+          date_from: e.from,
+          date_to: e.to,
+          long_term: e.longTerm,
+          people: e.people,
+          note: e.note,
+        })
       ).error,
     );
     await refresh();

@@ -327,6 +327,12 @@ function load(): DB {
   }
   const x = seed();
   reconcile(x);
+  // persist straight away so a second tab opened now shares the same records (and ids)
+  try {
+    localStorage.setItem(KEY, JSON.stringify(x));
+  } catch {
+    /* storage full or blocked: demo still works in this tab */
+  }
   return x;
 }
 // Undo: snapshot of stays + changeovers before each stay command. Activity/alerts are kept (they happened).

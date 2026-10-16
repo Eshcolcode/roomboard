@@ -1,5 +1,5 @@
 // Add / edit a stay. Side panel on desktop, full-screen sheet on phone.
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   data,
   useDB,
@@ -84,6 +84,11 @@ export function StayPanel({ init, onClose }: { init: PanelInit; onClose: () => v
   const [showAll, setShowAll] = useState(false);
   const close = useCallback(() => onClose(), [onClose]);
   useEscape(close);
+  // return focus to whatever opened the panel
+  useEffect(() => {
+    const opener = document.activeElement as HTMLElement | null;
+    return () => opener?.focus?.();
+  }, []);
 
   const set = (p: Partial<StayInput>) => {
     setF(x => ({ ...x, ...p }));
@@ -114,7 +119,8 @@ export function StayPanel({ init, onClose }: { init: PanelInit; onClose: () => v
     const sug = suggestFor(id);
     const T = londonToday();
     // keep dates the user already chose; otherwise start after the worker's current stay
-    if (f.arrival === (init.date ?? T) && sug.arrival !== f.arrival) {
+    const datesChosen = init.departure !== undefined || !!init.roomId || f.arrival !== (init.date ?? T);
+    if (!datesChosen && sug.arrival !== f.arrival) {
       const len = dep ? diffDays(f.arrival, dep) : 7;
       set({
         workerId: id,

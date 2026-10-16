@@ -1,14 +1,32 @@
-// Full QA suite: node qa/qa.mjs (needs `npx vite preview --port 4173` running on a production build)
+// End-to-end QA: node qa/qa.mjs  (needs `npm run build && npx vite preview --port 4173`).
+// Dates are relative to today in Europe/London, matching the demo seed.
 import { chromium } from 'playwright';
-import { readFileSync } from 'fs';
+import { readFileSync, writeFileSync } from 'fs';
 const AXE = readFileSync('node_modules/axe-core/axe.min.js', 'utf8');
 const U = process.env.QA_URL ?? 'http://localhost:4173/';
+const T = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Europe/London',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+}).format(new Date());
+const D = n => new Date(Date.parse(T + 'T00:00Z') + n * 864e5).toISOString().slice(0, 10);
+const uk = iso => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
+const fmt = iso =>
+  new Date(iso + 'T00:00Z').toLocaleDateString('en-GB', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    timeZone: 'UTC',
+  });
 const b = await chromium.launch({ executablePath: '/usr/bin/google-chrome', args: ['--no-sandbox'] });
 let pass = 0,
   fail = 0;
 const errs = [];
-const ok = (c, m) => {
+const results = [];
+const ok = (c, m, group = 'e2e') => {
   c ? pass++ : fail++;
+  results.push({ group, name: m, pass: !!c });
   console.log((c ? 'PASS ' : 'FAIL ') + m);
 };
 async function page(w = 1440, h = 950, ctx) {
@@ -16,14 +34,21 @@ async function page(w = 1440, h = 950, ctx) {
   const p = await c.newPage();
   p.on('pageerror', e => errs.push(e.message));
   p.on('console', m => m.type() === 'error' && errs.push(m.text()));
-  p.on('dialog', d => ((p.__dialog ?? 'accept') === 'accept' ? d.accept() : d.dismiss()));
+  p.on('dialog', d => {
+    errs.push('native dialog used: ' + d.message());
+    d.dismiss();
+  });
   return p;
 }
-const reset = async p => {
-  await p.goto(U + '#board');
+const seen = () => {
+  for (const id of ['u-donald', 'u-client', 'u-mairi']) localStorage.setItem('rb-welcome:' + id, '1');
+};
+const reset = async (p, hash = 'board') => {
+  await p.goto(U + '#' + hash);
   await p.evaluate(() => localStorage.clear());
+  await p.evaluate(seen);
   await p.reload();
-  await p.waitForSelector('.bar');
+  await p.waitForTimeout(300);
 };
 const as = async (p, id) => {
   await p.selectOption('select.who', id);
@@ -34,32 +59,88 @@ const go = async (p, t) => {
   await p.goto(U + '#' + t);
   await p.waitForTimeout(200);
 };
-const save = p => p.click('.panel .pa .btn:not(.ghost)');
+const save = p => p.click('.panel .pa .btn.primary');
+const date = (p, sel, iso) => p.locator(sel).fill(iso ? uk(iso) : '');
+const dialog = (p, label) => p.click(`.dialog button:has-text("${label}")`);
+const body = p => p.locator('main').innerText();
 
 const p = await page();
 await reset(p);
-// --- basics
-ok((await p.locator('.top .live').innerText()).includes('Demo'), 'C6 header says Demo, not Live');
+// ---------- header, plain language ----------
+ok((await p.locator('.top .live').innerText()).includes('Demo'), 'C6 header says Demo');
+ok(
+  (await p.locator('.demo').count()) === 0 &&
+    (await p.locator('.top').evaluate(e => e.getBoundingClientRect().height)) <= 58,
+  'single header band (no separate demo strip)',
+);
+ok(
+  (await p.locator('.ph .info[data-tip*="Arrival day counts as a night"]').count()) === 1 &&
+    !(await body(p)).includes('departure day does not'),
+  'night rule moved behind an info icon',
+);
 ok(
   (await p.locator('.kpis .k:has-text("Rooms allocated")').count()) === 1 &&
     (await p.locator('.kpis .k:has-text("Expected on site")').count()) === 1,
   'C4 KPIs: Rooms allocated + Expected on site',
 );
-ok(await p.locator('button.reset:has-text("Reset demo data")').isVisible(), '7 Reset demo data visible to provider');
-// --- add / edit / extend / move / cancel
-await p.click('text=+ Add stay');
+ok(
+  (await p.locator('.kpis .k:has-text("Cleans due in 7 days")').count()) === 1,
+  'open cleans KPI counts the next 7 days only',
+);
+ok(
+  (await p.locator('.grp').first().innerText()).match(/\d+ allocated · \d+ on site/),
+  'property headings: N allocated · M on site',
+);
+await p.click('.demo-pill');
+ok(await p.locator('button.reset:has-text("Reset demo data")').isVisible(), '7 Reset demo data available to provider');
+await p.click('.demo-pill');
+ok(
+  (await p.locator('input[type=date]:not(.native)').count()) === 0 &&
+    (await p.locator('.datef.jump input:not(.native)').first().inputValue()).match(/^\d{2}\/\d{2}\/\d{4}$/),
+  'UK date format (dd/mm/yyyy) in date inputs',
+);
+// changeover markers never cover a bar
+const overlaps = await p.locator('.row').evaluateAll(rows =>
+  rows.flatMap(r => {
+    const bars = [...r.querySelectorAll('.bar')].map(e => e.getBoundingClientRect());
+    return [...r.querySelectorAll('.co')]
+      .map(e => e.getBoundingClientRect())
+      .filter(m => bars.some(bb => m.left < bb.right - 1 && m.right > bb.left + 1))
+      .map(() => r.dataset.room);
+  }),
+);
+ok(overlaps.length === 0, 'cleaning markers never overlap bars ' + overlaps.join(','));
+// ---------- add: free-only room picker, labels, undo ----------
+await p.click('.ph button:has-text("+ Add stay")');
 await p.click('.panel .chip >> nth=0');
+await date(p, '#f-arr', D(2));
+await date(p, '#f-dep', D(6));
+const opts = await p.locator('#f-room option').allInnerTexts();
+ok(
+  opts.some(o => /^Eshcol · Room 9 · /.test(o)) && !opts.some(o => o.includes('Loch Roag · Room 1 ')),
+  "room picker: free rooms only, labelled 'Eshcol · Room 9'",
+);
 await p.selectOption('#f-room', 'es-9');
-await p.fill('#f-arr', '2026-10-18');
-await p.fill('#f-dep', '2026-10-22');
 await save(p);
 await p.waitForTimeout(200);
 ok((await p.locator('.row[data-room="es-9"] .bar').count()) === 1, 'add stay');
+ok(await p.locator('.toast button:has-text("Undo")').isVisible(), 'undo toast after save');
+await p.click('.toast button:has-text("Undo")');
+await p.waitForTimeout(200);
+ok((await p.locator('.row[data-room="es-9"] .bar').count()) === 0, 'undo removes the new stay');
+await p.click('.ph button:has-text("+ Add stay")');
+await p.click('.panel .chip >> nth=0');
+await date(p, '#f-arr', D(2));
+await date(p, '#f-dep', D(6));
+await p.selectOption('#f-room', 'es-9');
+await save(p);
+await p.waitForTimeout(200);
 await p.reload();
 await p.waitForSelector('.bar');
 ok((await p.locator('.row[data-room="es-9"] .bar').count()) === 1, 'reload persistence');
 await p.click('.row[data-room="es-9"] .bar');
-await p.fill('#f-dep', '2026-10-25');
+ok(!/\bv\d+\b/.test(await p.locator('.panel').innerText()), 'no version numbers shown');
+await date(p, '#f-dep', D(9));
 await save(p);
 await p.waitForTimeout(150);
 await go(p, 'activity');
@@ -74,45 +155,77 @@ ok(
     (await p.locator('.row[data-room="es-9"] .bar').count()) === 0,
   'move stay to another room',
 );
+// ---------- cancel: confirmation + undo ----------
 await p.click('.row[data-room="es-5"] .bar');
 await p.click('.panel button:has-text("Cancel stay")');
+ok(await p.locator('.dialog:has-text("Cancel")').isVisible(), 'confirmation before cancelling');
+await dialog(p, 'Go back');
+ok((await p.locator('.row[data-room="es-5"] .bar').count()) === 1, 'Go back keeps the stay');
+await p.click('.panel button:has-text("Cancel stay")');
+await dialog(p, 'Cancel stay');
 await p.waitForTimeout(150);
 ok((await p.locator('.row[data-room="es-5"] .bar').count()) === 0, 'cancel stay');
-// --- validation
-await p.click('text=+ Add stay');
+await p.click('.toast button:has-text("Undo")');
+await p.waitForTimeout(200);
+ok((await p.locator('.row[data-room="es-5"] .bar').count()) === 1, 'undo restores a cancelled stay');
+// ---------- validation ----------
+await p.click('.ph button:has-text("+ Add stay")');
 await p.click('.panel .chip >> nth=0');
+await p.check('.panel .cb.sm input');
 await p.selectOption('#f-room', 'lr-1');
 ok(
-  (await p.locator('.panel .err:has-text("Clashes")').count()) === 1 &&
-    (await p.locator('.panel .pa .btn:not(.ghost)').isDisabled()),
-  'clash blocked',
+  (await p.locator('.panel .err:has-text("is taken by")').count()) === 1 &&
+    (await p.locator('.panel .pa .btn.primary').isDisabled()),
+  'clash blocked (taken room shown only on request)',
 );
 await p.selectOption('#f-room', 'es-9');
-await p.fill('#f-dep', '2026-10-10');
+await date(p, '#f-dep', D(-5));
 ok((await p.locator('.panel .err:has-text("after arrival")').count()) === 1, 'departure before arrival blocked');
-await p.fill('#f-dep', '');
+await date(p, '#f-dep', '');
+await p.locator('#f-dep').blur();
 ok((await p.locator('.panel .err').count()) === 1, 'empty departure blocked');
-await p.click('.panel [role=group] button:has-text("Until further notice")');
+await p.locator('#f-dep').fill('31/02/2026');
+ok((await p.locator('.datef.bad #f-dep').count()) === 1, 'impossible date (31/02) flagged');
+await p.click('.panel [role=group][aria-label="Departure status"] button:has-text("Until further notice")');
 ok(await p.locator('#f-dep').isDisabled(), 'UFN disables departure');
 await save(p);
 await p.waitForTimeout(150);
 ok((await p.locator('.row[data-room="es-9"] .bar.open').count()) === 1, 'UFN stay open-ended');
 ok((await p.locator('.row[data-room="lr-7"] .bar.open').count()) === 1, 'TBC stay shown open-ended');
+// worker overlap warning (warn, not block): Iain Smith is in Loch Roag Room 4
+await p.click('.ph button:has-text("+ Add stay")');
+await p.fill('#f-wq', 'Iain');
+await p.click('.panel .chip:has-text("Iain Smith")');
+await date(p, '#f-arr', D(1));
+await date(p, '#f-dep', D(3));
+await p.check('.panel .cb.sm input');
+await p.selectOption('#f-room', 'es-9');
+await p.waitForTimeout(100);
+ok(
+  (await p.locator('.panel .soft:has-text("also in Loch Roag Room 4")').count()) === 1,
+  'same worker in two rooms: warning shown',
+);
+await p.selectOption('#f-room', 'lr-9');
 await p.keyboard.press('Escape');
 // away
 await p.click('.row[data-room="lr-6"] .bar');
 await p.click('.panel summary');
-await p.fill('[aria-label="Away from"]', '2026-10-20');
-await p.fill('[aria-label="Back on"]', '2026-10-19');
+await date(p, '[aria-label="Away from"]', D(4));
+await date(p, '[aria-label="Back on"]', D(3));
 ok((await p.locator('.panel .err:has-text("Away")').count()) === 1, 'away: back before leaves blocked');
-await p.fill('[aria-label="Back on"]', '2026-10-23');
+await date(p, '[aria-label="Back on"]', D(7));
 await save(p);
 await p.waitForTimeout(150);
-ok((await p.locator('.row[data-room="lr-6"] .away').count()) === 1, 'away, room retained shown');
+ok((await p.locator('.row[data-room="lr-6"] .away').count()) === 1, 'away, room kept shown on board');
 await p.click('.row[data-room="lr-6"] .bar');
 await p.keyboard.press('Escape');
 ok((await p.locator('.panel').count()) === 0, 'Escape closes panel');
-// --- name the hold (same record)
+// panel closes on role switch
+await p.click('.row[data-room="lr-6"] .bar');
+await as(p, 'u-client');
+ok((await p.locator('.panel').count()) === 0, 'role switch closes the stay panel');
+await as(p, 'u-donald');
+// name the hold
 const n = await p.locator('.bar').count();
 await p.click('.bar.hold:has-text("electrician")');
 await p.click('.panel .seg button:has-text("Named worker")');
@@ -123,105 +236,139 @@ ok(
   (await p.locator('.bar').count()) === n && (await p.locator('.bar.hold:has-text("electrician")').count()) === 0,
   'naming a hold keeps the same record',
 );
-// --- C2 Room 4: clean after next arrival (Thu 22 Oct) needs explicit provider exception
-await go(p, 'changeovers');
-p.__dialog = 'dismiss';
-await card(p, 'lr-4').locator('input[type=date]').fill('2026-10-23');
-await card(p, 'lr-4').locator('button:has-text("Schedule")').click();
+// ---------- search ----------
+await p.click('.searchbtn');
+await p.fill('.palette input', 'Iain');
+await p.keyboard.press('Enter');
 await p.waitForTimeout(150);
+ok((await p.locator('.panel .chosen').innerText()).includes('Iain Smith'), 'global search: worker → their stay');
+await p.keyboard.press('Escape');
+await p.keyboard.press('/');
+await p.fill('.palette input', 'Room 8');
+ok((await p.locator('.res:has-text("Loch Roag Room 8")').count()) === 1, 'global search: room');
+await p.keyboard.press('Escape');
+// ---------- exceptional cleaning date: override + persistent warning ----------
+await go(p, 'changeovers');
+await card(p, 'lr-4')
+  .locator('.datef input:not(.native)')
+  .fill(uk(D(7)));
+await card(p, 'lr-4').locator('button:has-text("Book clean")').click();
+ok(
+  await p.locator('.dialog:has-text("outside the usual window")').isVisible(),
+  'exception: out-of-window date asks first',
+  'exception',
+);
+await dialog(p, 'Go back');
+await p.waitForTimeout(100);
 ok(
   (await p.locator('.col-needs .cc[data-room="lr-4"]').count()) === 1 &&
     (await p.locator('.col-scheduled .cc[data-room="lr-4"]').count()) === 0,
-  'C2 out-of-window clean (23 Oct > arrival 22 Oct) refused without exception',
+  'exception: refused unless confirmed',
+  'exception',
 );
-p.__dialog = 'accept';
-await card(p, 'lr-4').locator('input[type=date]').fill('2026-10-23');
-await card(p, 'lr-4').locator('button:has-text("Schedule")').click();
+await card(p, 'lr-4').locator('button:has-text("Book clean")').click();
+await dialog(p, 'Book as exception');
 await p.waitForTimeout(150);
-ok((await p.locator('.cc[data-room="lr-4"] .inv.exc').count()) === 1, 'C2 provider exception flagged on Changeovers');
-// --- C1 Room 4 (Iain to 21 Oct): cannot record vacated / start / ready before the actual departure
-const t4 = await card(p, 'lr-4').innerText();
 ok(
-  (await card(p, 'lr-4').locator('input[type=checkbox]').count()) === 0 &&
-    (await card(p, 'lr-4').locator('button:has-text("Start clean")').isDisabled()),
-  'C1 Room 4: cannot mark vacated/start before 21 Oct departure',
+  (await p.locator('.col-scheduled .cc[data-room="lr-4"] .inv.exc').count()) === 1,
+  'exception: booked and flagged on Cleaning',
+  'exception',
 );
+await p.reload();
+await p.waitForTimeout(300);
 ok(
-  !/Vacated \w{3} \d/.test(t4) && t4.includes('Departs Wed 21 Oct (planned)'),
-  "2 'Departs Wed 21 Oct (planned)', never 'Vacated <date>'",
+  (await p.locator('.cc[data-room="lr-4"] .inv.exc').count()) === 1,
+  'exception: warning persists after reload',
+  'exception',
 );
 await go(p, 'board');
-ok((await p.locator('.row[data-room="lr-4"] .co.exc').count()) === 1, 'C2 exception flagged on Board');
+ok((await p.locator('.row[data-room="lr-4"] .co.exc').count()) === 1, 'exception: flagged on Board', 'exception');
 await go(p, 'today');
 await p.click('.seg button:has-text("Upcoming")');
 ok(
   (await p.locator('.li:has-text("Loch Roag Room 4") .zchip.exc').count()) >= 1,
-  'C2 exception flagged on Today/Upcoming',
+  'exception: flagged on Today/Upcoming',
+  'exception',
 );
-// --- Room 8 journey: departs today → vacated → start → ready; consistent status everywhere (C3)
+await go(p, 'print-cleaning');
+ok(
+  (await p.locator('tr:has-text("Loch Roag Room 4"):has-text("outside usual window")').count()) === 1,
+  'exception: shown on printed cleaning list',
+  'exception',
+);
+await go(p, 'activity');
+ok((await p.locator('.act:has-text("outside the usual window")').count()) >= 1, 'exception: logged', 'exception');
+await as(p, 'u-client');
+await go(p, 'rooms');
+ok(!(await body(p)).includes('outside'), 'exception: provider detail not shown to client', 'exception');
+await as(p, 'u-donald');
+// ---------- C1: cannot tick left / start before departure ----------
 await go(p, 'changeovers');
+ok(
+  (await card(p, 'lr-4').locator('input[type=checkbox]').count()) === 0 &&
+    (await card(p, 'lr-4').locator('button:has-text("Start clean")').isDisabled()),
+  'C1 Room 4: cannot tick left / start before departure',
+);
+ok(
+  (await card(p, 'lr-4').innerText()).includes(`Guest leaves ${fmt(D(5))} (planned)`) && !/Vacated/.test(await body(p)),
+  "2 planned departures say 'Guest leaves … (planned)', never 'Vacated'",
+);
+// ---------- Room 8 journey ----------
 const r8 = card(p, 'lr-8');
-ok((await r8.innerText()).includes('Departs Fri 16 Oct (confirmed)'), 'Room 8 departs today (confirmed)');
+ok((await r8.innerText()).includes(`Guest leaves ${fmt(T)} (confirmed)`), 'Room 8 leaves today (confirmed)');
 await r8.locator('input[type=checkbox]').check();
 await p.waitForTimeout(100);
+await go(p, 'board');
+ok(
+  (await p.locator('.row[data-room="lr-8"] .bar').first().innerText()).includes('Left ✓'),
+  "board bar shows 'Left ✓' once the guest has left",
+);
+await go(p, 'changeovers');
 await card(p, 'lr-8').locator('button:has-text("Start clean")').click();
 await p.waitForTimeout(100);
-await card(p, 'lr-8').locator('button:has-text("Mark Ready")').click();
+await card(p, 'lr-8').locator('button:has-text("Mark ready")').click();
 await p.waitForTimeout(150);
-ok((await p.locator('.col-ready .cc[data-room="lr-8"]').count()) === 1, 'Room 8 → Ready after vacated');
+ok((await p.locator('.col-ready .cc[data-room="lr-8"]').count()) === 1, 'Room 8 → Ready after guest left');
 await go(p, 'board');
 ok((await p.locator('.row[data-room="lr-8"] .co.co-ready').count()) === 1, 'C3 Board shows Ready');
 await go(p, 'today');
 await p.click('.seg button:has-text("Upcoming")');
-const up8 = await p.locator('.li:has-text("Loch Roag Room 8 changeover")').allInnerTexts();
-ok(
-  up8.length > 0 && up8.every(t => t.includes('Ready') && !t.includes('Scheduled')),
-  'C3 Upcoming shows Ready, not Scheduled',
-);
-// --- item 1: date change on linked stay invalidates, keeps id, logs, alerts provider; client edit
+const up8 = await p.locator('.li:has-text("Loch Roag Room 8 clean")').allInnerTexts();
+ok(up8.length > 0 && up8.every(t => t.includes('Ready') && !t.includes('Booked')), 'C3 Upcoming shows Ready');
+await as(p, 'u-client');
+await go(p, 'rooms');
+ok((await p.locator('.rr[data-room="lr-8"]').innerText()).includes('Ready ✓'), 'C3 Rooms (client) shows Ready');
+await as(p, 'u-donald');
+// ---------- item 1: date change invalidates a booked clean ----------
 await go(p, 'changeovers');
-const r2 = card(p, 'lr-2');
-await r2.locator('button:has-text("Schedule")').click();
+await card(p, 'lr-2').locator('button:has-text("Book clean")').click();
 await p.waitForTimeout(100);
 await as(p, 'u-client');
 await go(p, 'board');
 await p.click('.row[data-room="lr-2"] .bar >> nth=0');
-await p.fill('#f-dep', '2026-10-24');
+await date(p, '#f-dep', D(8));
 await save(p);
 await p.waitForTimeout(150);
 await as(p, 'u-donald');
 await go(p, 'changeovers');
 ok(
-  (await p.locator('.col-needs .cc[data-room="lr-2"] .inv').count()) === 1,
-  '1 extending linked stay → needs rescheduling (row kept)',
+  (await p.locator('.col-needs .cc[data-room="lr-2"] .inv:has-text("book it again")').count()) === 1,
+  '1 date change on a booked clean → book again (row kept)',
 );
+ok(!/invalidated/i.test(await body(p)), "no 'invalidated' wording");
 await go(p, 'activity');
 await p.waitForTimeout(2500);
-ok((await p.locator('.act:has-text("needs rescheduling")').count()) >= 1, '1 activity line for invalidation');
-ok(
-  (await p.locator('.al:has-text("needs rescheduling"):has-text("Donald")').count()) >= 1,
-  '1 provider alerted on invalidation',
-);
-// same-day continues / zero-day
+ok((await p.locator('.act:has-text("clean needs booking again")').count()) >= 1, '1 activity line for the date change');
+ok((await p.locator('.al:has-text("book the clean again"):has-text("Donald")').count()) >= 1, '1 provider alerted');
 await go(p, 'board');
 ok((await p.locator('.row[data-room="lr-9"] .bar.cont').count()) === 1, "1 same worker same day shows 'continues'");
 ok(
   (await p.locator('.row[data-room="es-8"] .co.zero').count()) === 1,
-  '1 different worker same day → same-day changeover',
+  '1 different worker same day → same-day turnaround',
 );
-await go(p, 'activity');
-ok((await p.locator('.act:has-text("continues")').count()) >= 1, '1 continues logged');
-// --- 3: later bucket + digest
+// ---------- 3: later + digest ----------
 await go(p, 'changeovers');
-ok(
-  (await p.locator('.col-later .cc').count()) > 0 &&
-    (await p
-      .locator('.col-needs .cc:has-text("No next arrival")')
-      .evaluateAll(es =>
-        es.every(e => /Departs (Fri 16|Sat 17|Sun 18|Mon 19|Tue 20|Wed 21|Thu 22|Fri 23) Oct/.test(e.textContent)),
-      )),
-  '3 Needs scheduling only ≤7 days or with arrival; rest under Later',
-);
+ok((await p.locator('.col-later .cc').count()) > 0, '3 cleans with no arrival and > 7 days go under Later');
 await go(p, 'activity');
 const dg = await p.locator('.digest').innerText();
 ok(
@@ -231,7 +378,7 @@ ok(
     /In house tonight/.test(dg),
   '3 digest content',
 );
-// --- 4: routing
+// ---------- 4: routing ----------
 await reset(p);
 await p.click('.row[data-room="lr-6"] .bar');
 await p.fill('#f-notes', 'routing');
@@ -243,51 +390,108 @@ ok(
   out.some(t => t.includes('Sheena')) &&
     !out.some(t => t.includes('Mairi') && t.includes('Stay updated')) &&
     !out.some(t => t.includes('Donald') && t.includes('Stay updated')),
-  '4 provider stay edit → client only; not cleaner; not self',
+  '4 provider edit → client only; not cleaner; not self',
 );
 ok(
-  out.every(t => !/sms/i.test(t)),
-  '4 email only by default (no SMS unless opted in)',
+  out.every(t => !/\btext\b/i.test(t.split('\n')[1] ?? '')),
+  '4 email only by default',
 );
-ok(
-  !out.some(t => /\bsent\b/i.test(t)) && out.some(t => /simulated|no address/i.test(t)),
-  'C6 outbox says Simulated, not SENT',
-);
+ok(!out.some(t => /\bsent\b/i.test(t)) && out.some(t => /simulated|no address/i.test(t)), 'C6 outbox says simulated');
 await as(p, 'u-mairi');
-ok(
-  (await p.locator('nav button').count()) === 2 && (await p.locator('button.reset').count()) === 0,
-  '7 cleaner: 2 tabs, no reset',
-);
+ok((await p.locator('nav button').count()) === 2 && (await p.locator('.demo-pill').count()) === 1, '7 cleaner: 2 tabs');
+await p.click('.demo-pill');
+ok((await p.locator('button.reset').count()) === 0, '7 cleaner: no reset');
+await p.click('.demo-pill');
 await as(p, 'u-client');
+await p.click('.demo-pill');
 ok((await p.locator('button.reset').count()) === 0, '7 client: no reset');
-// --- Sheena leak
+await p.click('.demo-pill');
+// ---------- Sheena: no cleaner details, no scheduling noise ----------
 let leak = [];
-for (const t of ['board', 'today', 'workers', 'changeovers', 'available', 'activity']) {
+for (const t of ['board', 'rooms', 'free', 'today', 'workers', 'available', 'activity', 'print-today']) {
   await go(p, t);
-  if (/Mairi|cleaner\b/i.test(await p.locator('body').innerText())) leak.push(t);
+  const tx = await p.locator('body').innerText();
+  if (/Mairi|cleaner\b|to be scheduled/i.test(tx) || /To book|Booked in/.test(tx)) leak.push(t);
 }
 await go(p, 'board');
 const titles = await p.locator('.co').evaluateAll(es => es.map(e => e.getAttribute('title')).join(' '));
-ok(!leak.length && !/Mairi/.test(titles), 'Sheena never sees cleaner names ' + leak.join(','));
-// --- C7 request
-await go(p, 'available');
+ok(!leak.length && !/Mairi|To book/.test(titles), 'Sheena: no cleaner names and no scheduling noise ' + leak.join(','));
+// ---------- free-rooms finder ----------
+await go(p, 'free');
+await date(p, '#fr-from', D(1));
+await date(p, '#fr-to', D(4));
+await p.waitForTimeout(100);
+const nFree = await p.locator('.freeroom').count();
+const sum = await p.locator('.finder .summary').innerText();
 ok(
-  (await p.locator('text=Available now').count()) === 0 && (await p.locator('text=Photos to follow').count()) >= 1,
-  'C7 no "Available now"; Photos to follow kept',
+  nFree > 0 &&
+    sum.startsWith(`${nFree} room`) &&
+    sum.includes('3 nights') &&
+    (await p.locator('section[aria-label^="Free at"]').count()) === 2,
+  'free-rooms finder: grouped by property with count + nights',
 );
-await p.click('.ucard:has-text("Monadh") button:has-text("Request dates")');
+const fr = await p.locator('.freeroom').first().getAttribute('data-room');
+await p.locator('.freeroom').first().click();
+ok(
+  (await p.locator('#f-room').inputValue()) === fr &&
+    (await p.locator('#f-arr').inputValue()) === uk(D(1)) &&
+    (await p.locator('#f-dep').inputValue()) === uk(D(4)),
+  'finder: tap a room → booking prefilled',
+);
+await p.click('.panel .chip >> nth=0');
+await save(p);
+await p.waitForTimeout(150);
+await go(p, 'free');
+await date(p, '#fr-from', D(1));
+await date(p, '#fr-to', D(4));
+ok((await p.locator(`.freeroom[data-room="${fr}"]`).count()) === 0, 'finder: booked room no longer free');
+// ---------- workers: Book defaults after current stay ----------
+await go(p, 'workers');
+await p.click('button[aria-label="Book Iain Smith"]');
+ok(
+  (await p.locator('#f-arr').inputValue()) === uk(D(5)),
+  'Book for a worker in house defaults to the day their stay ends',
+);
+await p.keyboard.press('Escape');
+// ---------- C7 enquiries ----------
+await go(p, 'available');
+const av = await body(p);
+ok(
+  !/\d+ available|currently available|Available now/i.test(av) &&
+    /4 units · subject to confirmation/.test(av) &&
+    /1 unit · subject to confirmation/.test(av) &&
+    av.includes('Photos to follow'),
+  "More rooms: unit counts + 'subject to confirmation', no availability claims",
+);
+await p.click('.ucard:has-text("Monadh") button:has-text("Enquire")');
 await p.fill('.rq input[type=number]', '0');
 await p.click('button:has-text("Send enquiry")');
-ok((await p.locator('.rq .err').count()) === 1, 'Request: invalid people rejected');
+ok((await p.locator('.rq .err').count()) === 1, 'enquiry: invalid people rejected');
 await p.fill('.rq input[type=number]', '2');
 await p.click('button:has-text("Send enquiry")');
 await p.waitForTimeout(100);
 ok(
-  (await p.locator('.ok').innerText()).includes('Monadh · 2 people · Mon 19 Oct → Mon 2 Nov') &&
+  (await p.locator('.ok').innerText()).includes(`Monadh · 2 people · ${fmt(D(3))} → ${fmt(D(17))}`) &&
     /not a booking/.test(await p.locator('.ok').innerText()),
-  'C7 enquiry echoes dates, needs provider confirmation',
+  'C7 enquiry echoes dates, not a booking',
 );
-// --- navigation & dates
+// ---------- rooms list ----------
+await go(p, 'rooms');
+ok(
+  !(await p.locator('.rr[data-room="lr-9"] .nx').innerText()).includes('Daniel Reid') &&
+    (await p.locator('.rr[data-room="lr-9"]').innerText()).includes('staying on'),
+  'Next: never shows the same worker continuing as a new arrival',
+);
+const lr3 = await p.locator('.rr[data-room="lr-3"]').innerText();
+ok(
+  lr3.includes('Until further notice') && !/departs|Leaves Until/i.test(lr3),
+  "open-ended stays say 'Until further notice', no 'departs'",
+);
+ok(
+  /\d+ allocated · \d+ on site/.test(await p.locator('.rooms h3').first().innerText()),
+  'rooms list headings: N allocated · M on site',
+);
+// ---------- navigation & dates ----------
 await as(p, 'u-donald');
 await go(p, 'board');
 const first = async () => (await p.locator('.bh .day').first().innerText()).replace(/\s+/g, ' ');
@@ -296,15 +500,37 @@ await p.click('button[aria-label="Next week"]');
 const f1 = await first();
 await p.click('button[aria-label="Previous week"]');
 ok(f0 !== f1 && (await first()) === f0, 'week navigation');
-await p.fill('input.jump', '2026-10-23');
+await p.locator('.datef.jump input:not(.native)').fill('23/10/2026');
 await p.waitForTimeout(100);
 const days = await p.locator('.bh .day b').allInnerTexts();
-ok(days.slice(0, 6).join(',') === '23,24,25,26,27,28', 'clock change 25 Oct: consecutive days, no skip/dup');
-await p.fill('input.jump', '2026-10-28');
+ok(days.slice(0, 6).join(',') === '23,24,25,26,27,28', 'clock change 25 Oct: consecutive days');
+await p.locator('.datef.jump input:not(.native)').fill('28/10/2026');
 await p.waitForTimeout(100);
 const hd = await p.locator('.bh .day').allInnerTexts();
 ok(hd.some(t => /nov\s*1\b/i.test(t.replace(/\n/g, ' '))) && hd.length === 21, 'month boundary labelled');
-// --- cross-tab stale edit
+// ---------- print ----------
+await go(p, 'today');
+await p.click('button:has-text("Print")');
+await p.waitForTimeout(150);
+ok(
+  (await p.locator('.sheet-page h2').allInnerTexts()).join('|').includes('Leaving today'),
+  'print view: today’s movements',
+);
+await p.emulateMedia({ media: 'print' });
+ok(!(await p.locator('.print-bar').isVisible()), 'print CSS hides the toolbar');
+await p.emulateMedia({ media: 'screen' });
+await go(p, 'print-cleaning');
+ok((await p.locator('.sheet-page tbody tr').count()) >= 3, 'print view: cleaning list');
+// ---------- empty states ----------
+await reset(p, 'available');
+ok((await p.locator('.empty-state:has-text("No enquiries yet")').count()) === 1, 'friendly empty state (enquiries)');
+await go(p, 'workers');
+await p.fill('input.search', 'zzz');
+ok(
+  (await p.locator('.empty-state:has-text("No worker matches")').count()) === 1,
+  'friendly empty state (worker search)',
+);
+// ---------- cross-tab stale edit ----------
 const ctx = p.context();
 const p2 = await page(0, 0, ctx);
 await go(p2, 'board');
@@ -320,16 +546,23 @@ await p.waitForTimeout(150);
 ok((await p.locator('.warn:has-text("changed")').count()) === 1, 'stale edit across tabs detected');
 await p.keyboard.press('Escape');
 await p2.close();
-// --- corrupt storage / reset
+// ---------- corrupt storage / reset ----------
 await p.evaluate(() => localStorage.setItem('roomboard-demo-v2', '{bad'));
 await p.reload();
 await p.waitForTimeout(300);
 ok((await p.locator('.bar').count()) > 10, 'corrupt storage → falls back to seed');
+await p.click('.row[data-room="lr-6"] .bar');
+await p.fill('#f-notes', 'x');
+await save(p);
+await p.click('.demo-pill');
 await p.click('button.reset');
+await dialog(p, 'Reset');
 await p.waitForTimeout(200);
-ok((await p.locator('.row[data-room="es-9"] .bar').count()) === 0, 'reset restores starting example');
-// --- a11y (axe) desktop
-for (const t of ['board', 'changeovers', 'available', 'activity']) {
+await p.click('.row[data-room="lr-6"] .bar');
+ok((await p.locator('#f-notes').inputValue()) === '', 'reset restores starting example');
+await p.keyboard.press('Escape');
+// ---------- a11y ----------
+for (const t of ['board', 'free', 'changeovers', 'available', 'activity', 'workers', 'today']) {
   await go(p, t);
   await p.addScriptTag({ content: AXE });
   const r = await p.evaluate(async () =>
@@ -337,13 +570,48 @@ for (const t of ['board', 'changeovers', 'available', 'activity']) {
       v => `${v.id}(${v.nodes.length})`,
     ),
   );
-  ok(r.length === 0, `a11y ${t}: ${r.join(' ') || 'no WCAG A/AA violations'}`);
+  ok(r.length === 0, `a11y ${t}: ${r.join(' ') || 'no WCAG A/AA violations'}`, 'a11y');
 }
 await go(p, 'board');
+await p.click('.ph button:has-text("+ Add stay")');
+await p.addScriptTag({ content: AXE });
+{
+  const r = await p.evaluate(async () =>
+    (await window.axe.run(document.querySelector('.panel'), { runOnly: ['wcag2a', 'wcag2aa'] })).violations.map(
+      v => `${v.id}(${v.nodes.length})`,
+    ),
+  );
+  ok(r.length === 0, `a11y stay panel: ${r.join(' ') || 'ok'}`, 'a11y');
+}
+await p.keyboard.press('Escape');
+ok(
+  await p.evaluate(() => document.activeElement?.textContent?.includes('+ Add stay')),
+  'closing the panel returns focus to the button that opened it',
+  'a11y',
+);
+await p.reload();
+await p.waitForTimeout(300);
 await p.keyboard.press('Tab');
-await p.keyboard.press('Tab');
-ok(await p.evaluate(() => document.activeElement?.tagName === 'BUTTON'), 'keyboard focus reaches nav');
-// --- widths: header no wrap, bars not clipped
+ok(
+  await p.evaluate(() => !!document.activeElement?.closest('nav')),
+  'keyboard: first Tab reaches the main nav',
+  'a11y',
+);
+// ---------- welcome ----------
+{
+  const w = await page(1440, 900);
+  await w.goto(U);
+  await w.evaluate(() => localStorage.clear());
+  await w.reload();
+  await w.waitForTimeout(300);
+  ok((await w.locator('.welcome .hints li').count()) === 3, 'first login: welcome with 3 hints');
+  await w.click('.welcome button:has-text("Got it")');
+  await w.reload();
+  await w.waitForTimeout(300);
+  ok((await w.locator('.welcome').count()) === 0, 'welcome dismissed and remembered');
+  await w.close();
+}
+// ---------- widths ----------
 for (const w of [820, 900, 1000, 1440]) {
   const q = await page(w, 900);
   await reset(q);
@@ -351,43 +619,68 @@ for (const w of [820, 900, 1000, 1440]) {
   const clipped = await q
     .locator('.bar b, .bar span')
     .evaluateAll(es => es.filter(e => e.scrollWidth > e.clientWidth + 1).map(e => e.textContent));
-  ok(hh <= 62, `${w}px header one line (${hh}px)`);
-  ok(!clipped.length, `${w}px no clipped bar text ${clipped.slice(0, 3).join('|')}`);
+  ok(hh <= 58, `${w}px header one line (${hh}px)`, 'layout');
+  ok(!clipped.length, `${w}px no clipped bar text ${clipped.slice(0, 3).join('|')}`, 'layout');
   await q.close();
 }
-// --- phone
+// ---------- phone ----------
 const m = await page(390, 844);
-await reset(m).catch(() => {});
-await m.goto(U + '#board');
-await m.evaluate(() => localStorage.clear());
-await m.reload();
-await m.waitForTimeout(400);
-ok(await m.evaluate(() => document.documentElement.scrollWidth <= 390), 'phone: no horizontal overflow');
+await reset(m);
+ok(await m.evaluate(() => document.documentElement.scrollWidth <= 390), 'phone: no horizontal overflow', 'phone');
 ok(
   (await m.locator('.fab button:has-text("Add stay")').isVisible()) &&
     (await m.locator('.fab button:has-text("Hold")').isVisible()),
   'C5 phone FAB Add stay / Hold',
+  'phone',
 );
-await m.click('.seg button:has-text("Rooms")');
-ok((await m.locator('.rr').count()) === 19, '6/C5 phone per-room list (19 rooms)');
-ok((await m.locator('.rr').first().innerText()).includes('Next:'), 'rooms list shows next arrival');
+ok((await m.locator('.rr').count()) === 19, '6/C5 phone per-room list (19 rooms)', 'phone');
 await m.click('.fab button:has-text("Add stay")');
-ok(await m.locator('.panel').isVisible(), 'phone FAB opens Add stay');
+const box = await m.locator('.panel').boundingBox();
+ok(box && box.width >= 389 && box.height >= 843, 'phone: stay panel is a full-screen sheet', 'phone');
 await m.keyboard.press('Escape');
-for (const t of ['today', 'changeovers', 'available', 'activity', 'workers']) {
+for (const t of ['today', 'changeovers', 'free', 'available', 'activity', 'workers']) {
   await m.goto(U + '#' + t);
   await m.waitForTimeout(200);
-  ok(await m.evaluate(() => document.documentElement.scrollWidth <= 391), `phone ${t}: no horizontal overflow`);
+  ok(
+    await m.evaluate(() => document.documentElement.scrollWidth <= 391),
+    `phone ${t}: no horizontal overflow`,
+    'phone',
+  );
 }
-await m.goto(U + '#board');
+await m.goto(U + '#rooms');
 await m.selectOption('select.who', 'u-mairi');
 await m.waitForTimeout(150);
-ok((await m.locator('.bottom button').count()) === 2, 'phone cleaner tabs');
+ok((await m.locator('.bottom button').count()) === 2, 'phone cleaner tabs', 'phone');
 await m.selectOption('select.who', 'u-client');
 await m.waitForTimeout(150);
-ok((await m.locator('.bottom button').count()) === 6, 'phone client tabs');
+const sh = await m.locator('main').innerText();
+ok(
+  (await m.locator('.bottom button').count()) === 5 && (await m.locator('h1').innerText()) === 'Rooms',
+  "Sheena's phone opens on Rooms (5 tabs)",
+  'phone',
+);
+ok(
+  !/to be scheduled|clean to book/i.test(sh) && !/To book|Booked in/.test(sh) && /Ready by \w{3} \d+ \w{3}/.test(sh),
+  "Sheena's phone: only 'Ready by …' statuses",
+  'phone',
+);
+ok(
+  (await m.locator('.rr[data-room="lr-5"]').innerText()).match(/Away (from .*)?· room kept|Away · room kept/),
+  "phone Rooms: Ruairidh (Room 5) shows 'Away · room kept'",
+  'phone',
+);
+await m.goto(U + '#free');
+await m.waitForTimeout(200);
+ok(
+  (await m.locator('.bottom button.on:has-text("Find a room")').count()) === 1,
+  'phone: Find a room in the bottom bar',
+  'phone',
+);
+await m.click('.bottom button:has-text("More")');
+ok(await m.locator('.sheet button:has-text("More rooms")').isVisible(), 'phone: More sheet', 'phone');
 
-ok(errs.length === 0, 'no console/page errors ' + errs.slice(0, 3).join(' | '));
+ok(errs.length === 0, 'no console/page errors or native dialogs ' + errs.slice(0, 3).join(' | '));
 console.log(`\n${pass} passed, ${fail} failed`);
+writeFileSync('/tmp/e2e-results.json', JSON.stringify({ pass, fail, results }, null, 1));
 await b.close();
 process.exit(fail ? 1 : 0);

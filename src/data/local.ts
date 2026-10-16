@@ -64,7 +64,7 @@ function seed(): DB {
   const activity: Activity[] = [
     { id: uid(), ts: new Date(Date.now() - 36e5 * 5).toISOString(), userId: 'u-client', text: `Confirmed departure tonight for Neil Mackenzie · Loch Roag Room 8`, propertyId: 'p-lr' },
     { id: uid(), ts: new Date(Date.now() - 36e5 * 4.9).toISOString(), userId: 'u-client', text: `Held Loch Roag Room 8 from ${fmt(d(4))} · Name to follow`, propertyId: 'p-lr' },
-    { id: uid(), ts: new Date(Date.now() - 36e5 * 4.8).toISOString(), userId: 'u-donald', text: `Scheduled Room 8 changeover for ${fmt(d(1))} · cleaner assigned`, propertyId: 'p-lr' },
+    { id: uid(), ts: new Date(Date.now() - 36e5 * 4.8).toISOString(), userId: 'u-donald', text: `Scheduled Room 8 changeover for ${fmt(d(1))}`, propertyId: 'p-lr' },
   ];
   return { v: 1, users, properties, units, rooms, workers, stays, changeovers, activity, alerts: [], enquiries: [], currentUser: 'u-donald' };
 }

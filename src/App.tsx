@@ -40,7 +40,7 @@ function Shell({ wide }: { wide: boolean }) {
         <div className="sp" />
         {data.mode === 'demo' ? <span className="live demo-pill" title="Demo: nothing is really sent">● Demo</span> : <span className="live" title="Connected">● Live{pendingAlerts ? ` · ${pendingAlerts} queued` : ''}</span>}
         {data.mode === 'demo' ? <select className="who" aria-label="Demo: switch role" value={u.id} onChange={e => data.setUser(e.target.value)} title="Demo: switch role">
-          {db.users.map(x => <option key={x.id} value={x.id}>{x.role === 'cleaner' && u.role === 'client' ? 'Housekeeping view' : x.name.split(' ')[0]} · {x.role === 'client' ? 'Client · RJ McLeod' : x.role === 'manager' ? 'Provider' : 'Cleaner'}</option>)}
+          {db.users.map(x => <option key={x.id} value={x.id}>{x.role === 'cleaner' && u.role === 'client' ? 'Housekeeping view' : `${x.name.split(' ')[0]} · ${x.role === 'client' ? 'Client · RJ McLeod' : x.role === 'manager' ? 'Provider' : 'Cleaner'}`}</option>)}
         </select> : <span className="who">{u.name}</span>}
       </header>
       {data.mode === 'demo' && <div className="demo">Demo mode · data is stored in this browser only{u.role === 'manager' && <button className="btn sm reset" onClick={() => { if (confirm('Reset all demo data to the starting example?')) data.reset(); }}>Reset demo data</button>}</div>}
@@ -80,7 +80,7 @@ function Board({ onOpen }: { onOpen: (p: { stay?: Stay; roomId?: string; date?: 
   ];
   return (<div className="page">
     <div className="ph"><div><h1>Occupancy board</h1><p>{fmt(T, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} · Europe/London · arrival day counts as a night, departure day does not</p></div><div className="sp" />
-      <select value={filter} onChange={e => setFilter(e.target.value)}><option value="all">All contracted properties</option>{db.properties.filter(p => p.contracted).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
+      <select aria-label="Property filter" value={filter} onChange={e => setFilter(e.target.value)}><option value="all">All contracted properties</option>{db.properties.filter(p => p.contracted).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
       <div className="seg"><button aria-label="Previous week" onClick={() => setStart(addDays(start, -7))}>‹</button><button onClick={() => setStart(addDays(T, -3))}>Today</button><button aria-label="Next week" onClick={() => setStart(addDays(start, 7))}>›</button></div>
       <input type="date" className="jump" aria-label="Jump to date" value={start} onChange={e => e.target.value && setStart(e.target.value)} />
       <div className="seg"><button className={days === 21 ? 'on' : ''} onClick={() => setDays(21)}>3 wks</button><button className={days === 42 ? 'on' : ''} onClick={() => setDays(42)}>6 wks</button></div>
@@ -96,7 +96,7 @@ function Board({ onOpen }: { onOpen: (p: { stay?: Stay; roomId?: string; date?: 
           {db.rooms.filter(r => r.unitId === un.id).map(r => {
             const rs = db.stays.filter(s => s.roomId === r.id && s.arrival < end && (s.departure ?? '9') > start);
             const cos = db.changeovers.filter(c => c.roomId === r.id && c.afterDate >= start && c.afterDate < end);
-            return (<div className="row" key={r.id}>
+            return (<div className="row" key={r.id} data-room={r.id}>
               <div className="rl" title={r.note ?? bathText(r)}><b>{r.name}</b><span>{r.bath === 'shared' && r.note ? r.note.replace('Shares a shower room', 'Shared shower') : bathText(r)}</span></div>
               <div className="track" style={{ width: days * W, backgroundSize: `${W}px 100%` }} onClick={e => { const i = Math.floor((e.clientX - (e.currentTarget as HTMLElement).getBoundingClientRect().left) / W); if ((e.target as HTMLElement).classList.contains('track')) onOpen({ roomId: r.id, date: addDays(start, i) }); }}>
                 {diffDays(start, T) >= 0 && diffDays(start, T) < days && <div className="todayline" style={{ left: diffDays(start, T) * W + W / 2 }} />}

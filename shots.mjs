@@ -20,4 +20,6 @@ await p.goto(U + '#available'); await p.waitForTimeout(300); await p.screenshot(
 await p.goto(U + '#activity'); await p.waitForTimeout(2500); await p.screenshot({ path: 'screens/activity.png', fullPage: true });
 const m = await b.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true }); m.on('pageerror', e => errs.push(e.message));
 await m.goto(U + '#today'); await m.waitForSelector('.stats'); await m.screenshot({ path: 'screens/today-phone.png' });
+await m.goto(U + '#board'); await m.waitForTimeout(300); await m.click('.seg button:has-text("Rooms")'); await m.waitForTimeout(200); await m.screenshot({ path: 'screens/rooms-phone.png' });
+const t = await b.newPage({ viewport: { width: 900, height: 900 } }); await t.goto(U + '#board'); await t.waitForTimeout(400); await t.screenshot({ path: 'screens/board-900.png' });
 console.log('errors:', errs); await b.close();

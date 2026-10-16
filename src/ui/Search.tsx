@@ -1,6 +1,6 @@
 // Global search: type a worker or a room, jump straight to their stay.
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useDB, propOf, roomOf, roomLabel, stayLabel, inHouseOn } from '../data';
+import { useDB, propOf, roomLabel, stayLabel, inHouseOn } from '../data';
 import { fmt, londonToday } from '../dates';
 import { Icon } from './icons';
 import type { PanelInit } from './StayPanel';

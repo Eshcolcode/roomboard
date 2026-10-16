@@ -19,7 +19,7 @@ const fmt = iso =>
     month: 'short',
     timeZone: 'UTC',
   });
-const b = await chromium.launch({ executablePath: '/usr/bin/google-chrome', args: ['--no-sandbox'] });
+const b = await chromium.launch({ executablePath: process.env.QA_CHROME || '/usr/bin/google-chrome', args: ['--no-sandbox'] });
 let pass = 0,
   fail = 0;
 const errs = [];

@@ -1,7 +1,7 @@
 // Demo store commands, including the provider exception and undo.
 import { beforeEach, describe, expect, it } from 'vitest';
 const mem = new Map<string, string>();
-(globalThis as any).localStorage = {
+(globalThis as unknown as { localStorage: unknown }).localStorage = {
   getItem: (k: string) => mem.get(k) ?? null,
   setItem: (k: string, v: string) => mem.set(k, v),
   removeItem: (k: string) => mem.delete(k),

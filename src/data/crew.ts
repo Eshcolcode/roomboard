@@ -32,7 +32,8 @@ export interface CrewPlan {
   warnings: number;
 }
 
-const nameOf = (db: DB, s: Stay) => db.workers.find(w => w.id === s.workerId)?.name ?? s.holdLabel ?? 'Name to follow';
+const nameOf = (db: DB, s: Stay) =>
+  db.workers.find(w => w.id === s.workerId)?.name ?? `a hold (${s.holdLabel || 'name to follow'})`;
 const shape = (o: Occurrence) => ({
   arrival: o.arrival,
   departure: o.departure,

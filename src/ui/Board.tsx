@@ -6,6 +6,7 @@ import { addDays, diffDays, fmt, londonToday } from '../dates';
 import { DateField } from './DateField';
 import { BrushIcon, Icon } from './icons';
 import type { PanelInit } from './StayPanel';
+import { useDrag, startDrag, wasDrag, problem, describe, candidate } from './drag';
 
 const GAP = 13; // space kept free around a changeover marker so it never covers a bar
 
@@ -207,7 +208,10 @@ export function Board({ onOpen }: { onOpen: (p: PanelInit) => void }) {
             Same-day turnaround
           </span>
           <span className="lg-today">│ Today</span>
-          <span className="hint">Click an empty day to add a stay · click a bar to edit</span>
+          <span className="hint">
+            Click an empty day to add a stay · click a bar to edit · drag a bar to move it, or its right edge to change
+            the departure (Esc cancels)
+          </span>
         </div>
       </div>
     </div>
@@ -278,6 +282,7 @@ function RoomRow({
             />
           );
         })}
+        <Ghost roomId={r.id} start={start} end={end} days={days} W={W} x={x} />
         {cos.map(c => (
           <Marker key={c.id} c={c} left={x(c.afterDate) + W / 2 - 10} client={client} />
         ))}
@@ -315,6 +320,9 @@ function Bar({
     p => p.roomId === s.roomId && p.departure === s.arrival && p.workerId && p.workerId === s.workerId,
   );
   const name = stayLabel(s);
+  const drag = useDrag();
+  const dragging = drag?.stay.id === s.id;
+  const canDrag = me().role !== 'cleaner' && !cutLeft;
   const tiny = width < 90;
   const short = width < 150 ? (hold ? 'Hold' : name.split(' ').slice(-1)[0]) : (hold ? 'Hold · ' : '') + name;
   const sub = vacated
@@ -347,6 +355,8 @@ function Bar({
     cutLeft && 'cutl',
     tiny && 'tiny',
     vacated && 'left',
+    canDrag && 'dragable',
+    dragging && 'dragging',
   ]
     .filter(Boolean)
     .join(' ');
@@ -359,7 +369,8 @@ function Bar({
       title={tip}
       className={cls}
       style={{ left: left + 2, width }}
-      onClick={() => onOpen({ stay: s })}
+      onPointerDown={e => canDrag && startDrag(e, s, 'move', W)}
+      onClick={() => !wasDrag() && onOpen({ stay: s })}
       onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onOpen({ stay: s }))}
     >
       {tiny ? (
@@ -390,6 +401,49 @@ function Bar({
           Away · room kept
         </i>
       )}
+      {canDrag && s.departure && (
+        <span
+          className="grip"
+          aria-hidden="true"
+          title="Drag to change the departure"
+          onPointerDown={e => startDrag(e, s, 'resize', W)}
+          onClick={e => e.stopPropagation()}
+        />
+      )}
+    </div>
+  );
+}
+
+/** Where the dragged stay would land, green if it fits, red with the reason if it clashes. */
+function Ghost({
+  roomId,
+  start,
+  end,
+  days,
+  W,
+  x,
+}: {
+  roomId: string;
+  start: string;
+  end: string;
+  days: number;
+  W: number;
+  x: (d: string) => number;
+}) {
+  const d = useDrag();
+  if (!d || d.roomId !== roomId) return null;
+  const c = candidate(d);
+  if (c.arrival >= end || (c.departure ?? '9') <= start) return null;
+  const err = problem(d);
+  const l = x(c.arrival) + (c.arrival >= start ? W / 2 : 0);
+  const rr = c.departure && c.departure < end ? x(c.departure) + W / 2 : days * W;
+  return (
+    <div
+      className={'dghost' + (err ? ' bad' : ' ok')}
+      style={{ left: l + 2, width: Math.max(rr - l - 4, 14) }}
+      role="status"
+    >
+      {err ? `Clash: ${err}` : describe(d)}
     </div>
   );
 }

@@ -20,6 +20,7 @@ import { Search } from './ui/Search';
 import { Welcome } from './ui/Welcome';
 import { PrintView } from './ui/Print';
 import { Login } from './ui/Login';
+import { Crew } from './ui/Crew';
 
 const LABEL: Record<Tab, string> = {
   board: 'Board',
@@ -30,11 +31,12 @@ const LABEL: Record<Tab, string> = {
   workers: 'Workers',
   available: 'More rooms',
   activity: 'Activity',
+  crew: 'Crew booking',
   more: 'More',
 };
 const DESKTOP: Record<Role, Tab[]> = {
-  manager: ['board', 'free', 'today', 'changeovers', 'workers', 'available', 'activity'],
-  client: ['board', 'rooms', 'free', 'today', 'workers', 'available', 'activity'],
+  manager: ['board', 'rooms', 'crew', 'free', 'today', 'changeovers', 'workers', 'available', 'activity'],
+  client: ['board', 'rooms', 'crew', 'free', 'today', 'workers', 'available', 'activity'],
   cleaner: ['today', 'changeovers'],
 };
 const PHONE: Record<Role, Tab[]> = {
@@ -43,8 +45,8 @@ const PHONE: Record<Role, Tab[]> = {
   cleaner: ['today', 'changeovers'],
 };
 const PHONE_MORE: Record<Role, Tab[]> = {
-  manager: ['workers', 'available', 'activity'],
-  client: ['available', 'activity'],
+  manager: ['crew', 'workers', 'available', 'activity'],
+  client: ['crew', 'available', 'activity'],
   cleaner: [],
 };
 
@@ -202,6 +204,7 @@ function Shell({ wide }: { wide: boolean }) {
         {cur === 'workers' && <Workers onOpen={open} />}
         {cur === 'available' && <Available />}
         {cur === 'activity' && <ActivityView />}
+        {cur === 'crew' && <Crew />}
       </main>
 
       {!wide && canEdit && (cur === 'rooms' || cur === 'today') && (

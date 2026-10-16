@@ -119,7 +119,7 @@ describe('crew booking', () => {
     const first = mine(s.id)
       .filter(x => x.slot === 0)
       .sort((a, b) => a.arrival.localeCompare(b.arrival))[0];
-    await repo.saveStay({ ...first, workerId: 'w-1' });
+    await repo.saveStay({ ...first, away: first.away ?? null, workerId: 'w-1' });
     expect(cleans(s.id)).toHaveLength(3);
   });
 });

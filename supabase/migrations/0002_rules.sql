@@ -37,7 +37,7 @@ end $$;
 
 -- ---------- stays: clash check + stale-edit check ----------
 create or replace function stays_before() returns trigger language plpgsql as $$
-declare c record;
+declare c record; e text;
 begin
   if tg_op = 'UPDATE' then
     if new.version is distinct from old.version then
@@ -46,12 +46,14 @@ begin
     new.version := old.version + 1; new.updated_at := now(); new.updated_by := auth.uid();
   end if;
   if new.dep_status in ('tbc','ufn') then new.departure := null; end if;
-  if new.away_from is not null and (new.away_to is null or new.away_to <= new.away_from or new.away_from < new.arrival or (new.departure is not null and new.away_to > new.departure)) then
+  -- shared rule function (0006), tested against rules/cases.json
+  e := rb_stay_error(new.arrival, new.departure, new.dep_status::text, new.away_from, new.away_to);
+  if e in ('away_order', 'away_outside') then
     raise exception 'Away dates must fall inside the stay, and "back" must be after "leaves"' using errcode = 'P0001';
-  end if;
+  elsif e is not null then raise exception 'Invalid stay: %', e using errcode = 'P0001'; end if;
   -- friendly clash message (the exclusion constraint is the hard guarantee, including under concurrency)
   select s.*, stay_label(s) lbl into c from stays s where s.room_id = new.room_id and s.id <> new.id
-    and daterange(s.arrival, coalesce(s.departure,'infinity'), '[)') && daterange(new.arrival, coalesce(new.departure,'infinity'), '[)') limit 1;
+    and rb_overlaps(s.arrival, s.departure, new.arrival, new.departure) limit 1;
   if found then raise exception 'Clashes with % (% → %) in %', c.lbl, c.arrival, coalesce(c.departure::text, 'open-ended'), room_label(new.room_id) using errcode = 'P0001'; end if;
   return new;
 end $$;
@@ -64,12 +66,12 @@ begin
   for s in select * from stays where room_id = r and departure is not null and dep_status in ('planned','confirmed') order by arrival loop
     nxt := null; select * into nxt from stays where room_id = r and id <> s.id and arrival >= s.departure order by arrival limit 1;
     select * into co from changeovers where from_stay_id = s.id;
-    if nxt.id is not null and nxt.worker_id = s.worker_id and nxt.arrival = s.departure and (co.id is null or co.status = 'needs') then
+    if rb_boundary(s.worker_id, s.departure, s.dep_status::text, nxt.worker_id, nxt.arrival) = 'continues' and (co.id is null or co.status = 'needs') then
       if co.id is not null then seen := seen || co.id; end if;
       perform log_activity(r, room_label(r) || ': same worker continues, no clean needed', 'stay', s.id::text);
       continue;
     end if;
-    v_ready := nxt.arrival; v_zero := nxt.id is not null and nxt.arrival = s.departure;
+    v_ready := nxt.arrival; v_zero := rb_boundary(s.worker_id, s.departure, s.dep_status::text, nxt.worker_id, nxt.arrival) = 'zero_day';
     if co.id is null then
       insert into changeovers (room_id, from_stay_id, to_stay_id, after_date, ready_by, zero_day) values (r, s.id, nxt.id, s.departure, v_ready, v_zero) returning * into co;
       if v_zero then perform log_activity(r, '⚠ ' || room_label(r) || ': same-day changeover on ' || s.departure, 'changeover', co.id::text); end if;
@@ -137,7 +139,7 @@ create or replace function co_before() returns trigger language plpgsql security
 declare today date := london_today();
 begin
   if new.scheduled_for is distinct from old.scheduled_for and new.scheduled_for is not null then
-    if (new.scheduled_for < new.after_date or (new.ready_by is not null and new.scheduled_for > new.ready_by)) then
+    if rb_clean_window(new.after_date, new.ready_by, new.scheduled_for) is not null then
       if new.exception_reason is null or my_role() <> 'manager' then
         raise exception 'Clean date must be between the departure (%) and the next arrival (%)', new.after_date, coalesce(new.ready_by::text, '—') using errcode = 'P0001';
       end if;
@@ -145,12 +147,12 @@ begin
     else new.exception_reason := null; end if;
   end if;
   if new.vacated and not old.vacated then
-    if today < new.after_date then raise exception 'Cannot record vacated before the departure date (%)', new.after_date using errcode = 'P0001'; end if;
+    if rb_status_gate('vacated', true, today, new.after_date) is not null then raise exception 'Cannot record vacated before the departure date (%)', new.after_date using errcode = 'P0001'; end if;
     new.vacated_at := now(); perform log_activity(new.room_id, room_label(new.room_id) || ': guest confirmed vacated', 'changeover', new.id::text);
   end if;
-  if new.status = 'in_progress' and old.status <> 'in_progress' and not new.vacated then raise exception 'Record the actual departure (vacated) before starting the clean' using errcode = 'P0001'; end if;
+  if new.status = 'in_progress' and old.status <> 'in_progress' and rb_status_gate('in_progress', new.vacated, today, new.after_date) is not null then raise exception 'Record the actual departure (vacated) before starting the clean' using errcode = 'P0001'; end if;
   if new.status = 'ready' and old.status <> 'ready' then
-    if not new.vacated or today < new.after_date then raise exception 'Ready needs a recorded actual departure (vacated)' using errcode = 'P0001'; end if;
+    if rb_status_gate('ready', new.vacated, today, new.after_date) is not null then raise exception 'Ready needs a recorded actual departure (vacated)' using errcode = 'P0001'; end if;
     new.exception_reason := null;
   end if;
   if new.status is distinct from old.status then

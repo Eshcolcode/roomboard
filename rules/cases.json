@@ -1,0 +1,57 @@
+{
+  "_about": "Shared rule cases. Run by vitest (src/data/rules.test.ts) against src/data/rules.ts and by qa/sql-rules.mjs against the SQL functions in supabase/migrations/0006_rule_functions.sql.",
+  "nights": [
+    { "name": "one night", "arrival": "2026-10-16", "departure": "2026-10-17", "expect": 1 },
+    { "name": "across clocks going back (25 Oct)", "arrival": "2026-10-24", "departure": "2026-10-26", "expect": 2 },
+    { "name": "across clocks going forward (29 Mar)", "arrival": "2026-03-28", "departure": "2026-03-30", "expect": 2 },
+    { "name": "month boundary", "arrival": "2026-10-30", "departure": "2026-11-02", "expect": 3 },
+    { "name": "leap day", "arrival": "2028-02-28", "departure": "2028-03-01", "expect": 2 },
+    { "name": "year boundary", "arrival": "2026-12-31", "departure": "2027-01-01", "expect": 1 }
+  ],
+  "overlaps": [
+    { "name": "back to back is not a clash", "a1": "2026-10-01", "a2": "2026-10-10", "b1": "2026-10-10", "b2": "2026-10-15", "expect": false },
+    { "name": "one night overlap", "a1": "2026-10-01", "a2": "2026-10-10", "b1": "2026-10-09", "b2": "2026-10-15", "expect": true },
+    { "name": "inside", "a1": "2026-10-01", "a2": "2026-10-20", "b1": "2026-10-05", "b2": "2026-10-06", "expect": true },
+    { "name": "open-ended blocks later stays", "a1": "2026-10-01", "a2": null, "b1": "2027-01-01", "b2": "2027-01-05", "expect": true },
+    { "name": "open-ended after a finished stay", "a1": "2026-10-01", "a2": "2026-10-05", "b1": "2026-10-05", "b2": null, "expect": false },
+    { "name": "two open-ended", "a1": "2026-10-01", "a2": null, "b1": "2026-11-01", "b2": null, "expect": true },
+    { "name": "entirely before", "a1": "2026-10-01", "a2": "2026-10-03", "b1": "2026-10-05", "b2": "2026-10-08", "expect": false }
+  ],
+  "boundary": [
+    { "name": "same worker same day continues", "dep": { "workerId": "w1", "departure": "2026-10-28", "depStatus": "planned" }, "next": { "workerId": "w1", "arrival": "2026-10-28" }, "expect": "continues" },
+    { "name": "different worker same day is zero-day", "dep": { "workerId": "w1", "departure": "2026-10-17", "depStatus": "confirmed" }, "next": { "workerId": "w2", "arrival": "2026-10-17" }, "expect": "zero_day" },
+    { "name": "hold arriving same day is zero-day", "dep": { "workerId": "w1", "departure": "2026-10-17", "depStatus": "planned" }, "next": { "workerId": null, "arrival": "2026-10-17" }, "expect": "zero_day" },
+    { "name": "same worker after a gap needs a clean", "dep": { "workerId": "w1", "departure": "2026-10-17", "depStatus": "planned" }, "next": { "workerId": "w1", "arrival": "2026-10-19" }, "expect": "changeover" },
+    { "name": "no next arrival needs a clean", "dep": { "workerId": "w1", "departure": "2026-10-17", "depStatus": "planned" }, "next": null, "expect": "changeover" },
+    { "name": "until further notice: no clean", "dep": { "workerId": "w1", "departure": null, "depStatus": "ufn" }, "next": null, "expect": "open" },
+    { "name": "departure TBC: no clean", "dep": { "workerId": "w1", "departure": null, "depStatus": "tbc" }, "next": null, "expect": "open" }
+  ],
+  "cleanWindow": [
+    { "name": "on departure day", "afterDate": "2026-10-21", "readyBy": "2026-10-22", "date": "2026-10-21", "expect": null },
+    { "name": "on next arrival day", "afterDate": "2026-10-21", "readyBy": "2026-10-22", "date": "2026-10-22", "expect": null },
+    { "name": "before departure", "afterDate": "2026-10-21", "readyBy": "2026-10-22", "date": "2026-10-20", "expect": "before_departure" },
+    { "name": "after next arrival (Room 4 exception case)", "afterDate": "2026-10-21", "readyBy": "2026-10-22", "date": "2026-10-23", "expect": "after_next_arrival" },
+    { "name": "no next arrival: any date after departure", "afterDate": "2026-10-21", "readyBy": null, "date": "2026-12-01", "expect": null }
+  ],
+  "statusGate": [
+    { "name": "vacated before departure refused", "target": "vacated", "vacated": false, "today": "2026-10-16", "afterDate": "2026-10-21", "expect": "before_departure" },
+    { "name": "vacated on departure day", "target": "vacated", "vacated": false, "today": "2026-10-21", "afterDate": "2026-10-21", "expect": null },
+    { "name": "ready without vacated refused", "target": "ready", "vacated": false, "today": "2026-10-21", "afterDate": "2026-10-21", "expect": "needs_vacated" },
+    { "name": "ready with vacated", "target": "ready", "vacated": true, "today": "2026-10-22", "afterDate": "2026-10-21", "expect": null },
+    { "name": "start clean without vacated refused", "target": "in_progress", "vacated": false, "today": "2026-10-22", "afterDate": "2026-10-21", "expect": "needs_vacated" },
+    { "name": "ready before departure refused even if ticked", "target": "ready", "vacated": true, "today": "2026-10-20", "afterDate": "2026-10-21", "expect": "before_departure" }
+  ],
+  "stay": [
+    { "name": "valid planned stay", "stay": { "arrival": "2026-10-18", "departure": "2026-10-22", "depStatus": "planned" }, "others": [], "expect": null },
+    { "name": "missing arrival", "stay": { "arrival": "", "departure": "2026-10-22", "depStatus": "planned" }, "others": [], "expect": "no_arrival" },
+    { "name": "planned without departure", "stay": { "arrival": "2026-10-18", "departure": null, "depStatus": "planned" }, "others": [], "expect": "no_departure" },
+    { "name": "ufn ignores departure", "stay": { "arrival": "2026-10-18", "departure": "2026-10-10", "depStatus": "ufn" }, "others": [], "expect": null },
+    { "name": "departure same as arrival", "stay": { "arrival": "2026-10-18", "departure": "2026-10-18", "depStatus": "confirmed" }, "others": [], "expect": "departure_not_after_arrival" },
+    { "name": "away back before leaves", "stay": { "arrival": "2026-10-01", "departure": "2026-10-30", "depStatus": "planned", "away": { "from": "2026-10-20", "to": "2026-10-19" } }, "others": [], "expect": "away_order" },
+    { "name": "away outside stay", "stay": { "arrival": "2026-10-01", "departure": "2026-10-30", "depStatus": "planned", "away": { "from": "2026-10-28", "to": "2026-11-02" } }, "others": [], "expect": "away_outside" },
+    { "name": "away inside open-ended stay", "stay": { "arrival": "2026-10-01", "departure": null, "depStatus": "ufn", "away": { "from": "2026-10-17", "to": "2026-10-21" } }, "others": [], "expect": null },
+    { "name": "clash with existing stay", "stay": { "arrival": "2026-10-18", "departure": "2026-10-22", "depStatus": "planned" }, "others": [{ "arrival": "2026-10-20", "departure": "2026-10-25" }], "expect": "clash" },
+    { "name": "back to back is fine", "stay": { "arrival": "2026-10-18", "departure": "2026-10-22", "depStatus": "planned" }, "others": [{ "arrival": "2026-10-22", "departure": "2026-10-25" }], "expect": null },
+    { "name": "open-ended new stay clashes with later stay", "stay": { "arrival": "2026-10-18", "departure": null, "depStatus": "tbc" }, "others": [{ "arrival": "2026-11-20", "departure": "2026-11-25" }], "expect": "clash" }
+  ]
+}

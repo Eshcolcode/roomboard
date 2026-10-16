@@ -1,40 +1,152 @@
 // Shared model + pure rules. Both data backends (local demo, Supabase) fill the same snapshot shape.
 import { useSyncExternalStore } from 'react';
-import { addDays, londonToday, overlaps, diffDays, fmt } from '../dates';
+import { addDays, londonToday, overlaps, fmt } from '../dates';
+import { boundary, stayError } from './rules';
 export type Role = 'client' | 'manager' | 'cleaner';
 export type Bath = 'ensuite' | 'private' | 'shared';
-export interface User { id: string; name: string; role: Role; email: string; phone: string; smsOptIn?: boolean; pushEnabled?: boolean }
-export interface Property { id: string; name: string; short: string; contracted: boolean; address: string; blurb: string; photo?: string; features: string[]; beds?: string; brand?: string; checkout?: string; checkin?: string }
-export interface Unit { id: string; propertyId: string; name: string }
-export interface Room { id: string; propertyId: string; unitId: string; name: string; bath: Bath; note?: string; photo?: string; floor?: string }
-export interface Worker { id: string; name: string; company: string; phone: string; notes: string; lastUsed?: string; uses: number }
+export interface User {
+  id: string;
+  name: string;
+  role: Role;
+  email: string;
+  phone: string;
+  smsOptIn?: boolean;
+  pushEnabled?: boolean;
+}
+export interface Property {
+  id: string;
+  name: string;
+  short: string;
+  contracted: boolean;
+  address: string;
+  blurb: string;
+  photo?: string;
+  features: string[];
+  beds?: string;
+  brand?: string;
+  checkout?: string;
+  checkin?: string;
+}
+export interface Unit {
+  id: string;
+  propertyId: string;
+  name: string;
+}
+export interface Room {
+  id: string;
+  propertyId: string;
+  unitId: string;
+  name: string;
+  bath: Bath;
+  note?: string;
+  photo?: string;
+  floor?: string;
+}
+export interface Worker {
+  id: string;
+  name: string;
+  company: string;
+  phone: string;
+  notes: string;
+  lastUsed?: string;
+  uses: number;
+}
 export type DepStatus = 'planned' | 'confirmed' | 'tbc' | 'ufn';
 export interface Stay {
-  id: string; roomId: string; workerId: string | null; holdLabel: string;
-  arrival: string; departure: string | null; depStatus: DepStatus;
+  id: string;
+  roomId: string;
+  workerId: string | null;
+  holdLabel: string;
+  arrival: string;
+  departure: string | null;
+  depStatus: DepStatus;
   away?: { from: string; to: string } | null; // Away, room retained: no clean
-  checkedOut?: boolean; notes: string; version: number; updatedBy: string; updatedAt: string;
+  checkedOut?: boolean;
+  notes: string;
+  version: number;
+  updatedBy: string;
+  updatedAt: string;
 }
 export type CoStatus = 'needs' | 'scheduled' | 'in_progress' | 'ready';
 export interface Changeover {
-  id: string; roomId: string; fromStayId: string | null; toStayId: string | null;
-  afterDate: string; readyBy: string | null; status: CoStatus; scheduledFor: string | null; cleanerId: string | null; note: string;
-  vacated?: boolean;          // provider/cleaner recorded that the person actually left. Ready requires it.
-  zeroDay?: boolean;          // next arrival is on the departure day (different worker)
-  invalidated?: string;       // reason a scheduled/ready changeover needs rescheduling
-  cancelled?: string;
-  exception?: string;         // provider forced a clean date outside departure→next-arrival window; stays flagged until resolved         // departure removed after scheduling: kept (never silently deleted) until provider dismisses
+  id: string;
+  roomId: string;
+  fromStayId: string | null;
+  toStayId: string | null;
+  afterDate: string;
+  readyBy: string | null;
+  status: CoStatus;
+  scheduledFor: string | null;
+  cleanerId: string | null;
+  note: string;
+  vacated?: boolean; // provider/cleaner recorded that the person actually left. Ready requires it.
+  zeroDay?: boolean; // next arrival is on the departure day (different worker)
+  invalidated?: string; // dates changed after the clean was booked: it must be booked again
+  cancelled?: string; // departure removed after booking: kept (never silently deleted) until the provider dismisses it
+  exception?: string; // provider booked a clean outside departure → next arrival; stays flagged until resolved
 }
-export interface Activity { id: string; ts: string; userId: string; text: string; propertyId?: string }
-export interface Alert { id: string; ts: string; channel: 'email' | 'sms' | 'push'; toUserId?: string; to: string; subject: string; body: string; status: 'queued' | 'simulated' | 'accepted' | 'delivered' | 'failed' | 'acknowledged' | 'no_address'; attempts: number; nextAttemptAt: number }
-export interface Enquiry { id: string; ts: string; propertyId: string; from: string; to: string | null; longTerm: boolean; people: number; note: string; status: 'new' | 'replied' }
-export interface DB { v: number; users: User[]; properties: Property[]; units: Unit[]; rooms: Room[]; workers: Worker[]; stays: Stay[]; changeovers: Changeover[]; activity: Activity[]; alerts: Alert[]; enquiries: Enquiry[]; currentUser: string; authRequired?: boolean }
-
+export interface Activity {
+  id: string;
+  ts: string;
+  userId: string;
+  text: string;
+  propertyId?: string;
+}
+export interface Alert {
+  id: string;
+  ts: string;
+  channel: 'email' | 'sms' | 'push';
+  toUserId?: string;
+  to: string;
+  subject: string;
+  body: string;
+  status: 'queued' | 'simulated' | 'accepted' | 'delivered' | 'failed' | 'acknowledged' | 'no_address';
+  attempts: number;
+  nextAttemptAt: number;
+}
+export interface Enquiry {
+  id: string;
+  ts: string;
+  propertyId: string;
+  from: string;
+  to: string | null;
+  longTerm: boolean;
+  people: number;
+  note: string;
+  status: 'new' | 'replied';
+}
+export interface DB {
+  v: number;
+  users: User[];
+  properties: Property[];
+  units: Unit[];
+  rooms: Room[];
+  workers: Worker[];
+  stays: Stay[];
+  changeovers: Changeover[];
+  activity: Activity[];
+  alerts: Alert[];
+  enquiries: Enquiry[];
+  currentUser: string;
+  authRequired?: boolean;
+}
 
 export const S = { db: null as unknown as DB };
 const subs = new Set<() => void>();
-export function publish(next: DB) { S.db = next; subs.forEach(f => f()); }
-export const useDB = () => useSyncExternalStore(f => { subs.add(f); return () => { subs.delete(f); }; }, () => S.db);
+export function publish(next: DB) {
+  S.db = next;
+  subs.forEach(f => f());
+}
+export const useDB = () =>
+  useSyncExternalStore(
+    f => {
+      subs.add(f);
+      return () => {
+        subs.delete(f);
+      };
+    },
+    () => S.db,
+  );
 export const getDB = () => S.db;
 export const me = () => S.db.users.find(u => u.id === S.db.currentUser) ?? S.db.users[0];
 export const uid = () => Math.random().toString(36).slice(2, 10);
@@ -44,11 +156,19 @@ export const roomOf = (id: string) => S.db.rooms.find(r => r.id === id)!;
 export const propOf = (id: string) => S.db.properties.find(p => p.id === id)!;
 export const workerOf = (id: string | null) => (id ? S.db.workers.find(w => w.id === id) : undefined);
 export const stayLabel = (s: Stay) => workerOf(s.workerId)?.name ?? s.holdLabel ?? 'Name to follow';
-export const roomLabel = (roomId: string) => { const r = roomOf(roomId); return `${propOf(r.propertyId).short} ${r.name}`; };
+export const roomLabel = (roomId: string) => {
+  const r = roomOf(roomId);
+  return `${propOf(r.propertyId).short} ${r.name}`;
+};
 
 // Changeovers are PERSISTENT rows with stable ids. reconcile() only creates or updates them from stay boundaries
 // and reports events; it never drops one that has been scheduled. (Mirrored in supabase/migrations/0002_rules.sql.)
-export interface CoEvent { kind: 'created' | 'moved' | 'invalidated' | 'cancelled' | 'continues' | 'dropped'; co?: Changeover; roomId: string; text: string }
+export interface CoEvent {
+  kind: 'created' | 'moved' | 'invalidated' | 'cancelled' | 'continues' | 'dropped';
+  co?: Changeover;
+  roomId: string;
+  text: string;
+}
 export function reconcile(x: DB): CoEvent[] {
   const ev: CoEvent[] = [];
   const seen = new Set<string>();
@@ -57,25 +177,77 @@ export function reconcile(x: DB): CoEvent[] {
     for (const s of list) {
       if (!s.departure || s.depStatus === 'tbc' || s.depStatus === 'ufn') continue;
       const next = list.find(n => n.id !== s.id && n.arrival >= s.departure!) ?? null;
-      const continues = !!(next && next.workerId && next.workerId === s.workerId && next.arrival === s.departure);
+      const kind = boundary(s, next);
+      const continues = kind === 'continues';
       const co = x.changeovers.find(c => c.fromStayId === s.id);
-      if (continues) { if (!co || co.status === 'needs') { if (co) seen.add(co.id); ev.push({ kind: 'continues', roomId: room.id, text: `${room.name}: same worker continues on ${s.departure}, no clean needed` }); continue; } }
-      const readyBy = next ? next.arrival : null; const zeroDay = !!next && next.arrival === s.departure;
+      if (continues) {
+        if (!co || co.status === 'needs') {
+          if (co) seen.add(co.id);
+          ev.push({
+            kind: 'continues',
+            roomId: room.id,
+            text: `${room.name}: same worker continues on ${fmt(s.departure)}, no clean needed`,
+          });
+          continue;
+        }
+      }
+      const readyBy = next ? next.arrival : null;
+      const zeroDay = kind === 'zero_day';
       if (!co) {
-        const n: Changeover = { id: uid(), roomId: room.id, fromStayId: s.id, toStayId: next?.id ?? null, afterDate: s.departure, readyBy, status: 'needs', scheduledFor: null, cleanerId: null, note: '', vacated: false, zeroDay };
-        x.changeovers.push(n); seen.add(n.id); ev.push({ kind: 'created', co: n, roomId: room.id, text: 'created' }); continue;
+        const n: Changeover = {
+          id: uid(),
+          roomId: room.id,
+          fromStayId: s.id,
+          toStayId: next?.id ?? null,
+          afterDate: s.departure,
+          readyBy,
+          status: 'needs',
+          scheduledFor: null,
+          cleanerId: null,
+          note: '',
+          vacated: false,
+          zeroDay,
+        };
+        x.changeovers.push(n);
+        seen.add(n.id);
+        ev.push({ kind: 'created', co: n, roomId: room.id, text: 'created' });
+        continue;
       }
       seen.add(co.id);
-      const linkedDateChanged = co.afterDate !== s.departure || co.roomId !== room.id || (co.toStayId === (next?.id ?? null) && co.readyBy !== readyBy)
-        || (co.toStayId !== (next?.id ?? null) && !!readyBy && !!co.scheduledFor && readyBy < co.scheduledFor);
+      const linkedDateChanged =
+        co.afterDate !== s.departure ||
+        co.roomId !== room.id ||
+        (co.toStayId === (next?.id ?? null) && co.readyBy !== readyBy) ||
+        (co.toStayId !== (next?.id ?? null) && !!readyBy && !!co.scheduledFor && readyBy < co.scheduledFor);
       const moved = linkedDateChanged || co.readyBy !== readyBy;
-      if (moved && !linkedDateChanged) { Object.assign(co, { readyBy, toStayId: next?.id ?? null, zeroDay }); ev.push({ kind: 'moved', co, roomId: room.id, text: `ready-by now ${readyBy ? fmt(readyBy) : 'open'}` }); }
-      else if (moved) {
+      if (moved && !linkedDateChanged) {
+        Object.assign(co, { readyBy, toStayId: next?.id ?? null, zeroDay });
+        ev.push({
+          kind: 'moved',
+          co,
+          roomId: room.id,
+          text: `now needed by ${readyBy ? fmt(readyBy) : 'no arrival booked'}`,
+        });
+      } else if (moved) {
         const was = co.status;
-        Object.assign(co, { roomId: room.id, afterDate: s.departure, readyBy, toStayId: next?.id ?? null, zeroDay, cancelled: undefined });
-        if (was !== 'needs') { co.status = 'needs'; co.scheduledFor = null; co.vacated = false; co.invalidated = `Dates changed (was ${CO_LABEL[was]}) – needs rescheduling`; ev.push({ kind: 'invalidated', co, roomId: room.id, text: co.invalidated }); }
-        else ev.push({ kind: 'moved', co, roomId: room.id, text: 'dates moved' });
-      } else if (co.cancelled) { co.cancelled = undefined; }
+        Object.assign(co, {
+          roomId: room.id,
+          afterDate: s.departure,
+          readyBy,
+          toStayId: next?.id ?? null,
+          zeroDay,
+          cancelled: undefined,
+        });
+        if (was !== 'needs') {
+          co.status = 'needs';
+          co.scheduledFor = null;
+          co.vacated = false;
+          co.invalidated = `Dates changed after this clean was booked${co.scheduledFor ? '' : ''} – please book it again`;
+          ev.push({ kind: 'invalidated', co, roomId: room.id, text: co.invalidated });
+        } else ev.push({ kind: 'moved', co, roomId: room.id, text: 'dates moved' });
+      } else if (co.cancelled) {
+        co.cancelled = undefined;
+      }
       co.toStayId = next?.id ?? null;
     }
   }
@@ -83,35 +255,146 @@ export function reconcile(x: DB): CoEvent[] {
   for (const c of [...x.changeovers]) {
     if (seen.has(c.id) || c.cancelled) continue;
     const scheduled = c.status !== 'needs' || c.scheduledFor || c.invalidated; // once scheduled, never silently dropped
-    if (scheduled) { c.cancelled = 'Departure removed or made open-ended after this clean was scheduled'; ev.push({ kind: 'cancelled', co: c, roomId: c.roomId, text: c.cancelled }); }
-    else { x.changeovers = x.changeovers.filter(z => z.id !== c.id); ev.push({ kind: 'dropped', roomId: c.roomId, text: 'unscheduled changeover no longer needed' }); }
+    if (scheduled) {
+      c.cancelled = 'The departure was removed after this clean was booked – check if it is still needed';
+      ev.push({ kind: 'cancelled', co: c, roomId: c.roomId, text: c.cancelled });
+    } else {
+      x.changeovers = x.changeovers.filter(z => z.id !== c.id);
+      ev.push({ kind: 'dropped', roomId: c.roomId, text: 'unscheduled changeover no longer needed' });
+    }
   }
   return ev;
 }
 export const coBucket = (c: Changeover, today: string): CoStatus | 'later' | 'cancelled' =>
-  c.cancelled ? 'cancelled' : c.status === 'needs' && !c.readyBy && c.afterDate > addDays(today, 7) ? 'later' : c.status;
-export const coDepartText = (c: Changeover) => { const s = S.db.stays.find(x => x.id === c.fromStayId); return `Departs ${fmt(c.afterDate)} (${s?.depStatus === 'confirmed' ? 'confirmed' : 'planned'})`; };
+  c.cancelled
+    ? 'cancelled'
+    : c.status === 'needs' && !c.readyBy && c.afterDate > addDays(today, 7)
+      ? 'later'
+      : c.status;
+export const coDepartText = (c: Changeover) => {
+  const s = S.db.stays.find(x => x.id === c.fromStayId);
+  return `Departs ${fmt(c.afterDate)} (${s?.depStatus === 'confirmed' ? 'confirmed' : 'planned'})`;
+};
 
 export class ConflictError extends Error {}
-export interface StayInput { id?: string; version?: number; roomId: string; workerId: string | null; holdLabel: string; arrival: string; departure: string | null; depStatus: DepStatus; away: { from: string; to: string } | null; notes: string }
+export interface StayInput {
+  id?: string;
+  version?: number;
+  roomId: string;
+  workerId: string | null;
+  holdLabel: string;
+  arrival: string;
+  departure: string | null;
+  depStatus: DepStatus;
+  away: { from: string; to: string } | null;
+  notes: string;
+}
 
+const STAY_MSG: Record<string, string> = {
+  no_arrival: 'Enter an arrival date.',
+  no_departure: 'Enter a departure date, or choose Departure TBC / Until further notice.',
+  away_order: 'Away dates: "back" must be after "leaves".',
+  away_outside: 'Away dates must fall inside the stay.',
+  departure_not_after_arrival: 'Departure must be after arrival (the departure day is not a night).',
+};
 export function validate(inp: StayInput): string | null {
-  if (!inp.arrival) return 'Enter an arrival date.';
-  if ((inp.depStatus === 'planned' || inp.depStatus === 'confirmed') && !inp.departure) return 'Enter a departure date, or choose Departure TBC / Until further notice.';
-  if (inp.away) {
-    if (!inp.away.from || !inp.away.to || inp.away.to <= inp.away.from) return 'Away dates: "back" must be after "leaves".';
-    if (inp.away.from < inp.arrival || (inp.departure && inp.away.to > inp.departure)) return 'Away dates must fall inside the stay.';
-  }
-  if (inp.departure && inp.departure <= inp.arrival) return 'Departure must be after arrival (departure day is not a night).';
-  const clash = S.db.stays.find(s => s.id !== inp.id && s.roomId === inp.roomId && overlaps(s.arrival, s.departure, inp.arrival, inp.departure));
-  if (clash) return `Clashes with ${stayLabel(clash)} (${fmt(clash.arrival)} → ${clash.departure ? fmt(clash.departure) : 'open-ended'}) in ${roomLabel(inp.roomId)}.`;
-  return null;
+  const others = S.db.stays.filter(s => s.id !== inp.id && s.roomId === inp.roomId);
+  const e = stayError(inp, others);
+  if (!e) return null;
+  if (e !== 'clash') return STAY_MSG[e];
+  const dep = inp.depStatus === 'tbc' || inp.depStatus === 'ufn' ? null : inp.departure;
+  const clash = others.find(s => overlaps(s.arrival, s.departure, inp.arrival, dep))!;
+  return `${roomLabel(inp.roomId)} is taken by ${stayLabel(clash)} (${fmt(clash.arrival)} → ${clash.departure ? fmt(clash.departure) : 'open-ended'}).`;
+}
+/** Warning only: the same worker already has an overlapping stay in another room. */
+export function workerClash(inp: StayInput): Stay | undefined {
+  if (!inp.workerId) return undefined;
+  const dep = inp.depStatus === 'tbc' || inp.depStatus === 'ufn' ? null : inp.departure;
+  return S.db.stays.find(
+    s =>
+      s.id !== inp.id &&
+      s.workerId === inp.workerId &&
+      s.roomId !== inp.roomId &&
+      overlaps(s.arrival, s.departure, inp.arrival, dep),
+  );
+}
+/** Rooms in contracted properties with no stay overlapping [from, to). */
+export function freeRooms(from: string, to: string | null, ignoreStayId?: string) {
+  return S.db.rooms.filter(
+    r =>
+      propOf(r.propertyId).contracted &&
+      !S.db.stays.some(s => s.id !== ignoreStayId && s.roomId === r.id && overlaps(s.arrival, s.departure, from, to)),
+  );
+}
+/** Default arrival for booking a worker: after their latest dated stay (so it continues), otherwise today. */
+export function suggestFor(workerId: string): { arrival: string; roomId?: string } {
+  const T = londonToday();
+  const mine = S.db.stays
+    .filter(s => s.workerId === workerId && (s.departure ?? '9') > T)
+    .sort((a, b) => a.arrival.localeCompare(b.arrival));
+  const last = mine[mine.length - 1];
+  if (!last) return { arrival: T };
+  if (!last.departure) return { arrival: T };
+  const free = freeRooms(last.departure, addDays(last.departure, 7)).some(r => r.id === last.roomId);
+  return { arrival: last.departure, roomId: free ? last.roomId : undefined };
+}
+export const isAway = (s: Stay, d: string) => !!(s.away && s.away.from <= d && s.away.to > d);
+export const inHouseOn = (s: Stay, d: string) => s.arrival <= d && (s.departure ?? '9') > d;
+/** Occupancy counts (one source for KPIs, board headings and the rooms list). */
+export function occupancy(d: string, propertyId?: string) {
+  const vis = S.db.stays.filter(s => {
+    const p = roomOf(s.roomId).propertyId;
+    return propOf(p).contracted && (!propertyId || p === propertyId);
+  });
+  const allocated = vis.filter(s => inHouseOn(s, d));
+  return {
+    allocated: allocated.length,
+    onSite: allocated.filter(s => !isAway(s, d)).length,
+    away: allocated.filter(s => isAway(s, d)).length,
+  };
+}
+
+/** Readiness of a room for its next arrival: the single status source for every view. */
+export interface Readiness {
+  co: Changeover;
+  tone: 'ready' | 'pending' | 'warn';
+  provider: string;
+  client: string | null;
+}
+export function readinessFor(c: Changeover): Readiness {
+  const by = c.readyBy ? fmt(c.readyBy) : null;
+  if (c.cancelled) return { co: c, tone: 'warn', provider: 'Check: clean may not be needed', client: null };
+  if (c.status === 'ready') return { co: c, tone: 'ready', provider: 'Ready ✓', client: 'Ready ✓' };
+  const client = by ? (c.status === 'in_progress' ? `Being cleaned · ready by ${by}` : `Ready by ${by}`) : null;
+  if (c.invalidated) return { co: c, tone: 'warn', provider: 'Dates changed · book clean again', client };
+  const provider =
+    c.status === 'needs'
+      ? by
+        ? `Clean to book · needed by ${by}`
+        : 'Clean to book'
+      : c.status === 'scheduled'
+        ? `Clean booked ${c.scheduledFor ? fmt(c.scheduledFor) : ''}`.trim()
+        : 'Cleaning now';
+  return {
+    co: c,
+    tone: c.exception ? 'warn' : 'pending',
+    provider: provider + (c.exception ? ' · outside usual window' : ''),
+    client,
+  };
+}
+export function roomReadiness(roomId: string): Readiness | null {
+  const open = S.db.changeovers
+    .filter(c => c.roomId === roomId && (c.status !== 'ready' || c.toStayId))
+    .sort((a, b) => a.afterDate.localeCompare(b.afterDate));
+  const live = open.filter(c => c.status !== 'ready');
+  const c = live[0] ?? open.filter(x => x.status === 'ready' && x.readyBy && x.readyBy >= londonToday())[0];
+  return c ? readinessFor(c) : null;
 }
 
 export function depText(s: Pick<Stay, 'departure' | 'depStatus'>) {
   if (s.depStatus === 'ufn') return 'Until further notice';
   if (s.depStatus === 'tbc') return 'Departure TBC';
-  return s.departure ? `${fmt(s.departure)}${s.depStatus === 'confirmed' ? ' ✓' : ' (planned)'}` : 'Open';
+  return s.departure ? `${fmt(s.departure)}${s.depStatus === 'confirmed' ? ' (confirmed)' : ' (planned)'}` : 'Open';
 }
 
 // 7am digest text (per role)
@@ -120,17 +403,33 @@ export function digest(role: Role) {
   const visible = S.db.stays.filter(s => propOf(roomOf(s.roomId).propertyId).contracted);
   const dep = visible.filter(s => s.departure === T && s.depStatus !== 'tbc' && s.depStatus !== 'ufn');
   const arr = visible.filter(s => s.arrival === T);
-  const cos = S.db.changeovers.filter(c => c.status !== 'ready' && !c.cancelled && (c.readyBy ?? c.afterDate) <= addDays(T, 7));
-  const nm = (s: Stay) => role === 'cleaner' ? (stayLabel(s).split(' ')[0]) : stayLabel(s);
+  const cos = S.db.changeovers.filter(
+    c => c.status !== 'ready' && !c.cancelled && (c.readyBy ?? c.afterDate) <= addDays(T, 7),
+  );
+  const nm = (s: Stay) => (role === 'cleaner' ? stayLabel(s).split(' ')[0] : stayLabel(s));
   return [
     `Good morning — ${fmt(T, { weekday: 'long', day: 'numeric', month: 'long' })}`,
-    `Departures (${dep.length}): ` + (dep.map(s => `${roomLabel(s.roomId)} ${nm(s)}${s.depStatus === 'confirmed' ? '' : ' (planned, not confirmed)'}`).join('; ') || 'none'),
+    `Departures (${dep.length}): ` +
+      (dep
+        .map(s => `${roomLabel(s.roomId)} ${nm(s)}${s.depStatus === 'confirmed' ? '' : ' (planned, not confirmed)'}`)
+        .join('; ') || 'none'),
     `Arrivals (${arr.length}): ` + (arr.map(s => `${roomLabel(s.roomId)} ${nm(s)}`).join('; ') || 'none'),
-    `Changeovers due in next 7 days (${cos.length}): ` + (cos.map(c => `${roomLabel(c.roomId)} ready by ${c.readyBy ? fmt(c.readyBy) : 'no arrival yet'} [${role === 'client' ? CO_CLIENT_LABEL[c.status] : CO_LABEL[c.status]}]`).join('; ') || 'none'),
+    `Changeovers due in next 7 days (${cos.length}): ` +
+      (cos
+        .map(
+          c =>
+            `${roomLabel(c.roomId)} ready by ${c.readyBy ? fmt(c.readyBy) : 'no arrival yet'} [${role === 'client' ? (readinessFor(c).client ?? '') : readinessFor(c).provider}]`,
+        )
+        .join('; ') || 'none'),
     `In house tonight: ${visible.filter(s => s.arrival <= T && (s.departure ?? '9') > T && !(s.away && s.away.from <= T && s.away.to > T)).length}`,
   ].join('\n');
 }
 
-export const CO_LABEL: Record<CoStatus, string> = { needs: 'Needs scheduling', scheduled: 'Scheduled', in_progress: 'In progress', ready: 'Ready' };
-export const CO_CLIENT_LABEL: Record<CoStatus, string> = { needs: 'Cleaning to be scheduled', scheduled: 'Cleaning scheduled', in_progress: 'Cleaning in progress', ready: 'Ready' };
-export const bathText = (r: Room) => r.bath === 'ensuite' ? 'Ensuite' : r.bath === 'private' ? 'Private shower room' : 'Shared shower room';
+export const CO_LABEL: Record<CoStatus, string> = {
+  needs: 'To book',
+  scheduled: 'Booked in',
+  in_progress: 'Cleaning now',
+  ready: 'Ready',
+};
+export const bathText = (r: Room) =>
+  r.bath === 'ensuite' ? 'Ensuite' : r.bath === 'private' ? 'Private shower room' : 'Shared shower room';

@@ -7,26 +7,26 @@ Run the demo (`npm run build && npx vite preview`, or open the uploaded site), t
 ## Structure
 - [ ] Board shows **Loch Roag Guest House Rooms 1–9**, grouped *Upstairs · Rooms 1–5* / *Downstairs · Rooms 6–9*. Rooms 2 and 3 show a shared shower, Room 8 shows *Private shower room*, and the others show Ensuite. The room panel shows the floor and bathroom detail.
 - [ ] Board shows **Eshcol** as one property (10 rooms) with group labels *Main house · Rooms 1–7* and *Downstairs flat · Rooms 8–10*.
-- [ ] *Available elsewhere* shows **Hebridean Holiday Cabins** (Pod 1, Pod 2, The Lodge, The Cottage "2 bedrooms + office") and **Whitefalls Spa Lodges** (Monadh) as separate groups. None of them are on the board.
+- [ ] *More rooms* shows **Hebridean Holiday Cabins** (Pod 1, Pod 2, The Lodge, The Cottage "2 bedrooms + office") and **Whitefalls Spa Lodges** (Monadh) as separate groups. None of them are on the board.
 
 ## Room 8 journey (Loch Roag)
-- [ ] Room 8 shows Neil Mackenzie as **Departing today ✓** (amber bar ending today, Fri 16 Oct 2026).
-- [ ] A brush marker sits at today's boundary. Changeovers shows **Loch Roag Room 8 · Scheduled Sat 17 Oct · ready by Tue 20 Oct** (Mairi).
+- [ ] Room 8 shows Neil Mackenzie as **Leaves today (confirmed)** (amber bar ending today, Fri 16 Oct 2026).
+- [ ] A cleaning marker sits in the gap at today's boundary. Cleaning shows **Loch Roag Room 8 · Booked in · Sat 17 Oct · needed by Tue 20 Oct** (Mairi).
 - [ ] From Tue 20 Oct, Room 8 shows a hatched **"Hold · Name to follow · electrician"** bar, departure TBC.
 - [ ] Opening that hold and picking a worker **names the same record**. The activity log says "named hold as …" and no second bar appears.
-- [ ] Editing the hold's arrival to Mon 19 Oct (brought forward) resets the Room 8 changeover to **Needs scheduling** with a red "Dates changed" warning, and queues SMS alerts.
+- [ ] Editing the hold's arrival to Mon 19 Oct (brought forward) puts the Room 8 clean back to **To book** with a red "Dates changed … please book it again" warning, and alerts the provider and cleaner.
 
 ## Holds and bookings
 - [ ] **Hold room** creates a stay with no name (hatched).
-- [ ] **+ Add stay** → tap a **recent worker chip** → pick a room → save. No retyping. Name, company and phone come from the saved profile.
-- [ ] Workers → **Book** on a row opens the panel with that worker preselected.
+- [ ] **+ Add stay** → tap a **recent worker chip** → pick a room (only free rooms are listed) → save → **Undo** is offered. No retyping. Name, company and phone come from the saved profile.
+- [ ] Workers → **Book** on a row opens the panel with that worker preselected, starting the day their current stay ends.
 - [ ] Choosing an occupied room and dates shows a clash message and disables Save (the DB exclusion constraint does the same in Supabase mode).
 - [ ] Departure day = next arrival day is allowed (departure exclusive).
 
 ## Visibility per room
 - [ ] Each bar shows **Night N** (nights so far). The tooltip and panel show arrival → departure and the nights count.
-- [ ] A **next arrival** is visible as the next bar in the row, and in Changeovers as "Next: …" / "ready by …".
-- [ ] Today tab lists Departures (planned vs confirmed), Changeovers, Arrivals and Stayovers with night numbers.
+- [ ] A **next arrival** is visible as the next bar in the row, and in Cleaning as "Next: …" / "needed by …", and in Rooms as "Next: …".
+- [ ] Today lists Leaving (planned vs confirmed), Cleans, Arriving and Staying on with night numbers, and prints.
 
 ## Open-ended stays
 - [ ] Loch Roag Room 3 shows **Until further notice** (bar fades out on the right). No changeover is created.
@@ -34,14 +34,14 @@ Run the demo (`npm run build && npx vite preview`, or open the uploaded site), t
 - [ ] Loch Roag Room 5 shows **Away · room kept** with no changeover for the away dates.
 
 ## Changeover rules (review items 1–3, C1–C3)
-- [ ] Extending Euan (Loch Roag Room 2) after his changeover is scheduled → same card returns to *Needs scheduling* with "Dates changed". The activity log has a line, and the provider gets an alert.
+- [ ] Extending Euan (Loch Roag Room 2) after his changeover is scheduled → same card returns to *To book* with "Dates changed … book it again". The activity log has a line, and the provider gets an alert.
 - [ ] Making a scheduled changeover's departure *Until further notice* keeps the card, flagged, until the provider dismisses it.
 - [ ] Loch Roag Room 9 (Daniel → Daniel the same day) shows **Continues · no clean**. Eshcol Room 8 (Kenny → Craig the same day) shows a **Same-day turnaround** with checkout 10:00 → check-in 15:00.
-- [ ] Cards say "Departs Wed 21 Oct (planned)" or "(confirmed)", never "Vacated" for a future date.
-- [ ] **Room 4 (C1):** on 16 Oct, Iain leaves 21 Oct, so Vacated can't be ticked and Start clean / Ready are disabled.
-- [ ] **Room 4 (C2):** scheduling the clean on Fri 23 Oct (the next hold starts Thu 22) is refused. Accepting the provider exception flags it on the Board, Changeovers and Upcoming.
-- [ ] **Room 8:** tick Vacated → Start clean → Ready. The Board, Upcoming and Changeovers all show Ready (C3).
-- [ ] *Needs scheduling* holds only the next 7 days or rooms with an arrival booked. The rest show under *Later*.
+- [ ] Cards say "Guest leaves Wed 21 Oct (planned)" or "(confirmed)". The actual departure is the "Guest has left" tick, shown on the bar as "Left ✓".
+- [ ] **Room 4 (C1):** on 16 Oct, Iain leaves 21 Oct, so "Guest has left" can't be ticked and Start clean / Ready are disabled.
+- [ ] **Room 4 (C2):** booking the clean on Fri 23 Oct (the next hold starts Thu 22) asks first and is refused on "Go back". "Book as exception" flags it on the Board, Cleaning, Upcoming and the printed list, and the flag survives a reload (automated test). Sheena never sees it.
+- [ ] **Room 8:** tick Guest has left → Start clean → Mark ready. The Board, Upcoming, Cleaning and Sheena's Rooms all show Ready (C3).
+- [ ] *To book* holds only the next 7 days or rooms with an arrival booked. The rest show under *Later*.
 
 ## Alerts (who gets what)
 - [ ] A provider stay edit alerts Sheena only. A client edit alerts Donald only. Cleaners get only changeover alerts.
@@ -55,26 +55,39 @@ Run the demo (`npm run build && npx vite preview`, or open the uploaded site), t
 ## Activity log
 - [ ] Every create, edit, cancel, confirm, changeover move and request appears with **who** and **when** (London time).
 
-## Showcase / upsell
-- [ ] No "Available now". Cards say "Enquire for dates · Donald confirms availability". After sending, the confirmation repeats the property, people and dates, and says it is not yet a booking (C7).
-- [ ] *Available elsewhere* shows a branded hero and 4 cards with features and "Available now", plus a **Request** button that opens dates, long-term and people fields and a note.
-- [ ] Sending shows a confirmation. The manager sees it under "Requests received".
+## More rooms (upsell)
+- [ ] *More rooms* shows the two brands with **unit counts and "subject to confirmation"** (never "N available" or "currently available"), cards with features and "Photos to follow", and **Enquire about dates** (dates, long-term, people, note).
+- [ ] Sending echoes the dates and says it is not a booking. The provider sees it under "Enquiries received".
 
-## Client privacy (Sheena · RJ McLeod)
-- [ ] As Sheena, no cleaner name appears on the Board, Changeovers, Activity, digest or alerts. Changeovers show only *Cleaning scheduled / Ready* and similar statuses, and actions by cleaners show as "Housekeeping".
-- [ ] Sheena sees only her own digest and only the alerts addressed to her.
+## Client privacy and calm (Sheena · RJ McLeod)
+- [ ] As Sheena, no cleaner name appears anywhere (Board, Rooms, Today, Activity, digest, alerts, print). Actions by cleaners show as "Housekeeping".
+- [ ] Sheena sees **no scheduling noise**: no "to book", "booked in" or exceptions, only *Ready by Tue 20 Oct*, *Being cleaned · ready by …* or *Ready ✓*, and board markers in one calm colour.
+- [ ] Sheena sees only her own digest and alerts.
+
+## Ease of use
+- [ ] **Find a room**: dates in → free rooms grouped by property with a count and nights → tap → booking prefilled.
+- [ ] The room picker shows free rooms only ("Loch Roag · Room 8 · Ensuite"); taken rooms on request.
+- [ ] **Book** for a worker in house starts the day their stay ends.
+- [ ] Every save / cancel shows **Undo**; cancelling asks first ("Go back" keeps it).
+- [ ] **Search** (`/`) finds a worker or room and opens their stay.
+- [ ] **Welcome** on first login with three hints; not shown again after "Got it".
+- [ ] **Print** today's movements and the cleaning list (A4, tick boxes, no app chrome).
+- [ ] All date inputs are dd/mm/yyyy; impossible dates (31/02) are flagged; displays read "Fri 16 Oct".
+- [ ] No visible version numbers, no "invalidated", no code-logic explanations; the night rule is behind ⓘ.
+- [ ] Same worker in two rooms → a warning, still saveable.
+- [ ] Rooms list: open-ended stays say "Until further notice" / "Departure TBC"; *Next* never repeats the same worker continuing; away guests show "Away · room kept".
 
 ## Roles
-- [ ] The cleaner sees only Today and Changeovers, with first names, and can Start clean / Mark Ready.
-- [ ] The client cannot schedule changeovers but sees all their statuses.
+- [ ] The cleaner sees only Today and Cleaning, with first names, and can tick Guest has left / Start clean / Mark ready.
+- [ ] Only the provider books cleans or takes an out-of-window exception.
 
 ## Layout
-- [ ] At 820–1180px the nav collapses to icons and the header stays on one line. No bar text is clipped (narrow bars show a surname and a nights chip).
-- [ ] KPIs show *Rooms allocated tonight* and *Expected on site* separately (C4).
-- [ ] *Reset demo data* appears only for the provider, only in demo mode.
+- [ ] One header band at every width; at 820–1180px the nav collapses to icons and stays on one line. No bar text is clipped. Cleaning markers never overlap bars.
+- [ ] KPIs show *Rooms allocated tonight* and *Expected on site* separately (C4); property headings say "N allocated · M on site".
+- [ ] *Reset demo data* appears only for the provider, only in demo mode, and asks first.
 
 ## Phone
-- [ ] At phone width the top nav becomes a bottom tab bar. The Board shows Today / Upcoming / **Rooms** (who's in, nights, departs, next, readiness), with a floating **+ Add stay / Hold** button (C5).
+- [ ] Bottom bar (≤ 5 tabs + More sheet), Rooms list with readiness, floating **+ Add stay / Hold**, stay panel as a full-screen sheet, no horizontal scrolling on any screen (C5).
 
 ## Go-live (Supabase mode)
 - [ ] `VITE_DATA_MODE=supabase` build signs in by email magic link. Same screens, with no code change.
@@ -90,7 +103,7 @@ Do this on a real Supabase project with the production build in `VITE_DATA_MODE=
 - [ ] **Concurrent overlaps:** two sessions book the same room and nights at the same moment. Exactly one succeeds, and the other gets the clash message (exclusion constraint).
 - [ ] **Stale edits:** both open the same stay, and A saves first. B's save is rejected with "changed by someone else" (40001), and nothing is overwritten.
 - [ ] **Duplicate submissions:** double-click Save / Send enquiry, and replay the same request. One row only, and alerts are deduped (`dedupe_key`).
-- [ ] **Room 8 journey:** Neil departs Fri 16 Oct → clean scheduled → Vacated → In progress → Ready → the Tue 20 Oct hold is named. Sheena sees status only.
+- [ ] **Room 8 journey:** Neil leaves Fri 16 Oct → clean booked → Guest has left → Cleaning now → Ready → the Tue 20 Oct hold is named. Sheena sees status only.
 - [ ] **Room 4, case 1:** Ready/Start are refused by the database before the 21 Oct departure is recorded as vacated.
 - [ ] **Room 4, case 2:** a clean on 23 Oct after the 22 Oct arrival is refused without an exception, and stays flagged with one.
 - [ ] **Notifications with every browser closed:** pg_cron runs `dispatch-alerts`, and email arrives.
@@ -98,4 +111,6 @@ Do this on a real Supabase project with the production build in `VITE_DATA_MODE=
   - The same event never sends twice (dedupe).
   - The 07:00 digest arrives at 07:00 London time on both sides of the 25 Oct clock change.
 - [ ] **Restore from backup** into an isolated project (Supabase daily backup or PITR). Verify row counts, the Room 8 history and the activity log, then delete the isolated project.
+- [ ] **Undo in live mode:** cancel a stay, press Undo: the stay returns (same id) and the clean is re-linked; both sides get the alert.
+- [ ] **Shared rules on the live database:** run `node qa/sql-rules.mjs` against the project (PG* env vars) – all cases pass.
 - [ ] **Cloudflare Access** is on for `roomboard.pages.dev` (see SPEC → Hosting and access).

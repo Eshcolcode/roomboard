@@ -1,5 +1,15 @@
 # Test report
 
+## Release: Quick editing (live)
+- **Run:** Saturday, 17 October 2026, 19:04–19:08 (UK time)
+- **Code commit:** `3bbde46` (main `ccf2377` adds only README text); live site serves `assets/index-BGZTTuGS.js`, the same asset as the local production build.
+- **Local:** unit 110/110 passed (adds `src/simple/logic.test.ts`, `src/data/batch.test.ts`) · lint (ESLint + Prettier) clean · `tsc` clean · build clean.
+- **Against https://roomboard.pages.dev/:** `qa/qa.mjs` 161/161 (Classic, pinned) · `qa/board.mjs` 64/64 (Quick card on board, phone + desktop, widths 360–1440, split/join, crew rotations, swipe close, client sees no cleaner names, no console errors) · `qa/flow.mjs` 23/23 (#simple walk-through).
+- **Not covered:** live database (Supabase) batch saves; SQL suite not re-run (no SQL changes).
+- **Rollback:** tag `live-v2-restore` / branch `live-v2-backup` (`fcffd27`); see README.
+
+The sections below are the previous full report (commit `1c1e856`).
+
 - **Run:** Saturday, 17 October 2026 at 00:39 (UK time)
 - **Commit:** `1c1e85687bb8cde9e5990a66e698aeca9beb7d8c`
 - **Target for end-to-end tests:** https://roomboard.pages.dev/ serving `assets/index-Mky4h06u.js`

@@ -21,6 +21,7 @@ import { Welcome } from './ui/Welcome';
 import { PrintView } from './ui/Print';
 import { Login } from './ui/Login';
 import { Crew } from './ui/Crew';
+import { Simple } from './simple/Simple';
 
 const LABEL: Record<Tab, string> = {
   board: 'Board',
@@ -53,8 +54,16 @@ const PHONE_MORE: Record<Role, Tab[]> = {
 export default function App() {
   const db = useDB();
   const wide = useWide();
+  const [h, setH] = useState(readHash);
+  useEffect(() => {
+    const f = () => setH(readHash());
+    addEventListener('hashchange', f);
+    return () => removeEventListener('hashchange', f);
+  }, []);
   if (db.authRequired) return <Login />;
   if (!db.users.length) return <div className="loading">Loading…</div>;
+  // Mockup: the step-by-step "Simple mode" lives beside the full app on its own routes.
+  if (h === 'simple' || h.startsWith('simple/')) return <Simple path={h.slice(7)} />;
   return <Shell wide={wide} />;
 }
 
@@ -148,6 +157,9 @@ function Shell({ wide }: { wide: boolean }) {
             {demoOpen && (
               <div className="pop" role="dialog" aria-label="About demo mode">
                 <p>Demo mode. Data is kept in this browser only and no messages are really sent.</p>
+                <a className="btn sm" href="#simple">
+                  Try Simple mode (mockup)
+                </a>
                 {u.role === 'manager' && (
                   <button
                     className="btn sm reset"

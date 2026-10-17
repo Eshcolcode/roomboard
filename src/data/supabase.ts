@@ -7,6 +7,7 @@ import { reshape } from './crew';
 import { londonToday } from '../dates';
 import type { Repo } from './repo';
 import type * as R from './db-rows';
+import { unitIcs } from './extras';
 
 const sb = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_ANON_KEY);
 let channel: RealtimeChannel | null = null;
@@ -40,6 +41,7 @@ const mapStay = (r: R.StayRow): Stay => ({
   updatedAt: r.updated_at,
   seriesId: r.series_id ?? null,
   slot: r.slot ?? null,
+  request: r.request ?? null,
 });
 const mapSeries = (r: R.SeriesRow): Series => ({
   id: r.id,
@@ -116,7 +118,7 @@ async function refresh() {
     return;
   }
   const q = (t: string, order = 'id') => sb.from(t).select('*').order(order);
-  const [pr, pp, un, rm, wk, st, co, ac, al, en, se] = await Promise.all([
+  const [pr, pp, un, rm, wk, st, co, ac, al, en, se, fd, bl, tk] = await Promise.all([
     q('profiles'),
     q('properties', 'sort'),
     q('units', 'sort'),
@@ -128,6 +130,10 @@ async function refresh() {
     sb.from('alert_outbox').select('*').order('created_at', { ascending: false }).limit(50),
     q('enquiries', 'created_at'),
     q('series', 'created_at'),
+    q('ical_feeds', 'label'), // manager only (RLS); others get an empty list
+    q('ical_blocks', 'start_date'),
+    // Sheena cannot read other guests' stays in the extras (0008 RLS): she gets their dates only
+    sb.rpc('extra_taken'),
   ]);
   publish({
     v: 1,
@@ -154,6 +160,7 @@ async function refresh() {
       brand: r.brand ?? undefined,
       checkout: r.checkout_time?.slice(0, 5),
       checkin: r.checkin_time?.slice(0, 5),
+      ...(r.details ?? {}),
     })),
     units: rows<R.UnitRow>(un.data).map(r => ({ id: r.id, propertyId: r.property_id, name: r.name })),
     rooms: rows<R.RoomRow>(rm.data).map(r => ({
@@ -165,6 +172,7 @@ async function refresh() {
       note: r.note ?? undefined,
       photo: r.photo_url ?? undefined,
       floor: r.floor ?? undefined,
+      ...(r.details ?? {}),
     })),
     workers: rows<R.WorkerRow>(wk.data).map(r => ({
       id: r.id,
@@ -197,6 +205,31 @@ async function refresh() {
       nextAttemptAt: Date.parse(r.next_attempt_at),
     })),
     series: rows<R.SeriesRow>(se.data).map(mapSeries),
+    feeds: rows<R.FeedRow>(fd.data).map(r => ({
+      id: r.id,
+      roomId: r.room_id,
+      label: r.label,
+      url: r.url,
+      lastSync: r.last_synced_at,
+      error: r.last_error,
+    })),
+    blocks: rows<R.BlockRow>(bl.data)
+      .map(r => ({
+        id: r.id,
+        roomId: r.room_id,
+        feedId: r.feed_id,
+        from: r.start_date,
+        to: r.end_date,
+      }))
+      .concat(
+        rows<{ room_id: string; start_date: string; end_date: string }>(tk.data).map((r, i) => ({
+          id: 'taken-' + i,
+          roomId: r.room_id,
+          feedId: 'taken',
+          from: r.start_date,
+          to: r.end_date,
+        })),
+      ),
     enquiries: rows<R.EnquiryRow>(en.data).map(r => ({
       id: r.id,
       ts: r.created_at,
@@ -226,6 +259,8 @@ const toRow = (
   away_from: i.away?.from ?? null,
   away_to: i.away?.to ?? null,
   notes: i.notes,
+  // a client's booking of an extra property is forced to a request by the stays_request trigger (0008)
+  ...('request' in i ? { request: (i as { request?: 'pending' | null }).request ?? null } : {}),
 });
 const fail = (e: R.PgError | null | undefined) => {
   if (e?.code === '23P01') throw new Error('That room is already taken for some of those nights.');
@@ -435,6 +470,34 @@ export const supabaseRepo: Repo = {
     }
     undoStack.push({ kind: 'batch', items: done });
     await refresh();
+  },
+  async confirmRequest(id) {
+    fail((await sb.rpc('answer_request', { p_stay: id, p_confirm: true, p_reason: '' })).error);
+    await refresh();
+  },
+  async declineRequest(id, reason) {
+    fail((await sb.rpc('answer_request', { p_stay: id, p_confirm: false, p_reason: reason })).error);
+    await refresh();
+  },
+  async syncFeeds() {
+    const { data, error } = await sb.functions.invoke('ical-sync', { body: {} });
+    if (error) throw new Error('Could not read the calendar links right now. Try again in a minute.');
+    await refresh();
+    return { conflicts: (data as { conflicts?: number })?.conflicts ?? 0 };
+  },
+  async addFeed(f) {
+    fail((await sb.from('ical_feeds').insert({ room_id: f.roomId, label: f.label, url: f.url })).error);
+    await refresh();
+  },
+  async removeFeed(id) {
+    fail((await sb.from('ical_feeds').delete().eq('id', id)).error);
+    await refresh();
+  },
+  async exportLink(roomId) {
+    const { data, error } = await sb.from('ical_exports').select('token').eq('room_id', roomId).maybeSingle();
+    fail(error);
+    const url = data ? `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ical-export?t=${data.token}` : null;
+    return { url, text: unitIcs(S.db, roomId) };
   },
   canUndo: () => undoStack.length > 0,
   async setUser() {

@@ -14,7 +14,8 @@ import { TodayList } from './ui/Today';
 import { Changeovers } from './ui/Changeovers';
 import { Workers } from './ui/Workers';
 import { FreeRooms } from './ui/FreeRooms';
-import { Available } from './ui/Available';
+import { Properties, Requests } from './ui/Properties';
+import { AvailabilityPage } from './ui/Availability';
 import { ActivityView } from './ui/Activity';
 import { Search } from './ui/Search';
 import { Welcome } from './ui/Welcome';
@@ -32,7 +33,7 @@ const LABEL: Record<Tab, string> = {
   today: 'Today',
   changeovers: 'Cleaning',
   workers: 'Workers',
-  available: 'More rooms',
+  available: 'Properties',
   activity: 'Activity',
   crew: 'Crew',
   more: 'More',
@@ -66,6 +67,13 @@ export default function App() {
   if (!db.users.length) return <div className="loading">Loading…</div>;
   // The step-by-step "Simple mode" lives beside the full app on its own routes.
   if (h === 'simple' || h.startsWith('simple/')) return <Simple path={h.slice(7)} />;
+  if (h === 'availability' || h.startsWith('availability/'))
+    return (
+      <>
+        <AvailabilityPage only={h.split('/')[1]} />
+        <Overlays />
+      </>
+    );
   return <Shell wide={wide} />;
 }
 
@@ -99,7 +107,8 @@ function Shell({ wide }: { wide: boolean }) {
   }, [u.id]);
 
   const print = hash.startsWith('print-') ? (hash.slice(6) as 'today' | 'cleaning') : null;
-  const asked = (hash === 'board' && !wide ? 'rooms' : hash) as Tab;
+  const [tab, sub] = hash.split('/');
+  const asked = (tab === 'board' && !wide ? 'rooms' : tab) as Tab;
   const cur: Tab = allowed.includes(asked) ? asked : home;
   const go = (t: Tab) => {
     setMoreOpen(false);
@@ -107,7 +116,7 @@ function Shell({ wide }: { wide: boolean }) {
     setHash(t);
   };
   useEffect(() => {
-    if (!print && readHash() !== cur) history.replaceState(null, '', '#' + cur);
+    if (!print && readHash().split('/')[0] !== cur) history.replaceState(null, '', '#' + cur);
   }, [cur, print]);
 
   if (print)
@@ -120,7 +129,11 @@ function Shell({ wide }: { wide: boolean }) {
 
   // Quick (default): the one-question quick card / booking flow. Classic: the original panel, unchanged.
   const open = (p: PanelInit) => {
-    if (uiMode === 'quick' && u.role !== 'cleaner') {
+    // extras (requests to confirm) always use the quick card: the classic form only knows contract rooms
+    const extra =
+      !!p.stay &&
+      !db.properties.find(x => x.id === db.rooms.find(r => r.id === p.stay!.roomId)?.propertyId)?.contracted;
+    if ((uiMode === 'quick' || extra) && u.role !== 'cleaner') {
       setPanel(null);
       setQuick({ init: p, k: Date.now() });
     } else setPanel(p);
@@ -229,12 +242,19 @@ function Shell({ wide }: { wide: boolean }) {
 
       <main>
         {cur === 'board' && <Board onOpen={open} />}
-        {cur === 'rooms' && <Rooms onOpen={open} />}
+        {cur === 'rooms' && (
+          <>
+            <div className="page-req">
+              <Requests onOpen={open} />
+            </div>
+            <Rooms onOpen={open} />
+          </>
+        )}
         {cur === 'free' && <FreeRooms onOpen={open} />}
         {cur === 'today' && <TodayList onOpen={open} />}
         {cur === 'changeovers' && <Changeovers />}
         {cur === 'workers' && <Workers onOpen={open} />}
-        {cur === 'available' && <Available />}
+        {cur === 'available' && <Properties key={sub ?? ''} sub={sub} onOpen={open} />}
         {cur === 'activity' && <ActivityView />}
         {cur === 'crew' && <Crew />}
       </main>

@@ -517,7 +517,7 @@ export function Book({
           {free.length < want && (
             <Note tone="warn">
               Only {free.length} rooms are free for these dates. You can hold {free.length} now and ask about the rest
-              on More rooms.
+              on Properties (extra properties).
             </Note>
           )}
           {!choose ? (
@@ -599,7 +599,9 @@ export function Book({
           </Note>
         )}
         {!free.length && (
-          <Note tone="warn">No rooms are free for those dates. Go back and try other dates, or ask on More rooms.</Note>
+          <Note tone="warn">
+            No rooms are free for those dates. Go back and try other dates, or ask on Properties (extra properties).
+          </Note>
         )}
         {usualFree && (
           <div className="s-group">

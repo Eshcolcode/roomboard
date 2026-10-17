@@ -17,6 +17,7 @@ export interface StayRow {
   updated_at: string;
   series_id?: N<string>;
   slot?: N<number>;
+  request?: N<'pending'>;
 }
 export interface ChangeoverRow {
   id: string;
@@ -57,6 +58,7 @@ export interface PropertyRow {
   brand: N<string>;
   checkout_time: N<string>;
   checkin_time: N<string>;
+  details?: N<Record<string, unknown>>; // 0008: area, photos, sleeps, map/website, credit, todo
 }
 export interface UnitRow {
   id: string;
@@ -72,6 +74,7 @@ export interface RoomRow {
   note: N<string>;
   photo_url: N<string>;
   floor: N<string>;
+  details?: N<Record<string, unknown>>; // 0008: photos, desc, beds
 }
 export interface WorkerRow {
   id: string;
@@ -132,4 +135,19 @@ export interface SeriesRow {
   cancelled_from: N<string>;
   created_by: string;
   created_at: string;
+}
+export interface FeedRow {
+  id: string;
+  room_id: string;
+  label: string;
+  url: string;
+  last_synced_at: N<string>;
+  last_error: N<string>;
+}
+export interface BlockRow {
+  id: string;
+  feed_id: string;
+  room_id: string;
+  start_date: string;
+  end_date: string;
 }

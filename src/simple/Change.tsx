@@ -9,6 +9,7 @@ import { Box, Chip, DateNudge, Note } from './parts';
 import { WhoPick } from './Who';
 import { RoomCard, RoomGroups, resolveWho } from './Book';
 import type { Notify } from './Book';
+import { ExtraCard } from './Extra';
 import {
   assignRooms,
   checkBatch,
@@ -111,6 +112,7 @@ export function Change({
 
   const room = db.rooms.find(r => r.id === stay.roomId)!;
   const prop0 = db.properties.find(p => p.id === room.propertyId)!;
+  if (!prop0.contracted) return <ExtraCard stay={stay} onHome={onHome} notify={notify} />;
   const crew = crewOf(db, stay);
   const future = futureOf(db, stay);
   const rotations = Math.max(...future.map(g => g.length));
@@ -210,7 +212,7 @@ export function Change({
           </div>
         ))}
         {!fixes.length && (
-          <Note tone="warn">No free room for those dates. Try other dates, or ask about More rooms.</Note>
+          <Note tone="warn">No free room for those dates. Try other dates, or look at the extra properties.</Note>
         )}
         {problem && <Note tone="bad">{problem}</Note>}
       </>

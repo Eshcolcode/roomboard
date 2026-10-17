@@ -59,3 +59,44 @@ do $$ begin perform apply_series('{"label":"Clash","property_id":"p-lr","start_d
   '[{"room_id":"lr-2","hold_label":"X","arrival":"2027-02-03","departure":"2027-02-06","slot":0}]', '[]', '{}', 'booked'); raise notice 'FAIL crew clash';
 exception when others then raise notice 'PASS crew clash rolls back whole booking: %', sqlerrm; end $$;
 select 'T16 crew clash left nothing behind' t, count(*) = 0 ok from series where label = 'Clash';
+-- extras: requests, answers, iCal blocks (0008)
+set request.uid = '00000000-0000-0000-0000-000000000001'; -- Sheena
+insert into stays(room_id,hold_label,arrival,departure) values ('x-pod1','Calum','2027-03-01','2027-03-04');
+select 'T17 client booking of an extra is a pending request' t, request = 'pending' ok from stays where room_id='x-pod1' and hold_label='Calum';
+select 'T18 Donald alerted: New request' t, count(*) > 0 ok from alert_outbox where subject like 'New request%' and recipient_id='00000000-0000-0000-0000-000000000002';
+select 'T19 extras make no changeovers' t, count(*) = 0 ok from changeovers where room_id like 'x-%';
+update stays set version = version, request = null where room_id='x-pod1' and hold_label='Calum';
+select 'T20 client cannot confirm their own request' t, request = 'pending' ok from stays where room_id='x-pod1' and hold_label='Calum';
+do $$ begin perform answer_request((select id from stays where hold_label='Calum'), true); raise notice 'FAIL client answered'; exception when others then raise notice 'PASS only Donald answers requests: %', sqlerrm; end $$;
+set request.uid = '00000000-0000-0000-0000-000000000002'; -- Donald
+select answer_request((select id from stays where hold_label='Calum'), true);
+select 'T21 confirm makes it a booking' t, request is null ok from stays where hold_label='Calum';
+select 'T22 Sheena told: Request confirmed' t, count(*) > 0 ok from alert_outbox where subject like 'Request confirmed%' and recipient_id='00000000-0000-0000-0000-000000000001';
+set request.uid = '00000000-0000-0000-0000-000000000001';
+do $$ begin update stays set version = version, notes = 'x' where hold_label='Calum'; raise notice 'FAIL client edited confirmed extra'; exception when others then raise notice 'PASS confirmed extra locked for client: %', sqlerrm; end $$;
+insert into stays(room_id,worker_id,hold_label,arrival,departure,request) values ('lr-5',null,'Contract','2027-03-01','2027-03-03','pending');
+select 'T23 contract rooms never hold requests' t, request is null ok from stays where hold_label='Contract';
+-- feed + blocks (as the sync would write them)
+set request.uid = '00000000-0000-0000-0000-000000000002';
+insert into ical_feeds(room_id,label,url) values ('x-pod1','Airbnb','https://www.airbnb.co.uk/calendar/ical/1.ics');
+set request.uid = ''; -- the sync runs as the service role, not as a person
+select replace_ical_blocks((select id from ical_feeds where label='Airbnb'), '[{"from":"2027-03-03","to":"2027-03-06"},{"from":"2027-04-10","to":"2027-04-12"}]') as clashes \gset
+select 'T24 blocks stored, dates only' t, count(*) = 2 ok from ical_blocks where room_id='x-pod1';
+select 'T25 double booking flagged once' t, :clashes = 1 ok;
+select 'T26 Donald alerted: possible double booking' t, count(*) > 0 ok from alert_outbox where subject like '⚠ Possible double booking%';
+select replace_ical_blocks((select id from ical_feeds where label='Airbnb'), '[{"from":"2027-03-03","to":"2027-03-06"},{"from":"2027-04-10","to":"2027-04-12"}]');
+select 'T27 re-sync does not re-alert' t, count(*) = 1 ok from alert_outbox where subject like '⚠ Possible double booking%';
+select replace_ical_blocks((select id from ical_feeds where label='Airbnb'), null, 'HTTP 404');
+select 'T28 failed read keeps old blocks + records error' t, (select count(*) from ical_blocks where room_id='x-pod1') = 2 and last_error is not null ok from ical_feeds where label='Airbnb';
+set request.uid = '00000000-0000-0000-0000-000000000001';
+do $$ begin insert into stays(room_id,hold_label,arrival,departure) values ('x-pod1','Late','2027-04-09','2027-04-11'); raise notice 'FAIL booked-elsewhere not blocked'; exception when others then raise notice 'PASS booked-elsewhere dates blocked: %', sqlerrm; end $$;
+insert into stays(room_id,hold_label,arrival,departure) values ('x-pod2','Ewan','2027-05-01','2027-05-03');
+set request.uid = '00000000-0000-0000-0000-000000000002';
+insert into stays(room_id,hold_label,arrival,departure) values ('x-cottage','Direct guest','2027-05-01','2027-05-08');
+select 'T29 Donald books extras directly (no request)' t, request is null ok from stays where hold_label='Direct guest';
+select answer_request((select id from stays where hold_label='Ewan'), false, 'Pod closed for repairs');
+select 'T30 decline removes the request' t, count(*) = 0 ok from stays where hold_label='Ewan';
+select 'T31 Sheena told why' t, count(*) > 0 ok from alert_outbox where subject like 'Request declined%' and body like '%Pod closed for repairs%';
+set request.uid = '00000000-0000-0000-0000-000000000001';
+select 'T32 extra_taken gives Sheena dates without names' t, count(*) = 1 ok from extra_taken() where room_id = 'x-cottage' and start_date = '2027-05-01';
+select 'T33 export tokens for every extra unit' t, count(*) = 5 ok from ical_exports;

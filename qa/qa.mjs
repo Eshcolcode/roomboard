@@ -460,27 +460,12 @@ ok(
   'Book for a worker in house defaults to the day their stay ends',
 );
 await p.keyboard.press('Escape');
-// ---------- C7 enquiries ----------
+// ---------- C7 extra properties (was: enquiries; now bookable requests, see qa/props.mjs) ----------
 await go(p, 'available');
 const av = await body(p);
 ok(
-  !/\d+ available|currently available|Available now/i.test(av) &&
-    /4 units · subject to confirmation/.test(av) &&
-    /1 unit · subject to confirmation/.test(av) &&
-    av.includes('Photos to follow'),
-  "More rooms: unit counts + 'subject to confirmation', no availability claims",
-);
-await p.click('.ucard:has-text("Monadh") button:has-text("Enquire")');
-await p.fill('.rq input[type=number]', '0');
-await p.click('button:has-text("Send enquiry")');
-ok((await p.locator('.rq .err').count()) === 1, 'enquiry: invalid people rejected');
-await p.fill('.rq input[type=number]', '2');
-await p.click('button:has-text("Send enquiry")');
-await p.waitForTimeout(100);
-ok(
-  (await p.locator('.ok').innerText()).includes(`Monadh · 2 people · ${fmt(D(3))} → ${fmt(D(17))}`) &&
-    /not a booking/.test(await p.locator('.ok').innerText()),
-  'C7 enquiry echoes dates, not a booking',
+  /Extra · invoiced separately/.test(av) && /Photos to come/.test(av) && (await p.locator('[data-prop]').count()) === 7,
+  'Properties: extras labelled invoiced separately, unknowns marked (no invented photos)',
 );
 // ---------- rooms list ----------
 await go(p, 'rooms');
@@ -685,7 +670,7 @@ ok(
   'phone',
 );
 await m.click('.bottom button:has-text("More")');
-ok(await m.locator('.sheet button:has-text("More rooms")').isVisible(), 'phone: More sheet', 'phone');
+ok(await m.locator('.sheet button:has-text("Properties")').isVisible(), 'phone: More sheet', 'phone');
 
 // ==================== v2: rooms cards, tiles, banner, copy summary, crew booking, drag ====================
 {
@@ -723,8 +708,8 @@ ok(await m.locator('.sheet button:has-text("More rooms")').isVisible(), 'phone: 
   );
   await q.click('.fpills button:has-text("All rooms")');
   ok(
-    /more properties · ask about dates/.test(await q.locator('.tile.t-dark').innerText()),
-    'v2 Extra capacity tile makes no availability claim',
+    /bookable · invoiced separately/.test(await q.locator('.tile.t-dark').innerText()),
+    'v2 Extra properties tile: bookable, invoiced separately',
     V,
   );
   ok(await q.locator('.urgent').isVisible(), 'v2 urgent banner computed from changeovers', V);

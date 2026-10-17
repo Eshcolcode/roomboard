@@ -148,9 +148,9 @@ export function Rooms({ onOpen }: { onOpen: (p: PanelInit) => void }) {
         {tile('long', 'Long stay', `${LONG_STAY}+ nights or open`, 'sky')}
         {extra > 0 && (
           <a className="tile t-dark" href="#available">
-            <small>Extra capacity</small>
+            <small>Extra properties</small>
             <b>{extra}</b>
-            <span>more properties · ask about dates</span>
+            <span>bookable · invoiced separately</span>
           </a>
         )}
       </div>

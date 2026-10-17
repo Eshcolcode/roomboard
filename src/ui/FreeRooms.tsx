@@ -98,8 +98,7 @@ export function FreeRooms({ onOpen }: { onOpen: (p: PanelInit) => void }) {
           })}
       {!bad && !free.length && (
         <p className="empty-state">
-          Nothing free for the whole stay. Try shorter dates, or{' '}
-          <a href="#available">ask about rooms elsewhere on Lewis</a>.
+          Nothing free for the whole stay. Try shorter dates, or <a href="#available">see the extra properties</a>.
         </p>
       )}
     </div>

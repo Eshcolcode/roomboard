@@ -1,4 +1,4 @@
-// Simple mode (MOCKUP): calm, phone-first front door. #simple, #simple/book, #simple/arrivals,
+// Simple mode: calm, phone-first front door. #simple, #simple/book, #simple/arrivals,
 // #simple/cleaning, #simple/stay/<id>. Uses the same data layer as the full app, so holds really save.
 import { useState } from 'react';
 import { data, useDB, me, stayLabel, readinessFor, roomLabel } from '../data';
@@ -27,9 +27,11 @@ export function Simple({ path }: { path: string }) {
           <span className="mark">LR</span>
           <b>Roomboard</b>
         </button>
-        <span className="s-mock" title="This is a design mockup on a test link. Data stays in this browser.">
-          Mockup
-        </span>
+        {data.mode === 'demo' && (
+          <span className="s-mock" title="Demo mode. Data is kept in this browser only.">
+            Demo
+          </span>
+        )}
         <div className="sp" />
         {data.mode === 'demo' && (
           <select

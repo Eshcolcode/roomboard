@@ -1,4 +1,4 @@
-// Simple mode (mockup) walk-through + screenshots: node qa/flow.mjs  (needs a preview on :4173 or QA_URL).
+// Simple mode walk-through + screenshots: node qa/flow.mjs  (needs a preview on :4173 or QA_URL).
 import { chromium } from 'playwright';
 const U = process.env.QA_URL ?? 'http://localhost:4173/';
 const OUT = new URL('../screens/', import.meta.url).pathname;
@@ -23,7 +23,7 @@ const settle = p => p.waitForTimeout(450);
 // ---- Sheena: home and a single booking ----
 let p = await pg();
 await p.selectOption('select.s-who', 'u-client'); await settle(p);
-ok(await p.locator('.s-mock').isVisible(), 'Mockup label shown');
+ok(!/mockup/i.test(await p.locator('.s-top').innerText()), 'no Mockup wording in the header');
 ok((await p.locator('.s-huge').count()) === 3, 'home has three huge buttons');
 await shot(p, 'home'); await shot(p, 'home-full', true);
 const n0 = (await stays(p)).length;

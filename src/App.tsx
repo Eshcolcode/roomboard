@@ -64,7 +64,7 @@ export default function App() {
   }, []);
   if (db.authRequired) return <Login />;
   if (!db.users.length) return <div className="loading">Loading…</div>;
-  // Mockup: the step-by-step "Simple mode" lives beside the full app on its own routes.
+  // The step-by-step "Simple mode" lives beside the full app on its own routes.
   if (h === 'simple' || h.startsWith('simple/')) return <Simple path={h.slice(7)} />;
   return <Shell wide={wide} />;
 }
@@ -178,7 +178,7 @@ function Shell({ wide }: { wide: boolean }) {
                   </div>
                 )}
                 <a className="btn sm" href="#simple">
-                  Try Simple mode (mockup)
+                  Try Simple mode
                 </a>
                 {u.role === 'manager' && (
                   <button

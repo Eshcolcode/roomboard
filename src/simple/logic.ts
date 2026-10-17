@@ -1,4 +1,4 @@
-// Simple mode (mockup): pure helpers over a DB snapshot, so they can be unit-tested without React or a store.
+// Simple mode: pure helpers over a DB snapshot, so they can be unit-tested without React or a store.
 import { addDays, fmt, overlaps } from '../dates';
 import { stayError } from '../data/rules';
 import type { DB, Room, Stay, StayInput } from '../data/core';

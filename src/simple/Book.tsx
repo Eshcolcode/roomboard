@@ -1,4 +1,4 @@
-// Simple mode (mockup): book a room one question at a time. Only room + dates are required.
+// Simple mode: book a room one question at a time. Only room + dates are required.
 import { useState } from 'react';
 import { data, useDB, getDB, bathText } from '../data';
 import type { DB, Room, StayInput } from '../data';

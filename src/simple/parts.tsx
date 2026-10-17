@@ -1,4 +1,4 @@
-// Simple mode (mockup): the shared building blocks. One big box, one question at a time.
+// Simple mode: the shared building blocks. One big box, one question at a time.
 import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { addDays, fmt, londonToday } from '../dates';

@@ -26,7 +26,9 @@ export function Box({
   const h = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
     h.current?.focus({ preventScroll: true });
-    window.scrollTo({ top: 0 });
+    const sheet = h.current?.closest('.q-body');
+    if (sheet) sheet.scrollTo({ top: 0 });
+    else window.scrollTo({ top: 0 });
   }, [step]);
   return (
     <section className="s-box" aria-live="polite">
@@ -48,7 +50,7 @@ export function Box({
           <div className="sp" />
         )}
         {onClose ? (
-          <button className="s-round" onClick={onClose} aria-label="Close">
+          <button className="s-round s-close" onClick={onClose} aria-label="Close">
             <span aria-hidden>✕</span>
           </button>
         ) : (

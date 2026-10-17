@@ -1,6 +1,7 @@
 // Simple mode (mockup): change a booking. One big card, big buttons, one question per change.
 // Every change is checked in plain words BEFORE saving, with the nearest free room offered.
 import { useState } from 'react';
+import type { ReactNode } from 'react';
 import { data, useDB, getDB, me, stayLabel } from '../data';
 import type { Stay, StayInput } from '../data';
 import { addDays, diffDays, fmt, londonToday } from '../dates';
@@ -18,6 +19,7 @@ import {
   roomText,
   saveOrder,
   shift,
+  splitPlan,
   suggestBlock,
   toInput,
 } from './logic';
@@ -56,7 +58,17 @@ async function applyBatch(inputs: StayInput[], later: boolean): Promise<number> 
   return done;
 }
 
-export function Change({ id, onHome, notify }: { id: string; onHome: () => void; notify: Notify }) {
+export function Change({
+  id,
+  onHome,
+  notify,
+  onDetails,
+}: {
+  id: string;
+  onHome: () => void;
+  notify: Notify;
+  onDetails?: (s: Stay) => void;
+}) {
   const db = useDB();
   const stay = db.stays.find(s => s.id === id);
   const [q, setQ] = useState<Q>(null);
@@ -115,7 +127,7 @@ export function Change({ id, onHome, notify }: { id: string; onHome: () => void;
   };
 
   /** Plain-language check + Save, with a one-tap fix when a room is taken. */
-  const saveBar = (inputs: StayInput[], later: boolean, msg: string, after: Q = null) => {
+  const saveBar = (inputs: StayInput[], later: boolean, msg: string, after: Q = null, first?: ReactNode) => {
     const ids = inputs.map(i => i.id!);
     const probs = checkBatch(db, inputs, ids);
     if (!probs.length)
@@ -146,6 +158,7 @@ export function Change({ id, onHome, notify }: { id: string; onHome: () => void;
           ))}
           {probs.length > 3 && <span className="s-line">…and {probs.length - 3} more.</span>}
         </Note>
+        {first}
         {fixed ? (
           <>
             <Note tone="warn">
@@ -160,7 +173,10 @@ export function Change({ id, onHome, notify }: { id: string; onHome: () => void;
                 run(fixed, later, msg + (one && alt ? ` · moved to ${alt.name}` : ' · some rooms moved'), after)
               }
             >
-              {one && alt ? `Move to ${alt.name} and save` : `Move ${probs.length} to free rooms and save`}
+              {first ? 'Or: ' : ''}
+              {one && alt
+                ? `Move the whole stay to ${alt.name} and save`
+                : `Move ${probs.length} to free rooms and save`}
             </button>
           </>
         ) : (
@@ -180,6 +196,32 @@ export function Change({ id, onHome, notify }: { id: string; onHome: () => void;
   // ---------- one booking ----------
   if (q === 'early' || q === 'longer') {
     const input = leaveOn(stay, dep);
+    const split = q === 'longer' && checkBatch(db, [input], [stay.id]).length ? splitPlan(db, stay, dep!) : null;
+    const splitUI = split && (
+      <>
+        <Note tone="ok">
+          <b>Best option:</b>{' '}
+          {split.nightsKept > 0
+            ? `stay in ${room.name} until ${fmt(split.cutoff)} (${split.nightsKept} more night${split.nightsKept === 1 ? '' : 's'}), then`
+            : `stay in ${room.name} until ${fmt(split.cutoff)} as booked, then`}{' '}
+          {roomText(db, split.room.id)} for the last {diffDays(split.cutoff, dep!)} night
+          {diffDays(split.cutoff, dep!) === 1 ? '' : 's'}.
+        </Note>
+        <button
+          className="s-btn big"
+          disabled={busy}
+          onClick={() =>
+            run(
+              [split.keep, split.extra],
+              false,
+              `Saved · ${room.name} until ${fmt(split.cutoff)}, then ${split.room.name}`,
+            )
+          }
+        >
+          Keep {room.name}, extra nights in {split.room.name}
+        </button>
+      </>
+    );
     return (
       <Box
         step={q}
@@ -192,7 +234,7 @@ export function Change({ id, onHome, notify }: { id: string; onHome: () => void;
         <p className="s-muted">
           {diffDays(stay.arrival, dep!)} nights{sDep ? ` (was ${diffDays(stay.arrival, sDep)})` : ''}
         </p>
-        {saveBar([input], false, `Saved · now leaving ${fmt(dep!)}`)}
+        {saveBar([input], false, `Saved · now leaving ${fmt(dep!)}`, null, splitUI)}
       </Box>
     );
   }
@@ -539,6 +581,11 @@ export function Change({ id, onHome, notify }: { id: string; onHome: () => void;
         </>
       ) : (
         <p className="s-muted">Only the booker and the provider can change bookings.</p>
+      )}
+      {onDetails && canEdit && (
+        <button className="s-link" onClick={() => onDetails(stay)}>
+          All details (classic form)
+        </button>
       )}
     </Box>
   );

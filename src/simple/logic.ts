@@ -207,3 +207,38 @@ export function dayRows(db: DB, date: string): DayRow[] {
   );
   return rows;
 }
+
+/**
+ * Staying longer but the room is taken for some of the extra nights: keep the current room for as long as it is
+ * free (up to the next booking), then put just the remaining nights in the nearest free room.
+ */
+export function splitPlan(db: DB, s: Stay, newDep: string) {
+  const oldDep = dep(s);
+  if (!oldDep || newDep <= oldDep) return null;
+  const next = db.stays
+    .filter(x => x.id !== s.id && x.roomId === s.roomId && overlaps(x.arrival, x.departure, oldDep, newDep))
+    .sort((a, b) => a.arrival.localeCompare(b.arrival))[0];
+  if (!next || next.arrival < oldDep) return null;
+  const cutoff = next.arrival;
+  if (cutoff >= newDep) return null;
+  const room = nearestFree(db, s.roomId, cutoff, newDep, [s.id]);
+  if (!room) return null;
+  const keep: StayInput = {
+    ...toInput(s),
+    departure: cutoff,
+    depStatus: s.depStatus === 'confirmed' ? 'confirmed' : 'planned',
+  };
+  const extra: StayInput = {
+    roomId: room.id,
+    workerId: s.workerId,
+    holdLabel: s.holdLabel,
+    arrival: cutoff,
+    departure: newDep,
+    depStatus: 'planned',
+    away: null,
+    notes: `Continues from ${roomText(db, s.roomId)}`,
+    seriesId: null,
+    slot: null,
+  };
+  return { keep, extra, room, cutoff, nightsKept: Math.round((Date.parse(cutoff) - Date.parse(oldDep)) / 864e5) };
+}

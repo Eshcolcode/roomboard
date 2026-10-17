@@ -35,6 +35,10 @@ const ok = (c, m, group = 'e2e') => {
 async function page(w = 1440, h = 950, ctx) {
   const c = ctx ?? (await b.newContext({ viewport: { width: w, height: h } }));
   const p = await c.newPage();
+  // This suite checks Classic mode (the original panel). Quick mode is covered by qa/flow.mjs.
+  await p.addInitScript(() => {
+    if (!localStorage.getItem('rb-ui-mode')) localStorage.setItem('rb-ui-mode', 'classic');
+  });
   p.on('pageerror', e => errs.push(e.message));
   p.on('console', m => m.type() === 'error' && errs.push(m.text()));
   p.on('dialog', d => {

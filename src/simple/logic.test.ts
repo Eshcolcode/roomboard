@@ -96,3 +96,26 @@ describe('simple mode logic', () => {
     expect(checkBatch(db, [{ ...toInput(s), departure: far }], [s.id])[0].text).toMatch(/after the arrival/);
   });
 });
+
+describe('split stay when staying longer', () => {
+  it('keeps the current room up to the next booking and puts only the extra nights elsewhere', async () => {
+    const { splitPlan } = await import('./logic');
+    const db = seed();
+    const me = mk(db, 'es-4', far, addDays(far, 5), { workerId: 'w-2', holdLabel: '' });
+    mk(db, 'es-4', addDays(far, 7), addDays(far, 12), { workerId: 'w-1', holdLabel: '' });
+    const p = splitPlan(db, me, addDays(far, 10))!;
+    expect(p.keep.roomId).toBe('es-4');
+    expect(p.keep.departure).toBe(addDays(far, 7)); // two more nights in the same room
+    expect(p.extra.arrival).toBe(addDays(far, 7));
+    expect(p.extra.departure).toBe(addDays(far, 10));
+    expect(p.extra.roomId).not.toBe('es-4');
+    expect(p.extra.workerId).toBe('w-2');
+    expect(checkBatch(db, [p.keep, p.extra], [me.id])).toEqual([]);
+  });
+  it('offers nothing when the room is free for the whole extension', async () => {
+    const { splitPlan } = await import('./logic');
+    const db = seed();
+    const me = mk(db, 'es-4', far, addDays(far, 5));
+    expect(splitPlan(db, me, addDays(far, 9))).toBeNull();
+  });
+});

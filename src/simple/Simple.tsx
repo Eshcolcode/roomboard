@@ -1,6 +1,6 @@
 // Simple mode (MOCKUP): calm, phone-first front door. #simple, #simple/book, #simple/arrivals,
 // #simple/cleaning, #simple/stay/<id>. Uses the same data layer as the full app, so holds really save.
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { data, useDB, me, stayLabel, readinessFor, roomLabel } from '../data';
 import type { Stay } from '../data';
 import { addDays, fmt, londonToday } from '../dates';
@@ -9,21 +9,13 @@ import { Change } from './Change';
 import { Box, Chip } from './parts';
 import { dayRows } from './logic';
 import type { DayRow } from './logic';
+import { useQuickToast } from './Quick';
 import './simple.css';
-
-type ToastT = { id: number; text: string; steps: number };
 
 export function Simple({ path }: { path: string }) {
   const db = useDB();
   const u = me();
-  const [toast, setToast] = useState<ToastT | null>(null);
-  const tid = useRef(0);
-  useEffect(() => {
-    if (!toast) return;
-    const t = setTimeout(() => setToast(x => (x?.id === toast.id ? null : x)), 8000);
-    return () => clearTimeout(t);
-  }, [toast]);
-  const notify = (text: string, steps = 0) => setToast({ id: ++tid.current, text, steps });
+  const [notify, toastEl] = useQuickToast();
   const go = (p: string) => (location.hash = p ? 'simple/' + p : 'simple');
   const home = () => go('');
   const [view, arg] = path.split('/');
@@ -67,26 +59,7 @@ export function Simple({ path }: { path: string }) {
           <Home go={go} />
         )}
       </main>
-      <div className="s-toasts" role="status" aria-live="polite">
-        {toast && (
-          <div className="s-toast" key={toast.id}>
-            <span>{toast.text}</span>
-            {toast.steps > 0 && (
-              <button
-                onClick={async () => {
-                  const n = toast.steps;
-                  setToast(null);
-                  for (let i = 0; i < n; i++) if (data.canUndo()) await data.undo();
-                  notify('Undone');
-                }}
-              >
-                Undo
-              </button>
-            )}
-            <i className="s-timer" aria-hidden />
-          </div>
-        )}
-      </div>
+      {toastEl}
     </div>
   );
 }

@@ -22,6 +22,8 @@ import { PrintView } from './ui/Print';
 import { Login } from './ui/Login';
 import { Crew } from './ui/Crew';
 import { Simple } from './simple/Simple';
+import { ModeSwitch, QuickSheet, useQuickToast, useUiMode } from './simple/Quick';
+import type { QuickInit } from './simple/Quick';
 
 const LABEL: Record<Tab, string> = {
   board: 'Board',
@@ -79,6 +81,9 @@ function Shell({ wide }: { wide: boolean }) {
   const [panel, setPanel] = useState<PanelInit | null>(null);
   const [moreOpen, setMoreOpen] = useState(false);
   const [demoOpen, setDemoOpen] = useState(false);
+  const uiMode = useUiMode();
+  const [quick, setQuick] = useState<{ init: QuickInit; k: number } | null>(null);
+  const [notify, quickToast] = useQuickToast();
 
   useEffect(() => {
     const h = () => setHash(readHash());
@@ -88,6 +93,7 @@ function Shell({ wide }: { wide: boolean }) {
   // A role switch closes anything that belonged to the previous person.
   useEffect(() => {
     setPanel(null);
+    setQuick(null);
     setMoreOpen(false);
     setDemoOpen(false);
   }, [u.id]);
@@ -112,7 +118,13 @@ function Shell({ wide }: { wide: boolean }) {
       </>
     );
 
-  const open = (p: PanelInit) => setPanel(p);
+  // Quick (default): the one-question quick card / booking flow. Classic: the original panel, unchanged.
+  const open = (p: PanelInit) => {
+    if (uiMode === 'quick' && u.role !== 'cleaner') {
+      setPanel(null);
+      setQuick({ init: p, k: Date.now() });
+    } else setPanel(p);
+  };
   const coCount = db.changeovers.filter(
     c => c.status !== 'ready' && !c.cancelled && (c.readyBy ?? c.afterDate) <= addDays(londonToday(), 7),
   ).length;
@@ -148,6 +160,7 @@ function Shell({ wide }: { wide: boolean }) {
           </nav>
         )}
         <div className="sp" />
+        {canEdit && <ModeSwitch compact={!wide} />}
         {canEdit && <Search onOpen={open} />}
         {data.mode === 'demo' ? (
           <div className="demo-wrap">
@@ -157,6 +170,13 @@ function Shell({ wide }: { wide: boolean }) {
             {demoOpen && (
               <div className="pop" role="dialog" aria-label="About demo mode">
                 <p>Demo mode. Data is kept in this browser only and no messages are really sent.</p>
+                {canEdit && (
+                  <div className="q-pop">
+                    <b>Editing style</b>
+                    <small>Quick: big one-question steps. Classic: the full form.</small>
+                    <ModeSwitch />
+                  </div>
+                )}
                 <a className="btn sm" href="#simple">
                   Try Simple mode (mockup)
                 </a>
@@ -265,6 +285,21 @@ function Shell({ wide }: { wide: boolean }) {
           onClose={() => setPanel(null)}
         />
       )}
+      {quick && (
+        <QuickSheet
+          key={quick.k}
+          init={quick.init}
+          wide={wide}
+          notify={notify}
+          onClose={() => setQuick(null)}
+          onSwitch={i => setQuick({ init: i, k: Date.now() })}
+          onDetails={s => {
+            setQuick(null);
+            setPanel({ stay: s });
+          }}
+        />
+      )}
+      {quickToast}
       <Welcome />
       <Overlays />
     </div>

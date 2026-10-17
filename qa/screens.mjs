@@ -5,6 +5,7 @@ const OUT = new URL('../screens/', import.meta.url).pathname;
 const b = await chromium.launch({ executablePath: '/usr/bin/google-chrome', args: ['--no-sandbox'] });
 async function pg(w, h, user = 'u-donald', hash = '', scale = 2) {
   const p = await b.newPage({ viewport: { width: w, height: h }, deviceScaleFactor: scale });
+  await p.addInitScript(() => { if (!localStorage.getItem('rb-ui-mode')) localStorage.setItem('rb-ui-mode', 'classic'); });
   await p.goto(U); await p.evaluate(() => { localStorage.clear(); for (const id of ['u-donald', 'u-client', 'u-mairi']) localStorage.setItem('rb-welcome:' + id, '1'); });
   await p.reload(); await p.waitForTimeout(300);
   if (user !== 'u-donald') { await p.selectOption('select.who', user); await p.waitForTimeout(200); }

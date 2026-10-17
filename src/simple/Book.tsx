@@ -82,15 +82,56 @@ export function RoomGroups({ db, rooms, render }: { db: DB; rooms: Room[]; rende
   );
 }
 
-export function Book({ onExit, notify }: { onExit: () => void; notify: Notify }) {
+/** What the caller already knows (e.g. tapped an empty room on a day). Known answers skip their question. */
+export interface BookInit {
+  roomId?: string;
+  date?: string;
+  departure?: string | null;
+  workerId?: string;
+  hold?: boolean;
+}
+type Vals = { who: WhoAnswer | null; arrival: string | null; dep: string | null | undefined };
+
+export function Book({
+  onExit,
+  notify,
+  init = {},
+  onOpenStay = id => (location.hash = 'simple/stay/' + id),
+  onRestart = () => location.reload(),
+}: {
+  onExit: () => void;
+  notify: Notify;
+  init?: BookInit;
+  onOpenStay?: (id: string) => void;
+  onRestart?: () => void;
+}) {
   const db = useDB();
   const T = londonToday();
-  const [step, setStep] = useState<Step>('who');
+  const presetWho = !!init.workerId || !!init.hold;
+  const presetRoom = init.roomId && db.rooms.some(r => r.id === init.roomId) ? init.roomId : undefined;
+  const lockArrival = !!init.date && (!!presetRoom || init.departure !== undefined);
+  const lockDeparture = init.departure !== undefined;
+  const [roomNeeded, setRoomNeeded] = useState(false);
+  const flowFor = (w: WhoAnswer | null, needRoom = roomNeeded): Step[] => {
+    const f: Step[] = [];
+    if (!presetWho) f.push('who');
+    if (w?.kind === 'crew') f.push('count');
+    if (!lockArrival) f.push('arrive');
+    if (!lockDeparture) f.push('leave');
+    if (!presetRoom || w?.kind === 'crew' || needRoom) f.push('room');
+    return f;
+  };
+  const initWho: WhoAnswer | null = init.workerId
+    ? { kind: 'worker', id: init.workerId }
+    : init.hold
+      ? { kind: 'tbc' }
+      : null;
+  const [step, setStep] = useState<Step>(() => flowFor(initWho, false)[0] ?? 'room');
   const [dir, setDir] = useState<1 | -1>(1);
-  const [who, setWho] = useState<WhoAnswer | null>(null);
+  const [who, setWho] = useState<WhoAnswer | null>(initWho);
   const [n, setN] = useState(12);
-  const [arrival, setArrival] = useState<string | null>(null);
-  const [departure, setDeparture] = useState<string | null | undefined>(undefined);
+  const [arrival, setArrival] = useState<string | null>(init.date ?? null);
+  const [departure, setDeparture] = useState<string | null | undefined>(init.departure);
   const [picked, setPicked] = useState<string[] | null>(null);
   const [choose, setChoose] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -103,13 +144,26 @@ export function Book({ onExit, notify }: { onExit: () => void; notify: Notify })
   const [rota, setRota] = useState<{ on: number; off: number; end?: RotationEnd }>({ on: 10, off: 4 });
 
   const crew = who?.kind === 'crew';
-  const flow: Step[] = crew ? ['who', 'count', 'arrive', 'leave', 'room'] : ['who', 'arrive', 'leave', 'room'];
+  const flow = flowFor(who);
   const go = (s: Step, d: 1 | -1 = 1) => {
     setDir(d);
     setProblem('');
     setStep(s);
   };
-  const next = (from: Step) => go(flow[flow.indexOf(from) + 1] ?? 'done');
+  /** Next question, or, when the room was given and is free, hold it straight away. */
+  const advance = (from: Step, v: Vals) => {
+    const f = flowFor(v.who);
+    const nxt = f[f.indexOf(from) + 1];
+    if (nxt) return go(nxt);
+    if (presetRoom && v.arrival && v.who?.kind !== 'crew') {
+      const free = freeIn(getDB(), v.arrival, v.dep ?? null).some(r => r.id === presetRoom);
+      if (free) return void hold([presetRoom], v);
+      setRoomNeeded(true);
+      return go('room');
+    }
+    go('room');
+  };
+  const vals = (): Vals => ({ who, arrival, dep: departure });
   const back = () => {
     const i = flow.indexOf(step);
     if (i <= 0) onExit();
@@ -118,14 +172,20 @@ export function Book({ onExit, notify }: { onExit: () => void; notify: Notify })
   const dots = step === 'done' ? undefined : { n: flow.length, at: flow.indexOf(step) };
   const dep = departure ?? null;
   const nightsTxt = arrival && dep ? `${diffDays(arrival, dep)} nights` : 'leaving date to follow';
+  const presetR = presetRoom ? db.rooms.find(r => r.id === presetRoom) : undefined;
   const summary = [
+    presetR && !roomNeeded && !crew
+      ? `${presetR.name}, ${db.properties.find(p => p.id === presetR.propertyId)!.short}`
+      : '',
     whoText(db, who),
     arrival && fmt(arrival) + (departure === undefined ? '' : dep ? ' → ' + fmt(dep) : ' → leaving date to follow'),
   ]
     .filter(Boolean)
     .join(' · ');
 
-  async function hold(roomIds: string[]) {
+  async function hold(roomIds: string[], v: Vals = vals()) {
+    const { who, arrival } = v;
+    const dep = v.dep ?? null;
     if (!arrival || !who) return;
     setBusy(true);
     setProblem('');
@@ -174,6 +234,8 @@ export function Book({ onExit, notify }: { onExit: () => void; notify: Notify })
       setSince(0);
       go('done');
     } catch (e) {
+      if (presetRoom) setRoomNeeded(true);
+      setStep('room');
       setProblem(err(e));
     } finally {
       setBusy(false);
@@ -293,15 +355,18 @@ export function Book({ onExit, notify }: { onExit: () => void; notify: Notify })
         onBack={back}
         onClose={onExit}
         title="Who is staying?"
-        sub="Only the room and dates are needed. Names can come later."
+        sub={
+          presetR || arrival
+            ? `${summary} · name can come later`
+            : 'Only the room and dates are needed. Names can come later.'
+        }
       >
         <WhoPick
           allowCrew
           onPick={w => {
             setWho(w);
             setPicked(null);
-            setDir(1);
-            setStep(w.kind === 'crew' ? 'count' : 'arrive');
+            advance('who', { ...vals(), who: w });
           }}
         />
       </Box>
@@ -338,7 +403,7 @@ export function Book({ onExit, notify }: { onExit: () => void; notify: Notify })
           className="s-btn big"
           onClick={() => {
             setWho({ kind: 'crew', n });
-            next('count');
+            advance('count', { ...vals(), who: { kind: 'crew', n } });
           }}
         >
           Next →
@@ -351,8 +416,9 @@ export function Book({ onExit, notify }: { onExit: () => void; notify: Notify })
     const mon = nextMonday(T);
     const pick = (d: string) => {
       setArrival(d);
-      if (departure && departure <= d) setDeparture(undefined);
-      setTimeout(() => next('arrive'), 160);
+      const dd = departure && departure <= d ? undefined : departure;
+      if (dd !== departure) setDeparture(undefined);
+      setTimeout(() => advance('arrive', { who, arrival: d, dep: dd }), 160);
     };
     return (
       <Box
@@ -383,7 +449,7 @@ export function Book({ onExit, notify }: { onExit: () => void; notify: Notify })
   if (step === 'leave' && arrival) {
     const pick = (d: string | null) => {
       setDeparture(d);
-      setTimeout(() => next('leave'), 160);
+      setTimeout(() => advance('leave', { who, arrival, dep: d }), 160);
     };
     return (
       <Box
@@ -511,6 +577,11 @@ export function Book({ onExit, notify }: { onExit: () => void; notify: Notify })
         sub={`${summary} · ${nightsTxt} · tap a room to hold it`}
       >
         {problem && <Note tone="bad">{problem}</Note>}
+        {roomNeeded && presetR && !problem && (
+          <Note tone="warn">
+            {presetR.name} is booked on some of those nights. Pick another room below, or go back and change the dates.
+          </Note>
+        )}
         {!free.length && (
           <Note tone="warn">No rooms are free for those dates. Go back and try other dates, or ask on More rooms.</Note>
         )}
@@ -539,7 +610,7 @@ export function Book({ onExit, notify }: { onExit: () => void; notify: Notify })
   if (!stays.length)
     return (
       <Box step="gone" title="Nothing is held" sub="The hold was undone.">
-        <button className="s-btn big" onClick={() => location.reload()}>
+        <button className="s-btn big" onClick={onRestart}>
           Book a room
         </button>
         <button className="s-btn ghost big" onClick={onExit}>
@@ -762,7 +833,7 @@ export function Book({ onExit, notify }: { onExit: () => void; notify: Notify })
         <button className="s-btn big" onClick={onExit}>
           Done
         </button>
-        <button className="s-btn ghost big" onClick={() => (location.hash = 'simple/stay/' + first.id)}>
+        <button className="s-btn ghost big" onClick={() => onOpenStay(first.id)}>
           Open booking
         </button>
       </div>

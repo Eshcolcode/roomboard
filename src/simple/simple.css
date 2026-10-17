@@ -1034,3 +1034,225 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ---------- Quick mode inside the full app ---------- */
+.s-scope {
+  font-size: 18px;
+  line-height: 1.4;
+  color: var(--ink);
+}
+.s-link {
+  background: none;
+  border: 0;
+  color: var(--sk-ink);
+  text-decoration: underline;
+  font-size: 17px;
+  font-weight: 600;
+  min-height: 48px;
+  justify-self: center;
+}
+.q-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+  background: rgba(2, 6, 23, 0.45);
+  display: flex;
+  align-items: flex-end;
+  animation: f 0.15s;
+}
+.q-panel {
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+}
+.q-panel.sheet {
+  width: 100%;
+  max-height: 92vh;
+  border-radius: 24px 24px 0 0;
+  animation: q-up 0.26s ease-out;
+}
+.q-panel.side {
+  position: fixed;
+  top: 60px;
+  right: 0;
+  bottom: 0;
+  width: 470px;
+  max-width: 100%;
+  z-index: 45;
+  border-left: 2px solid var(--gold);
+  box-shadow: -18px 0 40px rgba(2, 6, 23, 0.25);
+  animation: q-side 0.24s ease-out;
+}
+@keyframes q-up {
+  from {
+    transform: translateY(100%);
+  }
+}
+@keyframes q-side {
+  from {
+    transform: translateX(100%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .q-panel.sheet,
+  .q-panel.side {
+    animation: none;
+  }
+}
+.q-bar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 12px 6px 18px;
+  border-bottom: 1px solid var(--line);
+}
+.q-grab {
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  width: 44px;
+  height: 5px;
+  margin-left: -22px;
+  border-radius: 3px;
+  background: #cbd5e1;
+}
+.q-title {
+  flex: 1;
+  font-size: 15px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--mute);
+}
+.q-x {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: 2px solid var(--line);
+  background: #fff;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.q-body {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-bottom: 90px;
+}
+.q-body .s-box {
+  box-shadow: none;
+  border-radius: 0;
+  padding-top: 6px;
+}
+.q-body .s-close {
+  visibility: hidden;
+}
+.q-body .s-sticky {
+  bottom: 0;
+}
+.app .s-toasts {
+  bottom: 18px;
+}
+@media (max-width: 820px) {
+  .app .s-toasts {
+    bottom: 80px;
+  }
+}
+.q-switch {
+  display: flex;
+  background: var(--navy2);
+  border: 1px solid #334155;
+  border-radius: 10px;
+  padding: 3px;
+}
+.q-switch button {
+  border: 0;
+  background: none;
+  color: #cbd5e1;
+  font-weight: 700;
+  font-size: 13px;
+  padding: 6px 12px;
+  border-radius: 7px;
+  min-height: 34px;
+}
+.q-switch button.on {
+  background: var(--gold);
+  color: var(--navy);
+}
+.q-switch1 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #334155;
+  background: var(--navy2);
+  color: #fff;
+  font-weight: 700;
+  font-size: 12px;
+  border-radius: 999px;
+  padding: 5px 9px 5px 5px;
+  min-height: 36px;
+}
+.q-switch1 i {
+  width: 26px;
+  height: 16px;
+  border-radius: 8px;
+  background: #475569;
+  position: relative;
+}
+.q-switch1 i::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #fff;
+  transition: left 0.15s;
+}
+.q-switch1.quick i {
+  background: var(--em);
+}
+.q-switch1.quick i::after {
+  left: 12px;
+}
+.q-pop {
+  display: grid;
+  gap: 6px;
+  margin: 8px 0 10px;
+  padding: 10px 0;
+  border-top: 1px solid #334155;
+  border-bottom: 1px solid #334155;
+}
+.q-pop small {
+  font-size: 12px;
+  opacity: 0.8;
+}
+.q-pop .q-switch {
+  justify-self: start;
+}
+@media (max-width: 820px) {
+  .app .top {
+    gap: 6px;
+  }
+  .app .top .who {
+    max-width: 106px;
+  }
+  .app .top .q-switch1 {
+    padding: 4px 7px 4px 4px;
+    gap: 4px;
+  }
+  .app .top .q-switch1 i {
+    width: 22px;
+  }
+  .app .top .q-switch1.quick i::after {
+    left: 8px;
+  }
+}
+.q-body .s-boxtop:not(:has([aria-label='Back'])):not(:has(.s-dots)) {
+  display: none;
+}
+.q-pop .q-switch + * {
+  margin-top: 4px;
+}

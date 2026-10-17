@@ -119,3 +119,60 @@ describe('split stay when staying longer', () => {
     expect(splitPlan(db, me, addDays(far, 9))).toBeNull();
   });
 });
+
+describe('join, split on new dates, future rotations', () => {
+  it('joins two stays of the same person in the same room', async () => {
+    const { joinPlan } = await import('./logic');
+    const db = seed();
+    const a = mk(db, 'lr-4', far, addDays(far, 4), { workerId: 'w-3', holdLabel: '' });
+    const b = mk(db, 'lr-4', addDays(far, 6), addDays(far, 12), { workerId: 'w-3', holdLabel: '' });
+    const j = joinPlan(db, a, addDays(far, 8))!;
+    expect(j.removeId).toBe(b.id);
+    expect(j.input.departure).toBe(addDays(far, 12));
+    expect(checkBatch(db, [j.input], [a.id, b.id])).toEqual([]);
+    const other = mk(db, 'lr-6', far, addDays(far, 4), { workerId: 'w-4', holdLabel: '' });
+    mk(db, 'lr-6', addDays(far, 6), addDays(far, 9), { workerId: 'w-5', holdLabel: '' });
+    expect(joinPlan(db, other, addDays(far, 8))).toBeNull(); // different person: no join
+  });
+  it('splits a change of dates and prefers the same house for the overflow nights', async () => {
+    const { splitPlan } = await import('./logic');
+    const db = seed();
+    const s = mk(db, 'lr-9', far, addDays(far, 4));
+    mk(db, 'lr-9', addDays(far, 8), addDays(far, 15));
+    const p = splitPlan(db, s, addDays(far, 10), { arrival: addDays(far, 2) })!;
+    expect(p.keep.arrival).toBe(addDays(far, 2));
+    expect(p.keep.departure).toBe(addDays(far, 8));
+    expect(p.room.propertyId).toBe('p-lr');
+    expect(p.otherHouse).toBe(false);
+  });
+  it('groups future rotations by place and finds one room per place for all of them', async () => {
+    const { futureOf, assignRooms } = await import('./logic');
+    const db = seed();
+    const a1 = mk(db, 'es-3', far, addDays(far, 10), { seriesId: 'S', slot: 0 });
+    mk(db, 'es-3', addDays(far, 14), addDays(far, 24), { seriesId: 'S', slot: 0 });
+    mk(db, 'es-4', far, addDays(far, 10), { seriesId: 'S', slot: 1 });
+    mk(db, 'es-4', addDays(far, 14), addDays(far, 24), { seriesId: 'S', slot: 1 });
+    const f = futureOf(db, a1);
+    expect(f.map(g => g.length)).toEqual([2, 2]);
+    const rooms = assignRooms(db, f, 'p-lr')!;
+    expect(rooms).toHaveLength(2);
+    expect(new Set(rooms).size).toBe(2);
+  });
+});
+
+describe('crew staying longer', () => {
+  it('keeps every room it can and moves only the blocked person for the extra nights', async () => {
+    const { crewSplitPlan } = await import('./logic');
+    const db = seed();
+    const a = mk(db, 'es-8', far, addDays(far, 5), { seriesId: 'C', slot: 0 });
+    const b = mk(db, 'es-9', far, addDays(far, 5), { seriesId: 'C', slot: 1 });
+    mk(db, 'es-9', addDays(far, 7), addDays(far, 20), { workerId: 'w-1', holdLabel: '' });
+    const p = crewSplitPlan(db, [a, b], addDays(far, 9))!;
+    expect(p.moved).toHaveLength(1);
+    expect(p.inputs).toHaveLength(3);
+    const extra = p.inputs.find(i => !i.id)!;
+    expect(extra.arrival).toBe(addDays(far, 7));
+    expect(['es-8', 'es-9']).not.toContain(extra.roomId);
+    expect(checkBatch(db, p.inputs, [a.id, b.id])).toEqual([]);
+  });
+});

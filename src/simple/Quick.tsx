@@ -135,16 +135,63 @@ export function QuickSheet({
     const opener = document.activeElement as HTMLElement | null;
     return () => opener?.focus?.();
   }, []);
+  // desktop: bring the tapped booking into view beside the panel
+  const sid = init.stay?.id;
+  useEffect(() => {
+    if (!wide || !sid) return;
+    const t = setTimeout(() => {
+      const bar = document.querySelector<HTMLElement>(`.bar[data-stay="${sid}"]`);
+      if (!bar) return;
+      // sideways: show the start of the bar just right of the room names
+      let sc = bar.parentElement;
+      while (sc && !(sc.scrollWidth > sc.clientWidth + 1 && /auto|scroll/.test(getComputedStyle(sc).overflowX)))
+        sc = sc.parentElement;
+      if (sc) {
+        const box = sc.getBoundingClientRect();
+        const r = bar.getBoundingClientRect();
+        const label = (sc.querySelector('.rl') as HTMLElement | null)?.offsetWidth ?? 0;
+        if (r.left < box.left + label || r.left > box.right - 60)
+          sc.scrollBy({ left: r.left - box.left - label - 12, behavior: 'smooth' });
+      }
+      // up/down: only if it is out of sight
+      const r = bar.getBoundingClientRect();
+      if (r.top < 70 || r.bottom > innerHeight - 10) scrollBy({ top: r.top - innerHeight / 3, behavior: 'smooth' });
+    }, 280);
+    return () => clearTimeout(t);
+  }, [wide, sid]);
+  // phone: swipe the sheet down by its handle bar to close
+  const ref = useRef<HTMLDivElement>(null);
+  const drag = useRef<{ y: number; dy: number } | null>(null);
+  const onDown = (e: React.PointerEvent) => {
+    if (wide || (e.target as HTMLElement).closest('button')) return;
+    drag.current = { y: e.clientY, dy: 0 };
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    ref.current?.classList.add('dragging');
+  };
+  const onMove = (e: React.PointerEvent) => {
+    if (!drag.current || !ref.current) return;
+    drag.current.dy = Math.max(0, e.clientY - drag.current.y);
+    ref.current.style.transform = `translateY(${drag.current.dy}px)`;
+  };
+  const onUp = () => {
+    const d = drag.current;
+    drag.current = null;
+    if (!ref.current || !d) return;
+    ref.current.classList.remove('dragging');
+    if (d.dy > 90) onClose();
+    else ref.current.style.transform = '';
+  };
   const panel = (
     <div
+      ref={ref}
       className={'q-panel s-scope ' + (wide ? 'side' : 'sheet')}
       role="dialog"
       aria-modal={!wide}
       aria-label={init.stay ? 'Booking' : 'Book a room'}
       onClick={e => e.stopPropagation()}
     >
-      <div className="q-bar">
-        {!wide && <span className="q-grab" aria-hidden />}
+      <div className="q-bar" onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
+        {!wide && <span className="q-grab" aria-hidden title="Swipe down to close" />}
         <span className="q-title">{init.stay ? 'Booking' : 'Book a room'}</span>
         <button className="q-x" onClick={onClose} aria-label="Close">
           ✕

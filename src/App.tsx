@@ -131,7 +131,7 @@ function Shell({ wide }: { wide: boolean }) {
   const canEdit = u.role !== 'cleaner';
 
   return (
-    <div className={'app role-' + u.role}>
+    <div className={'app role-' + u.role + (quick && wide ? ' q-open' : '')}>
       <header className="top">
         <div className="brand">
           <span className="mark">LR</span>
@@ -160,7 +160,7 @@ function Shell({ wide }: { wide: boolean }) {
           </nav>
         )}
         <div className="sp" />
-        {canEdit && <ModeSwitch compact={!wide} />}
+        {canEdit && wide && <ModeSwitch />}
         {canEdit && <Search onOpen={open} />}
         {data.mode === 'demo' ? (
           <div className="demo-wrap">
@@ -268,6 +268,15 @@ function Shell({ wide }: { wide: boolean }) {
       {moreOpen && (
         <div className="scrim" onClick={() => setMoreOpen(false)}>
           <div className="sheet" role="dialog" aria-label="More" onClick={e => e.stopPropagation()}>
+            {canEdit && (
+              <div className="q-more">
+                <span>
+                  <b>Editing style</b>
+                  <small>Quick: big steps · Classic: full form</small>
+                </span>
+                <ModeSwitch />
+              </div>
+            )}
             {PHONE_MORE[u.role].map(t => (
               <button key={t} className="li click" onClick={() => go(t)}>
                 <Icon name={t} />
@@ -300,6 +309,9 @@ function Shell({ wide }: { wide: boolean }) {
         />
       )}
       {quickToast}
+      {quick?.init.stay && (
+        <style>{`.bar[data-stay="${quick.init.stay.id}"]{outline:3px solid #34d399;outline-offset:1px}`}</style>
+      )}
       <Welcome />
       <Overlays />
     </div>

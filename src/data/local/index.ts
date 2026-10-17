@@ -3,7 +3,7 @@ import type { Repo } from '../repo';
 import { seed } from './seed';
 import { KEY, load, undo, undoStack, commit, log } from './store';
 import { tick } from './alerts';
-import { saveStay, deleteStay, confirmDeparture } from './stays';
+import { saveStay, deleteStay, confirmDeparture, saveBatch } from './stays';
 import { updateChangeover, dismissChangeover } from './changeovers';
 import { upsertWorker, addEnquiry } from './misc';
 import { createSeries, updateSeries } from './series';
@@ -26,6 +26,9 @@ export const localRepo: Repo = {
   },
   async deleteStay(id) {
     deleteStay(id);
+  },
+  async saveBatch(inputs, removeIds, what) {
+    saveBatch(inputs, removeIds, what);
   },
   async confirmDeparture(id) {
     confirmDeparture(id);

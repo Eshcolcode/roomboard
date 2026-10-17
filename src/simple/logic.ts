@@ -209,24 +209,29 @@ export function dayRows(db: DB, date: string): DayRow[] {
 }
 
 /**
- * Staying longer but the room is taken for some of the extra nights: keep the current room for as long as it is
- * free (up to the next booking), then put just the remaining nights in the nearest free room.
+ * Staying longer (or new dates) but the room is taken for the last part: keep the current room for as long as
+ * it is free, then put just the remaining nights in the nearest free room (same part of the house first).
+ * `exclude` are rooms that must not be used (e.g. the rest of the crew's rooms).
  */
-export function splitPlan(db: DB, s: Stay, newDep: string) {
+export function splitPlan(db: DB, s: Stay, newDep: string, o: { arrival?: string; exclude?: string[] } = {}) {
+  const arr = o.arrival ?? s.arrival;
   const oldDep = dep(s);
-  if (!oldDep || newDep <= oldDep) return null;
+  if (!newDep || newDep <= arr) return null;
+  if (!o.arrival && (!oldDep || newDep <= oldDep)) return null;
   const next = db.stays
-    .filter(x => x.id !== s.id && x.roomId === s.roomId && overlaps(x.arrival, x.departure, oldDep, newDep))
+    .filter(x => x.id !== s.id && x.roomId === s.roomId && overlaps(x.arrival, x.departure, arr, newDep))
     .sort((a, b) => a.arrival.localeCompare(b.arrival))[0];
-  if (!next || next.arrival < oldDep) return null;
+  if (!next || next.arrival <= arr) return null;
   const cutoff = next.arrival;
-  if (cutoff >= newDep) return null;
-  const room = nearestFree(db, s.roomId, cutoff, newDep, [s.id]);
+  const room = nearestFree(db, s.roomId, cutoff, newDep, [s.id], o.exclude ?? []);
   if (!room) return null;
+  const me = db.rooms.find(r => r.id === s.roomId)!;
   const keep: StayInput = {
     ...toInput(s),
+    arrival: arr,
     departure: cutoff,
     depStatus: s.depStatus === 'confirmed' ? 'confirmed' : 'planned',
+    away: s.away && s.away.from >= arr && s.away.to <= cutoff ? s.away : null,
   };
   const extra: StayInput = {
     roomId: room.id,
@@ -237,8 +242,84 @@ export function splitPlan(db: DB, s: Stay, newDep: string) {
     depStatus: 'planned',
     away: null,
     notes: `Continues from ${roomText(db, s.roomId)}`,
-    seriesId: null,
-    slot: null,
+    seriesId: s.seriesId ?? null,
+    slot: s.slot ?? null,
   };
-  return { keep, extra, room, cutoff, nightsKept: Math.round((Date.parse(cutoff) - Date.parse(oldDep)) / 864e5) };
+  return {
+    keep,
+    extra,
+    room,
+    cutoff,
+    otherHouse: room.propertyId !== me.propertyId,
+    nightsKept: oldDep ? Math.max(0, Math.round((Date.parse(cutoff) - Date.parse(oldDep)) / 864e5)) : 0,
+  };
+}
+
+/**
+ * The room is taken by the SAME person's next stay: offer to join the two into one stay (no clean in between).
+ */
+export function joinPlan(db: DB, s: Stay, newDep: string) {
+  if (!s.workerId) return null;
+  const oldDep = dep(s);
+  const c = db.stays
+    .filter(x => x.id !== s.id && x.roomId === s.roomId && overlaps(x.arrival, x.departure, s.arrival, newDep))
+    .sort((a, b) => a.arrival.localeCompare(b.arrival))[0];
+  if (!c || c.workerId !== s.workerId || (oldDep && c.arrival < oldDep)) return null;
+  const cDep = dep(c);
+  const until = cDep && cDep < newDep ? newDep : cDep;
+  const input: StayInput = {
+    ...toInput(s),
+    departure: until,
+    depStatus: until ? (c.depStatus === 'confirmed' && until === cDep ? 'confirmed' : 'planned') : c.depStatus,
+    notes: [s.notes, c.notes].filter(Boolean).join('\n'),
+  };
+  return { input, removeId: c.id, next: c, until };
+}
+
+/** Every stay of this crew booking from this rotation on, grouped by place (slot). */
+export function futureOf(db: DB, s: Stay): Stay[][] {
+  if (!s.seriesId) return [[s]];
+  const all = db.stays.filter(x => x.seriesId === s.seriesId && x.arrival >= s.arrival);
+  const slots = [...new Set(all.map(x => x.slot ?? -1))].sort((a, b) => a - b);
+  return slots.map(k => all.filter(x => (x.slot ?? -1) === k).sort((a, b) => a.arrival.localeCompare(b.arrival)));
+}
+
+/** One room per group (slot), free for every stay of that group, all in one property. Null if it cannot fit. */
+export function assignRooms(db: DB, groups: Stay[][], propertyId: string): string[] | null {
+  const ignore = groups.flat().map(x => x.id);
+  const rooms = freeIn(db, '0000-01-01', '0000-01-02').filter(r => r.propertyId === propertyId);
+  const taken: string[] = [];
+  const out: string[] = [];
+  for (const g of groups) {
+    const r = rooms.find(
+      r => !taken.includes(r.id) && g.every(x => freeIn(db, x.arrival, dep(x), ignore).some(f => f.id === r.id)),
+    );
+    if (!r) return null;
+    taken.push(r.id);
+    out.push(r.id);
+  }
+  return out;
+}
+
+/** Crew staying longer: keep each room while it is free; only people whose room is taken move for the rest. */
+export function crewSplitPlan(db: DB, crew: Stay[], newDep: string) {
+  const inputs = crew.map(s => leaveOn(s, newDep));
+  const ids = crew.map(s => s.id);
+  const probs = checkBatch(db, inputs, ids);
+  if (!probs.length) return null;
+  const exclude = crew.map(s => s.roomId);
+  const out: StayInput[] = [];
+  const moved: { name: string; room: string; cutoff: string }[] = [];
+  for (let i = 0; i < crew.length; i++) {
+    if (!probs.some(p => p.index === i)) {
+      out.push(inputs[i]);
+      continue;
+    }
+    const sp = splitPlan(db, crew[i], newDep, { exclude });
+    if (!sp) return null;
+    exclude.push(sp.room.id);
+    out.push(sp.keep, sp.extra);
+    moved.push({ name: who(db, crew[i]), room: sp.room.name, cutoff: sp.cutoff });
+  }
+  return checkBatch(db, out, ids).length ? null : { inputs: out, moved };
 }

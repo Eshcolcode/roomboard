@@ -365,6 +365,7 @@ function Bar({
     <div
       role="button"
       tabIndex={0}
+      data-stay={s.id}
       aria-label={tip}
       title={tip}
       className={cls}

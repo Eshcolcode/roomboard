@@ -122,10 +122,11 @@ async function splitCase(p, phone) {
   for (let i = 0; i < 40 && !(await p.locator('.q-panel .s-note.bad').count()); i++) await p.click('.q-panel [aria-label="Leaving: one day later"]');
   for (let i = 0; i < 2; i++) await p.click('.q-panel [aria-label="Leaving: one day later"]');
   await settle(p);
-  const btn = p.locator('.q-panel button:has-text("extra nights in")');
+  const btn = p.locator('.q-panel [data-fix="split"] button');
   ok(await btn.isVisible(), (phone ? 'phone' : 'desktop') + ': split-stay offered (keep room, extra nights elsewhere)');
-  const order = await p.locator('.q-panel .s-box button.s-btn').allInnerTexts();
-  ok(/extra nights in/.test(order[0]), 'split-stay is the first option, whole-stay move second (' + order.join(' | ').replace(/\n/g, ' ') + ')');
+  const order = await p.locator('.q-panel .s-fix').evaluateAll(es => es.map(e => e.dataset.fix));
+  ok(order[0] === 'split' && order.includes('move'), 'split-stay is the first option, whole-stay move after it (' + order.join(', ') + ')');
+  ok(/cleaned on/.test(await p.locator('.q-panel [data-fix="split"]').innerText()), 'split explains the room-change clean');
   await btn.scrollIntoViewIfNeeded();
   await shot(p, (phone ? 'phone' : 'desktop') + '-split-stay');
   const before = (await db(p)).stays.length;
@@ -145,9 +146,10 @@ await splitCase(p, false);
 
 // ---------- phone: room cards -> bottom sheet ----------
 p = await pg(390, 844, 'rooms');
+await p.click('.bottom button:has-text("More")'); await settle(p);
+ok(await p.locator('.q-more [aria-checked="true"]:has-text("Quick")').isVisible(), 'phone: Quick/Classic switch in the More menu, Quick on');
 await shot(p, 'phone-toggle');
-ok((await p.locator('.q-switch1').getAttribute('aria-checked')) === 'true', 'phone: compact switch shows Quick on');
-ok(await p.evaluate(() => document.documentElement.scrollWidth <= 390), 'phone: header fits, no horizontal overflow');
+await p.click('.scrim'); await settle(p);
 await p.locator('.rcard .qup').first().click(); await settle(p);
 ok(await p.locator('.q-scrim .q-panel.sheet').isVisible(), 'phone: Quick update opens the bottom sheet');
 await shot(p, 'phone-quick-card');
@@ -168,13 +170,118 @@ await p.click('.q-x'); await settle(p);
   } else ok(false, 'phone: found a free room with nothing booked later');
 }
 // Classic on phone = old panel
-await p.click('.q-switch1'); await settle(p);
+await p.click('.bottom button:has-text("More")'); await settle(p);
+await p.click('.q-more button:has-text("Classic")'); await settle(p);
+await p.click('.scrim'); await settle(p);
 await p.locator('.rcard .qup').first().click(); await settle(p);
 ok(await p.locator('.panel').isVisible() && !(await p.locator('.q-panel').count()), 'phone Classic: the classic panel, as before');
 await shot(p, 'phone-classic-panel');
 await p.goto(U + '#rooms'); await settle(p);
 await p.evaluate(() => localStorage.setItem('rb-ui-mode', 'quick')); await p.reload(); await settle(p);
 await splitCase(p, true);
+
+// ---------- widths: no overflow, header fits ----------
+for (const w of [360, 390, 768, 1024, 1280, 1440]) {
+  const q = await pg(w, 900, 'board');
+  const r = await q.evaluate(() => ({
+    sw: document.documentElement.scrollWidth,
+    right: Math.max(...[...document.querySelector('.top').children].map(e => e.getBoundingClientRect().right)),
+  }));
+  ok(r.sw <= w && r.right <= w + 0.5, `width ${w}: no overflow, header fits (${r.sw}, ${Math.round(r.right)})`);
+  if (w === 360 || w === 1024) await q.screenshot({ path: OUT + `board-header-${w}.png`, clip: { x: 0, y: 0, width: w, height: 70 } });
+  await q.close();
+}
+
+// ---------- desktop: board shrinks beside the panel, tapped booking highlighted and in view ----------
+for (const w of [1024, 1440]) {
+  const q = await pg(w, 900, 'board');
+  const bar = q.locator('.row[data-room="es-2"] .bar').first();
+  await bar.scrollIntoViewIfNeeded();
+  await bar.click(); await q.waitForTimeout(700);
+  const sc = await q.locator('.board').boundingBox();
+  const bb = await q.locator('.row[data-room="es-2"] .bar').first().boundingBox();
+  ok(sc.x + sc.width <= w - 470 + 2, `desktop ${w}: board reflows beside the panel`);
+  ok(bb.x < w - 470 && bb.y > 60 && bb.y < 900, `desktop ${w}: tapped booking stays in view`);
+  ok(/outline/.test(await q.evaluate(() => document.querySelector('style:last-of-type')?.textContent ?? '')), `desktop ${w}: tapped booking highlighted`);
+  if (w === 1024) await shot(q, 'desktop-1024-reflow');
+  await q.close();
+}
+
+// ---------- phone: swipe the sheet down to close; Hold skips arrival ----------
+p = await pg(390, 844, 'rooms');
+await p.locator('.rcard .qup').first().click(); await settle(p);
+{
+  const bar = await p.locator('.q-bar').boundingBox();
+  await p.mouse.move(bar.x + 60, bar.y + 20); await p.mouse.down();
+  await p.mouse.move(bar.x + 60, bar.y + 220, { steps: 6 }); await p.mouse.up(); await settle(p);
+  ok(!(await p.locator('.q-panel').count()), 'phone: swipe down on the handle closes the sheet');
+  await p.locator('.rcard .qup').first().click(); await settle(p);
+  await p.mouse.move(bar.x + 60, bar.y + 20); await p.mouse.down();
+  await p.mouse.move(bar.x + 60, bar.y + 50, { steps: 3 }); await p.mouse.up(); await settle(p);
+  ok(await p.locator('.q-panel').isVisible(), 'phone: a small drag snaps back (sheet stays open)');
+  await p.keyboard.press('Escape'); await settle(p);
+  ok(!(await p.locator('.q-panel').count()), 'phone: Esc closes the sheet');
+}
+await p.click('.fab .btn.ghost:has-text("Hold")'); await settle(p);
+ok(await p.locator('.q-panel h2:has-text("When are they leaving")').isVisible(), 'Hold: goes straight to the leaving date (today, Name TBC)');
+ok(await p.locator('.q-panel button:has-text("Change arrival")').isVisible(), 'Hold: arrival can still be changed in one tap');
+await shot(p, 'phone-hold-skip');
+await p.click('.q-panel button:has-text("Change arrival")'); await settle(p);
+ok(await p.locator('.q-panel h2:has-text("When are they arriving")').isVisible(), 'Change arrival opens the arrival question');
+await p.click('.q-x'); await settle(p);
+
+// ---------- same person: join the two stays ----------
+{
+  const x = await db(p);
+  const pair = x.stays
+    .filter(s => s.workerId && s.departure && s.departure > T)
+    .map(s => [s, x.stays.filter(n => n.roomId === s.roomId && n.id !== s.id && n.arrival >= s.departure).sort((a, c) => a.arrival.localeCompare(c.arrival))[0]])
+    .find(([s, n]) => n && n.workerId === s.workerId);
+  if (pair) {
+    const [s, n] = pair;
+    await p.goto(U + '#rooms'); await settle(p);
+    await p.locator(`.rcard[data-room="${s.roomId}"] .qup`).click(); await settle(p);
+    await p.click('.q-panel .s-act:has-text("Staying longer")'); await settle(p);
+    for (let i = 0; i < 40 && !(await p.locator('.q-panel .s-fix').count()); i++) await p.click('.q-panel [aria-label="Leaving: one day later"]');
+    ok((await p.locator('.q-panel .s-fix').first().getAttribute('data-fix')) === 'join', 'same person: "Join into one stay" offered first');
+    await shot(p, 'phone-join');
+    await p.click('.q-panel [data-fix="join"] button'); await settle(p);
+    const y = await db(p);
+    ok(!y.stays.some(z => z.id === n.id) && y.stays.find(z => z.id === s.id).departure === n.departure, 'joined: one stay until the later date');
+    await p.click('.s-toast button:has-text("Undo")'); await p.waitForTimeout(700);
+    const z = await db(p);
+    ok(z.stays.some(q => q.id === n.id) && z.stays.find(q => q.id === s.id).departure === s.departure, 'Undo splits them back (one step)');
+  } else ok(false, 'seed has a same-person back-to-back pair');
+}
+
+// ---------- crew rota: this rotation vs all from here ----------
+p = await pg(390, 844, 'simple');
+await p.click('text=Book a room'); await settle(p);
+await p.click('.s-pick:has-text("A crew")'); await settle(p);
+await p.click('.s-chip:has-text("4")'); await p.click('button:has-text("Next")'); await settle(p);
+await p.click('[aria-label="Next month"]'); await p.click('[aria-label="Next month"]'); await settle(p);
+await p.locator('.s-calgrid .d:not([disabled])').nth(4).click(); await p.waitForTimeout(700);
+await p.click('.s-chip:has-text("10 nights")'); await p.waitForTimeout(700);
+await p.click('button:has-text("Hold these")'); await settle(p);
+await p.click('.s-extra:has-text("Repeat as a rota")'); await settle(p);
+await p.click('.s-chip:has-text("10 on · 4 off")'); await settle(p);
+await p.click('.s-chip:has-text("8 weeks")'); await settle(p);
+await p.click('.s-pick:has-text("Keep the room")'); await p.waitForTimeout(700);
+const ser = (await db(p)).stays.filter(s => s.seriesId && s.holdLabel?.startsWith('Name TBC'));
+ok(ser.length >= 12, 'crew of 4 on a rota (' + ser.length + ' stays)');
+await p.click('button:has-text("Open booking")'); await settle(p);
+await p.click('button:has-text("Change whole crew")'); await settle(p);
+ok(await p.locator('.s-chip:has-text("All from here")').isVisible(), 'crew: "This rotation" / "All from here" choice');
+await p.click('.s-chip:has-text("All from here")'); await settle(p);
+await shot(p, 'crew-scope');
+await p.click('.s-act:has-text("Shift every date")'); await settle(p);
+await p.click('[aria-label="One day later"]'); await settle(p);
+await p.click('.s-box button:has-text("Save")'); await settle(p);
+const ser2 = (await db(p)).stays.filter(s => ser.some(o => o.id === s.id));
+ok(ser2.every(s => s.arrival === D(Math.round((Date.parse(ser.find(o => o.id === s.id).arrival) - Date.parse(T)) / 864e5) + 2)), 'all rotations of all 4 moved 2 days later in one go');
+await p.click('.s-toast button:has-text("Undo")'); await p.waitForTimeout(700);
+const ser3 = (await db(p)).stays.filter(s => ser.some(o => o.id === s.id));
+ok(ser3.every(s => s.arrival === ser.find(o => o.id === s.id).arrival), 'one Undo puts every rotation back');
 
 // ---------- Sheena: quick card never shows cleaner names ----------
 p = await pg(390, 844, 'rooms');

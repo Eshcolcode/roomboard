@@ -516,7 +516,8 @@
 .s-cal {
   border: 2px solid var(--line);
   border-radius: 18px;
-  padding: 8px;
+  padding: 4px;
+  margin: 0 -6px;
 }
 .s-calhead {
   display: flex;
@@ -530,7 +531,7 @@
 .s-calgrid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 3px;
+  gap: 2px;
 }
 .s-calgrid .wd {
   text-align: center;
@@ -540,7 +541,9 @@
   padding: 4px 0;
 }
 .s-calgrid .d {
-  min-height: 52px;
+  min-height: 56px;
+  min-width: 0;
+  padding: 0;
   border-radius: 12px;
   border: 0;
   background: #fff;
@@ -1236,23 +1239,75 @@
   .app .top {
     gap: 6px;
   }
-  .app .top .who {
-    max-width: 106px;
-  }
-  .app .top .q-switch1 {
-    padding: 4px 7px 4px 4px;
-    gap: 4px;
-  }
-  .app .top .q-switch1 i {
-    width: 22px;
-  }
-  .app .top .q-switch1.quick i::after {
-    left: 8px;
-  }
 }
 .q-body .s-boxtop:not(:has([aria-label='Back'])):not(:has(.s-dots)) {
   display: none;
 }
 .q-pop .q-switch + * {
   margin-top: 4px;
+}
+.s-fix {
+  display: grid;
+  gap: 8px;
+  border: 2px solid var(--line);
+  border-radius: 16px;
+  padding: 12px;
+}
+.s-fix p {
+  margin: 0;
+  font-size: 18px;
+}
+.s-fix.best {
+  border-color: #6ee7b7;
+  background: var(--em-bg);
+}
+.s-fix.best p {
+  color: var(--em-ink);
+}
+
+@media (min-width: 821px) {
+  .app.q-open > main {
+    margin-right: 470px;
+    transition: margin 0.24s ease-out;
+  }
+}
+.q-more {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.q-more span {
+  flex: 1;
+  display: grid;
+}
+.q-more small {
+  color: var(--mute);
+}
+.q-more .q-switch button {
+  min-height: 44px;
+  font-size: 15px;
+  padding: 8px 14px;
+}
+.s-link.inline {
+  display: inline;
+  min-height: 0;
+  padding: 0 0 0 8px;
+  font-size: inherit;
+}
+.q-bar {
+  touch-action: none;
+  cursor: grab;
+}
+.q-panel.dragging {
+  transition: none;
+}
+.q-panel.sheet {
+  transition: transform 0.2s ease-out;
+}
+
+/* bars stay beneath the sticky room names when the board scrolls sideways */
+.track {
+  z-index: 0;
 }

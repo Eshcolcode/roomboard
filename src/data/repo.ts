@@ -6,6 +6,8 @@ export interface Repo {
   init(): Promise<void>;
   saveStay(input: StayInput): Promise<Stay>; // create or update (incl. naming a hold = same record). Throws ConflictError on stale edit.
   deleteStay(id: string): Promise<void>;
+  /** Several stay changes as ONE command: all or nothing, one undo step, one alert (crew changes, split stays). */
+  saveBatch(inputs: StayInput[], removeIds: string[], what: string): Promise<void>;
   confirmDeparture(id: string): Promise<void>;
   updateChangeover(id: string, patch: Partial<Changeover>): Promise<void>;
   dismissChangeover(id: string): Promise<void>; // provider clears a flagged (cancelled) changeover

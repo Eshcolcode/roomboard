@@ -211,8 +211,8 @@ async function refresh() {
   });
 }
 // Undo = inverse operation through the same rules (triggers re-run, alerts go out for the undo too).
-type Inverse =
-  { kind: 'create'; id: string } | { kind: 'update' | 'delete'; before: Stay } | { kind: 'series'; id: string };
+type One = { kind: 'create'; id: string } | { kind: 'update' | 'delete'; before: Stay };
+type Inverse = One | { kind: 'series'; id: string } | { kind: 'batch'; items: One[] };
 const undoStack: Inverse[] = [];
 const toRow = (
   i: Pick<Stay, 'roomId' | 'workerId' | 'holdLabel' | 'arrival' | 'departure' | 'depStatus' | 'away' | 'notes'>,
@@ -232,6 +232,22 @@ const fail = (e: R.PgError | null | undefined) => {
   if (e?.code === 'P0001') throw new Error(e.message);
   if (e) throw new Error(e.message);
 };
+
+async function revert(u: One) {
+  if (u.kind === 'create') fail((await sb.from('stays').delete().eq('id', u.id)).error);
+  else if (u.kind === 'delete') fail((await sb.from('stays').insert({ id: u.before.id, ...toRow(u.before) })).error);
+  else {
+    const cur = S.db.stays.find(s => s.id === u.before.id);
+    fail(
+      (
+        await sb
+          .from('stays')
+          .update({ ...toRow(u.before), version: cur?.version })
+          .eq('id', u.before.id)
+      ).error,
+    );
+  }
+}
 
 export const supabaseRepo: Repo = {
   mode: 'supabase',
@@ -381,19 +397,43 @@ export const supabaseRepo: Repo = {
       await refresh();
       return;
     }
-    if (u.kind === 'create') fail((await sb.from('stays').delete().eq('id', u.id)).error);
-    else if (u.kind === 'delete') fail((await sb.from('stays').insert({ id: u.before.id, ...toRow(u.before) })).error);
-    else {
-      const cur = S.db.stays.find(s => s.id === u.before.id);
-      fail(
-        (
-          await sb
+    for (const one of u.kind === 'batch' ? [...u.items].reverse() : [u]) await revert(one);
+    await refresh();
+  },
+  async saveBatch(inputs, removeIds, _what) {
+    // Applied one row at a time through the same triggers; if one fails, the ones done are reverted.
+    // (A single server-side transaction would need a new RPC; the database still refuses any clash.)
+    const done: One[] = [];
+    try {
+      for (const id of removeIds) {
+        const b = S.db.stays.find(s => s.id === id);
+        fail((await sb.from('stays').delete().eq('id', id)).error);
+        if (b) done.push({ kind: 'delete', before: structuredClone(b) });
+      }
+      for (const i of inputs) {
+        if (i.id) {
+          const b = S.db.stays.find(s => s.id === i.id);
+          const { data, error } = await sb
             .from('stays')
-            .update({ ...toRow(u.before), version: cur?.version })
-            .eq('id', u.before.id)
-        ).error,
-      );
+            .update({ ...toRow(i), version: i.version })
+            .eq('id', i.id)
+            .select();
+          fail(error);
+          if (!data?.length)
+            throw new ConflictError('One of these stays was changed by someone else. Reload and try again.');
+          if (b) done.push({ kind: 'update', before: structuredClone(b) });
+        } else {
+          const { data, error } = await sb.from('stays').insert(toRow(i)).select().single();
+          fail(error);
+          done.push({ kind: 'create', id: data.id });
+        }
+      }
+    } catch (e) {
+      for (const one of done.reverse()) await revert(one).catch(() => undefined);
+      await refresh();
+      throw e;
     }
+    undoStack.push({ kind: 'batch', items: done });
     await refresh();
   },
   canUndo: () => undoStack.length > 0,

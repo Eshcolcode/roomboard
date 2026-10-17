@@ -109,7 +109,8 @@ export function Book({
   const T = londonToday();
   const presetWho = !!init.workerId || !!init.hold;
   const presetRoom = init.roomId && db.rooms.some(r => r.id === init.roomId) ? init.roomId : undefined;
-  const lockArrival = !!init.date && (!!presetRoom || init.departure !== undefined);
+  const [unlockArr, setUnlockArr] = useState(false);
+  const lockArrival = !!init.date && (!!presetRoom || init.departure !== undefined || !!init.hold) && !unlockArr;
   const lockDeparture = init.departure !== undefined;
   const [roomNeeded, setRoomNeeded] = useState(false);
   const flowFor = (w: WhoAnswer | null, needRoom = roomNeeded): Step[] => {
@@ -459,7 +460,22 @@ export function Book({
         onBack={back}
         onClose={onExit}
         title="When are they leaving?"
-        sub={summary}
+        sub={
+          <>
+            {summary}
+            {lockArrival && (
+              <button
+                className="s-link inline"
+                onClick={() => {
+                  setUnlockArr(true);
+                  go('arrive', -1);
+                }}
+              >
+                Change arrival
+              </button>
+            )}
+          </>
+        }
       >
         <div className="s-chips four">
           {[3, 7, 10, 14].map(k => (

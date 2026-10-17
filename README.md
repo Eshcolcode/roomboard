@@ -20,4 +20,7 @@ A static React app for room occupancy across Loch Roag and Eshcol.
 - `node qa/screens.mjs` regenerates `screens/`; `node qa/look3.mjs` regenerates the v2 screenshots (`OUT=screens`).
 
 ## Rolling back
-The pre-Quick release is tagged `live-v2-restore` (and branch `live-v2-backup`, commit `fcffd27`). To go back: `git push <remote> live-v2-backup:main --force-with-lease` (or in Cloudflare Pages → Deployments, roll back to the deployment of `fcffd27`).
+The pre-Quick release is tagged `live-v2-restore` (also branch `live-v2-backup`, commit `fcffd27`).
+- Fastest: Cloudflare Pages → roomboard → Deployments → the production deployment of `fcffd27` → "Rollback to this deployment".
+- In git, without force-pushing: `git checkout main && git pull && git restore --source=live-v2-restore --staged --worktree . && git commit -m "Roll back to live-v2" && git push origin HEAD:main`.
+- Softer: Classic is still one tap away (header / More sheet), so users can switch back without a deploy.

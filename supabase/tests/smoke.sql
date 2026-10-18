@@ -154,3 +154,13 @@ update stays set departure = '2027-07-15', dep_status = 'planned' where hold_lab
 select 'T43 Sheena sets the end date later' t, departure = '2027-07-15' ok from stays where hold_label='Long stay';
 insert into stays(room_id,hold_label,arrival,departure) values ('x-pod2','Later','2027-09-01','2027-09-03');
 select 'T44 after the end date the nights are free again' t, count(*) = 1 ok from stays where hold_label='Later';
+-- regression 18 Oct 2026: set the end date of an open-ended contract stay (the row the app sends: date + planned)
+set request.uid = '00000000-0000-0000-0000-000000000001'; -- Sheena
+insert into stays(room_id,worker_id,hold_label,arrival,departure,dep_status) values ('lr-5',null,'Open contract','2027-08-01',null,'ufn');
+do $$ begin insert into stays(room_id,hold_label,arrival,departure) values ('lr-5','After','2027-08-20','2027-08-22'); raise notice 'FAIL open-ended contract stay did not block'; exception when others then raise notice 'PASS open-ended contract stay blocks later nights: %', sqlerrm; end $$;
+update stays set departure = '2027-08-10', dep_status = 'planned' where hold_label='Open contract';
+select 'T45 end date set on an open-ended contract stay' t, departure = '2027-08-10' and dep_status = 'planned' ok from stays where hold_label='Open contract';
+update stays set departure = '2027-08-11', dep_status = 'ufn' where hold_label='Open contract';
+select 'T45a a date sent with an open status is kept, as a planned end date' t, departure = '2027-08-11' and dep_status = 'planned' ok from stays where hold_label='Open contract';
+insert into stays(room_id,hold_label,arrival,departure) values ('lr-5','After','2027-08-20','2027-08-22');
+select 'T46 nights after the new end date are free' t, count(*) = 1 ok from stays where hold_label='After';

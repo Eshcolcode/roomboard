@@ -223,6 +223,23 @@ end $$;
 drop trigger if exists stays_a_extra on stays;
 create trigger stays_a_extra before insert or update on stays for each row execute function stays_a_extra();
 
+-- ---------- leaving date on an open-ended stay (18 Oct 2026) ----------
+-- Same rule as normDep in the app: a leaving date sent with an open status (TBC / until further notice) is a newly
+-- set end date, so it becomes 'planned'. stays_before (0002) used to null the date instead, so "set a leaving date"
+-- silently did nothing. Switching a dated stay to an open status (date left as it was) still means "make it
+-- open-ended": stays_before then clears the date as before. Named to fire first (before stays_a_extra, stays_before).
+create or replace function stays_a0_end_date() returns trigger language plpgsql as $$
+begin
+  if new.dep_status in ('tbc','ufn') and new.departure is not null
+     and not (tg_op = 'UPDATE' and old.dep_status not in ('tbc','ufn') and new.departure is not distinct from old.departure)
+  then
+    new.dep_status := 'planned';
+  end if;
+  return new;
+end $$;
+drop trigger if exists stays_a0_end_date on stays;
+create trigger stays_a0_end_date before insert or update on stays for each row execute function stays_a0_end_date();
+
 -- ---------- stays_after: extras skip changeovers; booking wording with the indicative price ----------
 create or replace function stays_after() returns trigger language plpgsql security definer set search_path = public as $$
 declare st stays := coalesce(new, old); msg text; subj text; extra boolean := is_extra(st.room_id); priv boolean;

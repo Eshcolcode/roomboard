@@ -1,6 +1,7 @@
 // Simple mode: pure helpers over a DB snapshot, so they can be unit-tested without React or a store.
 import { addDays, fmt, overlaps } from '../dates';
 import { stayError } from '../data/rules';
+import { normDep } from '../data/core';
 import type { DB, Room, Stay, StayInput } from '../data/core';
 
 export const roomNum = (r: Room) => parseInt(r.name.replace(/\D/g, ''), 10) || 0;
@@ -80,9 +81,10 @@ export interface Problem {
  */
 export function checkBatch(db: DB, inputs: StayInput[], ignore: string[] = []): Problem[] {
   const out: Problem[] = [];
-  inputs.forEach((inp, index) => {
+  inputs.forEach((raw, index) => {
+    const inp = normDep(raw); // a leaving date set on an open-ended stay counts (same rule as saving)
     const d = dep(inp);
-    const shapeErr = stayError({ ...inp, departure: d }, []);
+    const shapeErr = stayError(inp, []);
     if (shapeErr) {
       out.push({
         index,

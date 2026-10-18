@@ -31,6 +31,12 @@ export interface PanelInit {
 }
 
 const OPEN: DepStatus[] = ['tbc', 'ufn'];
+/** First leaving date offered when an open-ended stay gets one: a week after arrival, never in the past. */
+const firstDep = (arrival: string) => {
+  const a = addDays(arrival, 7);
+  const t = addDays(londonToday(), 7);
+  return a > t ? a : t;
+};
 const isOpen = (d: DepStatus) => OPEN.includes(d);
 
 function initialForm(init: PanelInit): StayInput {
@@ -303,9 +309,16 @@ export function StayPanel({ init, onClose }: { init: PanelInit; onClose: () => v
               <label htmlFor="f-dep">Leaves</label>
               <DateField
                 id="f-dep"
+                key={isOpen(f.depStatus) ? 'open' : 'dated'} // a fresh box (no half-typed date) when it goes open-ended
                 value={dep ?? ''}
-                disabled={isOpen(f.depStatus)}
-                onChange={v => set({ departure: v || null })}
+                // typing or picking a date on an open-ended stay sets its end date (it becomes planned)
+                onChange={v =>
+                  set(
+                    v
+                      ? { departure: v, depStatus: isOpen(f.depStatus) ? 'planned' : f.depStatus }
+                      : { departure: null },
+                  )
+                }
               />
             </div>
           </div>
@@ -323,7 +336,7 @@ export function StayPanel({ init, onClose }: { init: PanelInit; onClose: () => v
                 className={f.depStatus === k ? 'on' : ''}
                 aria-pressed={f.depStatus === k}
                 onClick={() =>
-                  set({ depStatus: k, departure: isOpen(k) ? null : (f.departure ?? addDays(f.arrival, 7)) })
+                  set({ depStatus: k, departure: isOpen(k) ? null : (f.departure ?? firstDep(f.arrival)) })
                 }
               >
                 {l}

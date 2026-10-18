@@ -297,6 +297,89 @@ for (let i = 0; i < Math.min(6, await p.locator('.rcard .qup').count()); i++) {
 }
 ok(!leaked, 'Sheena: no cleaner names in quick cards');
 
+// ---------- regression (18 Oct 2026): set an end date on an open-ended stay, every mode and width ----------
+{
+  const firstDep = arr => [D(7), new Date(Date.parse(arr + 'T00:00Z') + 7 * 864e5).toISOString().slice(0, 10)].sort().pop();
+  const alasdair = async p => (await db(p)).stays.find(s => s.roomId === 'es-1' && s.workerId === 'w-16');
+  const barEnd = async p => {
+    const r = await p.locator('.row[data-room="es-1"] .bar').first().boundingBox();
+    return r.x + r.width;
+  };
+  const otherOpen = async p => (await db(p)).stays.find(s => s.depStatus === 'ufn' && !s.departure && s.roomId !== 'es-1' && /^(es|lr)-/.test(s.roomId));
+  for (const [w, h, mode] of [[1440, 950, 'quick'], [1440, 950, 'classic'], [390, 844, 'quick'], [390, 844, 'classic']]) {
+    const tag = `${w < 500 ? 'phone' : 'desktop'} ${mode}`;
+    const p = await pg(w, h, w < 500 ? 'rooms' : 'board', mode);
+    const s0 = await alasdair(p);
+    if (!(s0 && s0.depStatus === 'ufn' && !s0.departure)) { ok(false, tag + ': Alasdair is open-ended in the demo'); continue; }
+    const before = w < 500 ? null : await barEnd(p);
+    const openIt = async () => {
+      if (w < 500) {
+        await p.locator('.rcard[data-room="es-1"]').scrollIntoViewIfNeeded();
+        await p.locator(mode === 'quick' ? '.rcard[data-room="es-1"] .qup' : '.rcard[data-room="es-1"]').first().click();
+      } else await p.locator('.row[data-room="es-1"] .bar').first().click();
+      await settle(p);
+    };
+    await openIt();
+    let want;
+    if (mode === 'quick') {
+      await p.click('.q-panel .s-act:has-text("Set leaving date")'); await settle(p);
+      want = firstDep(s0.arrival);
+      await p.click('.q-panel .s-btn.big:has-text("Save")'); await p.waitForTimeout(800);
+    } else {
+      if (!(await p.locator('.panel #f-dep').count())) await p.locator('.rcard[data-room="es-1"] button, .rcard[data-room="es-1"] a').first().click();
+      await settle(p);
+      want = D(5);
+      ok(!(await p.locator('.panel #f-dep').isDisabled()), tag + ': the Leaves box can be filled on an open-ended stay');
+      await p.locator('.panel #f-dep').fill(want.split('-').reverse().join('/'));
+      await p.locator('.panel #f-dep').blur();
+      await p.click('.panel .btn.primary'); await p.waitForTimeout(800);
+    }
+    const s1 = await alasdair(p);
+    ok(s1.departure === want && s1.depStatus === 'planned', `${tag}: end date saved on Alasdair (open-ended → ${want}, ${s1.depStatus})`);
+    if (w >= 500) {
+      if (await p.locator('.q-x').count()) await p.click('.q-x');
+      await p.keyboard.press('Escape'); await settle(p);
+      const after = await barEnd(p);
+      ok(after < before - 50, `${tag}: the board bar now stops at the leaving date (${Math.round(before)} → ${Math.round(after)}px)`);
+      // the nights after it are free: an empty cell there starts a booking
+      ok(!(await p.locator('.row[data-room="es-1"] .bar').first().innerText()).includes('UFN'), `${tag}: no longer shown as until further notice`);
+    } else {
+      if (await p.locator('.q-x').count()) await p.click('.q-x');
+      await p.keyboard.press('Escape'); await settle(p);
+      const t = await p.locator('.rcard[data-room="es-1"]').innerText();
+      ok(!/Until further notice/.test(t), `${tag}: the room card updates straight away`);
+    }
+    // the nights after the end date are free for a new booking
+    const free = (await db(p)).stays.filter(s => s.roomId === 'es-1' && s.arrival < D(30) && (s.departure ?? '9') > want);
+    ok(free.length === 0, `${tag}: nights after ${want} are free in Room 1`);
+    // the same on a second open-ended stay, Quick: then make it open-ended again
+    if (mode === 'quick' && w >= 500) {
+      const o = await otherOpen(p);
+      await p.locator(`.row[data-room="${o.roomId}"]`).scrollIntoViewIfNeeded();
+      await p.locator(`.row[data-room="${o.roomId}"] [data-stay="${o.id}"], .row[data-room="${o.roomId}"] .bar`).first().click(); await settle(p);
+      await p.click('.q-panel .s-act:has-text("Change dates")'); await settle(p);
+      await p.click('.q-panel button:has-text("Set a leaving date")'); await settle(p);
+      await p.click('.q-panel .s-btn.big:has-text("Save")'); await p.waitForTimeout(800);
+      const o1 = (await db(p)).stays.find(s => s.id === o.id);
+      ok(o1.departure === firstDep(o.arrival) && o1.depStatus === 'planned', `${tag}: Change dates → Set a leaving date saves too (${o.roomId})`);
+      await p.locator(`.row[data-room="${o.roomId}"] .bar`).first().click(); await settle(p);
+      await p.click('.q-panel .s-act:has-text("Change dates")'); await settle(p);
+      await p.click('.q-panel .s-link:has-text("No leaving date yet")'); await settle(p);
+      await p.click('.q-panel .s-btn.big:has-text("Save")'); await p.waitForTimeout(800);
+      const o2 = (await db(p)).stays.find(s => s.id === o.id);
+      ok(o2.departure === null && o2.depStatus === 'ufn', `${tag}: and back to until further notice`);
+      // change the start of an open-ended stay: stays open-ended (it used to turn into TBC)
+      await p.locator(`.row[data-room="${o.roomId}"] .bar`).first().click(); await settle(p);
+      await p.click('.q-panel .s-act:has-text("Change dates")'); await settle(p);
+      await p.click('.q-panel [aria-label="Arriving: one day later"]'); await settle(p);
+      await p.click('.q-panel .s-btn.big:has-text("Save")'); await p.waitForTimeout(800);
+      const o3 = (await db(p)).stays.find(s => s.id === o.id);
+      ok(o3.arrival > o.arrival && o3.departure === null && o3.depStatus === 'ufn', `${tag}: changing the start keeps it until further notice`);
+    }
+    await p.close();
+  }
+}
+
 ok(!errs.length, 'no console/page errors ' + errs.join(' | '));
 await b.close();
 console.log(`\n${pass} passed, ${fail} failed`);

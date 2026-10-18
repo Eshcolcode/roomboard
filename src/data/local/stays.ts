@@ -14,6 +14,7 @@ import {
   isExtra,
   propOf,
   blocksIn,
+  normDep,
 } from '../core';
 import type { Stay, StayInput } from '../core';
 import { snap, commit, log, undoStack } from './store';
@@ -25,7 +26,7 @@ import { estimateLine } from '../pricing';
 const clientOwned = (s: Stay) => S.db.users.find(u => u.id === s.bookedBy)?.role === 'client';
 
 export function saveStay(inp: StayInput): Stay {
-  if (inp.depStatus === 'tbc' || inp.depStatus === 'ufn') inp = { ...inp, departure: null };
+  inp = normDep(inp);
   // Extra properties are booked whole and confirmed straight away (Donald is told; invoiced separately).
   // Sheena can change or cancel only her own extra bookings; she never sees who else has one.
   const extra = isExtra(roomOf(inp.roomId).propertyId);
@@ -151,7 +152,7 @@ export function saveBatch(inputs: StayInput[], removeIds: string[], what: string
     S.db.stays = S.db.stays.filter(s => !removeIds.includes(s.id));
     const touched: Stay[] = [];
     for (const raw of inputs) {
-      const i = raw.depStatus === 'tbc' || raw.depStatus === 'ufn' ? { ...raw, departure: null } : raw;
+      const i = normDep(raw);
       if (i.id) {
         const cur = S.db.stays.find(s => s.id === i.id)!;
         Object.assign(cur, i, { version: cur.version + 1, updatedBy: S.db.currentUser, updatedAt: iso() });

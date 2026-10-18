@@ -194,7 +194,17 @@ ok((await p.locator('.panel .err').count()) === 1, 'empty departure blocked');
 await p.locator('#f-dep').fill('31/02/2026');
 ok((await p.locator('.datef.bad #f-dep').count()) === 1, 'impossible date (31/02) flagged');
 await p.click('.panel [role=group][aria-label="Departure status"] button:has-text("Until further notice")');
-ok(await p.locator('#f-dep').isDisabled(), 'UFN disables departure');
+ok(
+  (await p.locator('#f-dep').inputValue()) === '' && !(await p.locator('.panel .err').count()),
+  'UFN clears the departure (no error)',
+);
+// typing a leaving date on an open-ended stay makes it a planned departure (18 Oct 2026 fix: it used to be locked)
+await date(p, '#f-dep', D(9));
+ok(
+  (await p.locator('.panel [aria-label="Departure status"] button.on').innerText()) === 'Planned',
+  'a leaving date typed on an open-ended stay switches it to Planned',
+);
+await p.click('.panel [role=group][aria-label="Departure status"] button:has-text("Until further notice")');
 await save(p);
 await p.waitForTimeout(150);
 ok((await p.locator('.row[data-room="es-9"] .bar.open').count()) === 1, 'UFN stay open-ended');

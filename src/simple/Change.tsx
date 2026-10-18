@@ -45,6 +45,12 @@ type Q =
   | 'crew-cancel';
 
 const err = (e: unknown) => (e instanceof Error ? e.message : String(e));
+/** First leaving date offered for a stay with none yet: a week on from arrival, but never in the past. */
+const firstDep = (arrival: string) => {
+  const a = addDays(arrival, 7);
+  const t = addDays(londonToday(), 7);
+  return a > t ? a : t;
+};
 const depOf = (s: Stay) => (s.depStatus === 'tbc' || s.depStatus === 'ufn' ? null : s.departure);
 const plural = (n: number, w: string) => `${n} ${n === 1 ? w : w === 'person' ? 'people' : w + 's'}`;
 
@@ -258,7 +264,13 @@ export function Change({
         step={q}
         dir={dir}
         onBack={() => back()}
-        title={q === 'early' ? 'Leaving early: which day now?' : 'Staying longer: until when?'}
+        title={
+          q === 'early'
+            ? 'Leaving early: which day now?'
+            : sDep
+              ? 'Staying longer: until when?'
+              : 'Set the leaving date'
+        }
         sub={head}
       >
         <DateNudge label="Leaving" value={dep!} onChange={setDep} min={addDays(stay.arrival, 1)} from={stay.arrival} />
@@ -276,9 +288,11 @@ export function Change({
     const input: StayInput = {
       ...toInput(stay),
       arrival: arr,
+      // a leaving date on an open-ended (TBC / until further notice) stay makes it a planned departure;
+      // taking the date away again puts back the open status it had (until further notice by default)
       ...(dep
-        ? { departure: dep, depStatus: stay.depStatus === 'tbc' ? 'planned' : stay.depStatus }
-        : { departure: null, depStatus: 'tbc' }),
+        ? { departure: dep, depStatus: stay.depStatus === 'confirmed' && dep === sDep ? 'confirmed' : 'planned' }
+        : { departure: null, depStatus: stay.depStatus === 'tbc' ? 'tbc' : 'ufn' }),
       away: null,
     };
     return (
@@ -294,8 +308,13 @@ export function Change({
         {dep ? (
           <DateNudge label="Leaving" value={dep} onChange={setDep} min={addDays(arr, 1)} from={arr} />
         ) : (
-          <button className="s-btn ghost big" onClick={() => setDep(addDays(arr, 7))}>
+          <button className="s-btn ghost big" onClick={() => setDep(firstDep(arr))}>
             Set a leaving date
+          </button>
+        )}
+        {dep && (
+          <button className="s-link" onClick={() => setDep(null)}>
+            No leaving date yet ({stay.depStatus === 'tbc' ? 'departure TBC' : 'until further notice'})
           </button>
         )}
         <p className="s-muted">
@@ -665,9 +684,9 @@ export function Change({
             </button>
             <button
               className="s-act em"
-              onClick={() => open('longer', () => setDep(addDays(sDep ?? addDays(stay.arrival, 6), 1)))}
+              onClick={() => open('longer', () => setDep(sDep ? addDays(sDep, 1) : firstDep(stay.arrival)))}
             >
-              <b>Staying longer</b>
+              <b>{sDep ? 'Staying longer' : 'Set leaving date'}</b>
             </button>
             <button className="s-act" onClick={() => open('dates', () => (setArr(stay.arrival), setDep(sDep)))}>
               <b>Change dates</b>

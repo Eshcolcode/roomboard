@@ -381,7 +381,20 @@ const STAY_MSG: Record<string, string> = {
 /** Dates booked elsewhere on this unit, shaped like stays for the clash rule. */
 export const blocksIn = (roomId: string) =>
   (S.db.blocks ?? []).filter(b => b.roomId === roomId).map(b => ({ arrival: b.from, departure: b.to }));
-export function validate(inp: StayInput): string | null {
+/**
+ * One rule for the leaving date, used by both backends: an open status (TBC / until further notice) has no
+ * departure. A leaving date given with an open status means someone has just set the end date, so it becomes a
+ * planned departure (before 18 Oct 2026 it was silently dropped, so "set a leaving date" on an open-ended stay
+ * did nothing).
+ */
+export function normDep<T extends Pick<StayInput, 'departure' | 'depStatus'>>(i: T): T {
+  const open = i.depStatus === 'tbc' || i.depStatus === 'ufn';
+  if (open && i.departure) return { ...i, depStatus: 'planned' };
+  if (open) return { ...i, departure: null };
+  return i;
+}
+export function validate(raw: StayInput): string | null {
+  const inp = normDep(raw);
   const others = S.db.stays.filter(s => s.id !== inp.id && s.roomId === inp.roomId);
   const e = stayError(inp, [...others, ...blocksIn(inp.roomId)]);
   if (!e) return null;
@@ -399,7 +412,8 @@ export function validate(inp: StayInput): string | null {
   return `${roomLabel(inp.roomId)} is taken by ${stayLabel(clash)} (${fmt(clash.arrival)} → ${clash.departure ? fmt(clash.departure) : 'open-ended'}).`;
 }
 /** Warning only: the same worker already has an overlapping stay in another room. */
-export function workerClash(inp: StayInput): Stay | undefined {
+export function workerClash(raw: StayInput): Stay | undefined {
+  const inp = normDep(raw);
   if (!inp.workerId) return undefined;
   const dep = inp.depStatus === 'tbc' || inp.depStatus === 'ufn' ? null : inp.departure;
   return S.db.stays.find(

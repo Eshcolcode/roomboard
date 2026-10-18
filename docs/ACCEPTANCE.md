@@ -105,6 +105,8 @@ Run the demo (`npm run build && npx vite preview`, or open the uploaded site), t
 
 - [ ] `node qa/layout.mjs` passes: every route at 1440 and 390 for Donald, Sheena and the cleaner, plus the booking sheet, photo viewer and quick cards: no sideways scroll, nothing off the screen, no control or text block taller than half the screen, no image taller than the screen, no console errors.
 
+- [ ] Open-ended contract stays (e.g. Alasdair Matheson, Eshcol Room 1): Quick *Set leaving date* or *Change dates → Set a leaving date*, or Classic *Leaves* (always editable), saves the date; the board bar / room card updates straight away and the nights after it are free. *No leaving date yet* puts it back to until further notice; changing the start keeps it open-ended. The first date offered is never in the past.
+
 ## Roles
 - [ ] The cleaner sees only Today and Cleaning, with first names, and can tick Guest has left / Start clean / Mark ready.
 - [ ] Only the provider books cleans or takes an out-of-window exception.

@@ -133,6 +133,23 @@ p = await pg(1280, 900); await shot(p, 'home-desktop');
 await p.goto(U + '#board'); await settle(p);
 ok(await p.locator('.top').isVisible(), 'full app still opens from simple mode (#board)');
 
+// ---- regression (18 Oct 2026): set a leaving date on an open-ended stay in Simple mode ----
+{
+  const all2 = await stays(p);
+  const o = all2.find(s => s.depStatus === 'ufn' && !s.departure && /^(es|lr)-/.test(s.roomId));
+  await p.goto(U + '#simple/stay/' + o.id); await settle(p);
+  ok(await p.locator('.s-act:has-text("Set leaving date")').isVisible(), 'open-ended stay: "Set leaving date" instead of "Staying longer"');
+  await p.click('.s-act:has-text("Change dates")'); await settle(p);
+  await p.click('button:has-text("Set a leaving date")'); await settle(p);
+  await p.click('.s-btn.big:has-text("Save")'); await p.waitForTimeout(800);
+  const o1 = (await stays(p)).find(s => s.id === o.id);
+  ok(!!o1.departure && o1.depStatus === 'planned' && o1.departure > T, 'open-ended stay: leaving date saved, not in the past (' + o1.departure + ')');
+  await p.goto(U + '#simple/stay/' + o.id); await p.reload(); await settle(p);
+  const nice = new Date(o1.departure + 'T12:00Z').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }).replace(',', '');
+  const txt = await p.locator('body').innerText();
+  ok(txt.includes(nice) && !txt.includes('To follow'), 'the card shows the new leaving date (' + nice + ')');
+}
+
 ok(!errs.length, 'no console/page errors ' + errs.join(' | '));
 await b.close();
 console.log(`\n${pass} passed, ${fail} failed`);

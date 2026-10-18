@@ -1,7 +1,7 @@
 // Supabase backend. Mirrors supabase/migrations/*.sql. Derived changeovers, activity log and the alert
 // outbox are written by database triggers, so this file only reads tables and performs the user's writes.
 import { createClient, type RealtimeChannel } from '@supabase/supabase-js';
-import { S, publish, ConflictError, DEFAULT_SETTINGS } from './core';
+import { S, publish, ConflictError, DEFAULT_SETTINGS, normDep } from './core';
 import type { DB, Stay, Changeover, Worker, Series, Settings, StayInput } from './core';
 import { reshape } from './crew';
 import { londonToday } from '../dates';
@@ -263,19 +263,23 @@ async function refresh() {
 type One = { kind: 'create'; id: string } | { kind: 'update' | 'delete'; before: Stay };
 type Inverse = One | { kind: 'series'; id: string } | { kind: 'batch'; items: One[] };
 const undoStack: Inverse[] = [];
-const toRow = (
-  i: Pick<Stay, 'roomId' | 'workerId' | 'holdLabel' | 'arrival' | 'departure' | 'depStatus' | 'away' | 'notes'>,
-) => ({
-  room_id: i.roomId,
-  worker_id: i.workerId,
-  hold_label: i.workerId ? null : i.holdLabel || 'Name to follow',
-  arrival: i.arrival,
-  departure: i.depStatus === 'tbc' || i.depStatus === 'ufn' ? null : i.departure,
-  dep_status: i.depStatus,
-  away_from: i.away?.from ?? null,
-  away_to: i.away?.to ?? null,
-  notes: i.notes,
-});
+export const toRow = (
+  raw: Pick<Stay, 'roomId' | 'workerId' | 'holdLabel' | 'arrival' | 'departure' | 'depStatus' | 'away' | 'notes'>,
+) => {
+  // same leaving-date rule as the demo: a date with an open status is a newly set (planned) end date
+  const i = normDep(raw);
+  return {
+    room_id: i.roomId,
+    worker_id: i.workerId,
+    hold_label: i.workerId ? null : i.holdLabel || 'Name to follow',
+    arrival: i.arrival,
+    departure: i.departure,
+    dep_status: i.depStatus,
+    away_from: i.away?.from ?? null,
+    away_to: i.away?.to ?? null,
+    notes: i.notes,
+  };
+};
 const fail = (e: R.PgError | null | undefined) => {
   if (e?.code === '23P01') throw new Error('That room is already taken for some of those nights.');
   if (e?.code === 'P0001') throw new Error(e.message);

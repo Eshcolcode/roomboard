@@ -53,7 +53,7 @@ function db(stays: Stay[]): DB {
         blurb: '',
         features: [],
       },
-      { id: 'x', name: 'Pod 1', short: 'Pod 1', contracted: false, address: '', blurb: '', features: [] },
+      { id: 'x', name: 'Harris', short: 'Harris', contracted: false, address: '', blurb: '', features: [] },
     ],
     units: [{ id: 'u', propertyId: 'p', name: 'All' }],
     rooms: [1, 2, 3].map(i => ({

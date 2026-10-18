@@ -1,7 +1,10 @@
 """Builds public/img/*.webp (max 1280px) and public/img/t/*.webp (480px thumbs) from the source photos.
 Sources: Donald's Eshcol share-page zip (extracted under /workspace/occupancy-portal/site) and the public
-websites listed in docs/PROPERTY-DATA.md (downloaded to /tmp/ph). Re-run: python3 scripts/photos.py"""
+websites listed in docs/PROPERTY-DATA.md (downloaded to /tmp/ph). Loch Roag (lr-*): Donald's Google Photos room albums, supplied 18 Oct 2026 (unzipped to /workspace/uploads/zip1).
+Re-run: python3 scripts/photos.py [prefix]   e.g. `python3 scripts/photos.py lr-` rebuilds only the Loch Roag photos.
+EXIF (including GPS) is never written to the output; orientation is applied first."""
 import os
+import sys
 from PIL import Image, ImageOps
 
 Z = '/workspace/occupancy-portal/site/Eshcol Share Page Small 20260707-183938/images/PXL_20260706_'
@@ -33,6 +36,26 @@ M = {
     'whitefalls-exterior': W + 'wf1.jpg', 'whitefalls-lounge': W + 'wf2.jpg', 'whitefalls-kitchen': W + 'wf3.jpg',
     'whitefalls-bedroom': W + 'wf4.jpg', 'whitefalls-spa': W + 'wf5.jpg',
 }
+LR = '/workspace/uploads/zip1/'
+M.update({
+    # One file per distinct source photo. Shared photos (Rooms 2&3, 6&7) are referenced by both rooms in properties.ts.
+    'lr-room1': LR + 'Room 1/Loch-Roag-King-(Twin)-En-suite-251k.jpg',
+    'lr-room2': LR + 'Room 2/PXL_20250530_091516522.jpg',
+    'lr-room2-3-shower': LR + 'Room 2/PXL_20250530_091449102.jpg',
+    'lr-room3': LR + 'Room 3/Loch-Roag-Rm-3-Web-size.jpg',
+    'lr-room3-b': LR + 'Room 3/PXL_20250530_091435317.jpg',
+    'lr-room5': LR + 'Room 5/Loch-Roag-small-Double-en-suite.jpg',
+    'lr-room6-7': LR + 'Room 6/PXL_20230829_123009474.jpg',
+    'lr-room7': LR + 'Room 7/PXL_20250301_170116676.jpg',
+    'lr-room7-bath': LR + 'Room 7/PXL_20250301_170217682.MP.jpg',
+    'lr-room8': LR + 'Room 8/PXL_20250530_091306711.jpg',
+    'lr-room8-b': LR + 'Room 8/PXL_20250530_091318028.jpg',
+    'lr-room8-bath': LR + 'Room 8/PXL_20250530_091633052~2.jpg',
+    'lr-room9': LR + 'Room 9/PXL_20250301_170814503.jpg',
+    'lr-room9-bath': LR + 'Room 9/PXL_20250301_170805434.MP.jpg',
+})
+ONLY = sys.argv[1] if len(sys.argv) > 1 else ''
+M = {k: v for k, v in M.items() if k.startswith(ONLY)}
 os.makedirs(os.path.join(OUT, 't'), exist_ok=True)
 total = 0
 for name, src in M.items():
@@ -41,6 +64,6 @@ for name, src in M.items():
         x = im.copy()
         x.thumbnail((size, size), Image.LANCZOS)
         p = os.path.join(OUT, d, name + '.webp')
-        x.save(p, 'WEBP', quality=q, method=6)
+        x.save(p, 'WEBP', quality=q, method=6, exif=b'', xmp=b'')
         total += os.path.getsize(p)
 print(len(M), 'photos', round(total / 1e6, 2), 'MB')

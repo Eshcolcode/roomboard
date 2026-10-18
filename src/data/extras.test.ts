@@ -34,7 +34,7 @@ describe('extra properties (demo)', () => {
   it('seeds 5 bookable extra units with sample calendar blocks, outside the contract counts', async () => {
     await repo.reset();
     const extras = S.db.properties.filter(p => !p.contracted);
-    expect(extras.map(p => p.id)).toEqual(['p-pod1', 'p-pod2', 'p-lodge', 'p-cottage', 'p-monadh']);
+    expect(extras.map(p => p.id)).toEqual(['p-pod1', 'p-pod2', 'p-cottage', 'p-monadh']);
     expect(extras.every(p => S.db.rooms.filter(r => r.propertyId === p.id).length === 1)).toBe(true);
     expect(S.db.feeds!.every(f => f.simulated)).toBe(true);
     // the cottage's one-event-per-night sample is merged into stays of nights
@@ -77,18 +77,18 @@ describe('extra properties (demo)', () => {
   it('Donald confirms: no longer a request, Sheena is alerted, it shows in the export feed, one undo', async () => {
     await repo.reset();
     await as('client');
-    const a = freeSpan('x-lodge', 3);
-    const s = await repo.saveStay(ask('x-lodge', a, a + 3));
-    expect(unitIcs(S.db, 'x-lodge')).not.toContain('VEVENT'); // requests are not exported
+    const a = freeSpan('x-monadh', 3);
+    const s = await repo.saveStay(ask('x-monadh', a, a + 3));
+    expect(unitIcs(S.db, 'x-monadh')).not.toContain('VEVENT'); // requests are not exported
     await as('manager');
     await repo.confirmRequest(s.id);
     const now = S.db.stays.find(x => x.id === s.id)!;
     expect(now.request).toBeNull();
-    expect(dayState(S.db, 'x-lodge', addDays(T, a))).toBe('taken');
+    expect(dayState(S.db, 'x-monadh', addDays(T, a))).toBe('taken');
     const toClient = S.db.alerts.filter(x => x.subject.startsWith('Request confirmed'));
     expect(toClient.every(x => S.db.users.find(u => u.id === x.toUserId)!.role === 'client')).toBe(true);
     expect(toClient.length).toBeGreaterThan(0);
-    const ics = unitIcs(S.db, 'x-lodge');
+    const ics = unitIcs(S.db, 'x-monadh');
     expect(parseICS(ics)).toEqual([expect.objectContaining({ from: addDays(T, a), to: addDays(T, a + 3) })]);
     expect(ics).not.toMatch(/Name to follow|Sheena/);
     await repo.undo();
@@ -132,7 +132,7 @@ describe('extra properties (demo)', () => {
       { arrival: addDays(T, 2), departure: addDays(T, 4) },
     );
     expect((await repo.syncFeeds()).conflicts).toBe(1);
-    expect(S.db.activity[0].text).toMatch(/^⚠ Harris View pod is now booked elsewhere/);
+    expect(S.db.activity[0].text).toMatch(/^⚠ Uig is now booked elsewhere/);
   });
 
   it('calendar links: only Donald can add one; a bad link is refused; removing it removes its blocks', async () => {

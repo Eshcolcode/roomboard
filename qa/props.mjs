@@ -69,10 +69,10 @@ const names = x => x.workers.map(w => w.name).concat(x.users.filter(u => u.role 
 // ---------- availability page as Sheena (phone) ----------
 let p = await pg(390, 844, 'availability', { user: 'u-client' });
 ok(await p.locator('.avp-sim:has-text("Simulated")').isVisible(), 'availability: demo is labelled Simulated');
-ok((await p.locator('.avp-card').count()) === 5, 'availability: all 5 extra properties');
-ok((await p.locator('.avp-card .av-month').count()) === 15, 'availability: 3 months for each');
+ok((await p.locator('.avp-card').count()) === 4, 'availability: all 4 extra properties');
+ok((await p.locator('.avp-card .av-month').count()) === 12, 'availability: 3 months for each');
 ok(
-  (await p.locator('.avp-card .xtag:has-text("Extra · invoiced separately")').count()) === 5,
+  (await p.locator('.avp-card .xtag:has-text("Extra · invoiced separately")').count()) === 4,
   'availability: every unit labelled extra, invoiced separately',
 );
 ok((await p.locator('.avp-card img').count()) >= 3, 'availability: photos shown where we have them');
@@ -152,7 +152,16 @@ ok(JSON.stringify(await db(p)).includes('Request confirmed'), 'Confirm: Sheena i
 
 // ---------- decline, from Classic mode ----------
 p = await pg(1440, 950, 'available/p-pod2', { user: 'u-client', mode: 'classic' });
-ok(await p.locator('.pp-head h1:has-text("Harris View")').isVisible(), 'property page for an extra');
+ok(await p.locator('.pp-head h1:has-text("Uig")').isVisible(), 'property page for an extra');
+{
+  const bk = p.locator('a.pp-book');
+  ok(
+    (await bk.count()) === 1 &&
+      (await bk.getAttribute('target')) === '_blank' &&
+      /^https:\/\/booking-directly\.com\/widgets\/[^?]+\/properties$/.test(await bk.getAttribute('href')),
+    'extra: "Check availability" opens the public booking page in a new tab',
+  );
+}
 await pickFree(p, '[data-unit="x-pod2"]', 2);
 await p.click('[data-unit="x-pod2"] .av-go');
 await settle(p);
@@ -188,17 +197,33 @@ ok(
 );
 ok((await p.locator('.pp-room img').count()) >= 10, 'Eshcol: room photos');
 ok(!/Mairi/.test(await p.locator('body').innerText()), 'privacy: no cleaner name on the property page');
+ok(!(await p.locator('.pp-todo').count()), 'Eshcol: nothing left "to come" (address confirmed, bed sizes not needed)');
 await shot(p, '4-property-eshcol');
 await p.goto(U + '#available/p-lr');
 await settle(p);
-ok((await p.locator('.pp-todo').innerText()).includes('Photos'), 'Loch Roag: missing photos marked "details to come"');
+ok(await p.locator('.pp-main').isVisible(), 'Loch Roag: photo gallery');
+ok(!(await p.locator('a.pp-book').count()), 'Loch Roag: no booking-page button on a contract house');
+ok((await p.locator('.pp-room img').count()) === 16, 'Loch Roag: 16 room photos (rooms 1-3, 5-9)');
+ok(
+  (await p.locator('#room-lr-4 .pp-nophoto').count()) === 1 && (await p.locator('#room-lr-4 img').count()) === 0,
+  'Loch Roag: Room 4 shows "Photo to come"',
+);
+ok((await p.locator('.pp-todo').innerText()).includes('Room 4'), 'Loch Roag: Room 4 photos marked "details to come"');
+{
+  const t = await p.locator('body').innerText();
+  ok(!/bed size/i.test(t), 'Loch Roag: no bed-size placeholders');
+  const bad = await p.evaluate(
+    () => [...document.querySelectorAll('.pp-detail img')].filter(i => i.complete && i.naturalWidth === 0).length,
+  );
+  ok(bad === 0, 'Loch Roag: every photo loads');
+}
 ok(
   (await p.locator('.pp-room').count()) === 9 && (await p.locator('.pp-bath.b-shared').count()) === 2,
   'Loch Roag: 9 rooms, 2 and 3 share',
 );
 await p.goto(U + '#available');
 await settle(p);
-ok((await p.locator('[data-prop]').count()) === 7, 'Properties list: 2 contract houses + 5 extras');
+ok((await p.locator('[data-prop]').count()) === 6, 'Properties list: 2 contract houses + 4 extras');
 ok(!(await p.locator('.pp-cal').count()), 'Sheena: no calendar-link settings or enquiry list');
 await shot(p, '5-properties-list');
 

@@ -43,7 +43,7 @@ export function Properties({ sub, onOpen }: { sub?: string; onOpen: (p: PanelIni
               key={x.id}
               p={x}
               extra
-              line={x.beds ?? 'Details to come'}
+              line={[x.beds, x.sleeps && `Sleeps ${x.sleeps}`].filter(Boolean).join(' · ') || 'Details to come'}
               status={nf ? (nf === T ? 'Free tonight' : `Free from ${fmt(nf)}`) : 'Fully booked for now'}
             />
           );
@@ -161,7 +161,7 @@ function PropertyPage({ p, onOpen }: { p: Property; onOpen: (x: PanelInit) => vo
   const u = me();
   const units = db.units.filter(x => x.propertyId === p.id);
   const facts = [
-    p.beds && ['Bedrooms', p.beds],
+    !p.contracted && p.beds && ['Bedrooms', p.beds],
     p.sleeps && ['Sleeps', p.sleeps],
     p.checkin && ['Check-in', `from ${p.checkin}`],
     p.checkout && ['Check-out', `by ${p.checkout}`],
@@ -205,6 +205,11 @@ function PropertyPage({ p, onOpen }: { p: Property; onOpen: (x: PanelInit) => vo
           ))}
         </ul>
       )}
+      {p.bookingUrl && (
+        <a className="btn ghost pp-book" href={p.bookingUrl} target="_blank" rel="noreferrer">
+          Check availability ↗<small>Opens the public booking page in a new tab</small>
+        </a>
+      )}
       {p.contracted ? (
         units.map(un => (
           <section key={un.id} className="pp-unit" aria-label={un.name}>
@@ -225,7 +230,6 @@ function PropertyPage({ p, onOpen }: { p: Property; onOpen: (x: PanelInit) => vo
                       <b>{r.name}</b>
                       <span className={'pp-bath b-' + r.bath}>{bathText(r)}</span>
                       {(r.desc || r.note) && <small>{r.desc ?? r.note}</small>}
-                      {r.beds && <small>{r.beds}</small>}
                     </div>
                   </article>
                 ))}

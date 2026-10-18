@@ -58,7 +58,7 @@ export interface PropertyRow {
   brand: N<string>;
   checkout_time: N<string>;
   checkin_time: N<string>;
-  details?: N<Record<string, unknown>>; // 0008: area, photos, sleeps, map/website, credit, todo
+  details?: N<Record<string, unknown>>; // 0008: area, photos, sleeps, map/website, bookingUrl, credit, todo
 }
 export interface UnitRow {
   id: string;

@@ -112,7 +112,7 @@ describe('mergeRanges', () => {
 
 describe('exportICS', () => {
   const text = exportICS({
-    name: 'Uig View pod · Roomboard',
+    name: 'Harris · Roomboard',
     host: 'roomboard.pages.dev',
     ranges: [{ id: 'x-pod1-2026-11-03', from: '2026-11-03', to: '2026-11-07' }],
     now: new Date('2026-10-17T12:00:00Z'),

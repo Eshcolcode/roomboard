@@ -99,4 +99,4 @@ select 'T30 decline removes the request' t, count(*) = 0 ok from stays where hol
 select 'T31 Sheena told why' t, count(*) > 0 ok from alert_outbox where subject like 'Request declined%' and body like '%Pod closed for repairs%';
 set request.uid = '00000000-0000-0000-0000-000000000001';
 select 'T32 extra_taken gives Sheena dates without names' t, count(*) = 1 ok from extra_taken() where room_id = 'x-cottage' and start_date = '2027-05-01';
-select 'T33 export tokens for every extra unit' t, count(*) = 5 ok from ical_exports;
+select 'T33 export tokens for every extra unit' t, count(*) = 4 ok from ical_exports;

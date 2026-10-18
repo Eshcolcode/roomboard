@@ -1,4 +1,4 @@
-// Extra properties (pods, lodge, cottage, Monadh): availability per day, the iCal export of one unit,
+// Extra properties (Harris and Uig pods, Abhainn Cottage, Monadh): availability per day, the iCal export of one unit,
 // and clashes between calendar blocks and bookings. Pure helpers over a DB snapshot.
 import { addDays, overlaps } from '../dates';
 import type { Block, DB, Stay } from './core';

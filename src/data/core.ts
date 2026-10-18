@@ -36,6 +36,7 @@ export interface Property {
   sleeps?: string;
   mapUrl?: string;
   website?: string;
+  bookingUrl?: string; // public booking / check-availability page (not an iCal feed)
   credit?: string; // where the photos/facts came from (shown small)
   todo?: string[]; // details still to come from Donald (shown subtly, never faked)
 }

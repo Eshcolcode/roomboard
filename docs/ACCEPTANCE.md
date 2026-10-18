@@ -7,7 +7,7 @@ Run the demo (`npm run build && npx vite preview`, or open the uploaded site), t
 ## Structure
 - [ ] Board shows **Loch Roag Guest House Rooms 1–9**, grouped *Upstairs · Rooms 1–5* / *Downstairs · Rooms 6–9*. Rooms 2 and 3 show a shared shower, Room 8 shows *Private shower room*, and the others show Ensuite. The room panel shows the floor and bathroom detail.
 - [ ] Board shows **Eshcol** as one property (10 rooms) with group labels *Main house · Rooms 1–7* and *Downstairs flat · Rooms 8–10*.
-- [ ] *More rooms* shows **Hebridean Holiday Cabins** (Pod 1, Pod 2, The Lodge, The Cottage "2 bedrooms + office") and **Whitefalls Spa Lodges** (Monadh) as separate groups. None of them are on the board.
+- [ ] *More rooms* shows **Hebridean Holiday Cabins** (Harris, Uig, Abhainn Cottage) and **Whitefalls Spa Lodges** (Monadh) as separate groups. None of them are on the board.
 
 ## Room 8 journey (Loch Roag)
 - [ ] Room 8 shows Neil Mackenzie as **Leaves today (confirmed)** (amber bar ending today, Fri 16 Oct 2026).

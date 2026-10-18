@@ -34,17 +34,6 @@ export function sampleIcs(roomId: string, T: string): string {
         allDay('b1@booking.com', d(1), d(9), 'CLOSED - Not available'),
         allDay('b2@booking.com', d(30), d(37), 'CLOSED - Not available'),
       ]);
-    case 'x-lodge': // timed events in London time, across the late-October clock change
-      return wrap('-//Sample//EN', [
-        [
-          'BEGIN:VEVENT',
-          'UID:l1@sample',
-          `DTSTART;TZID=Europe/London:${D(d(12))}T160000`,
-          `DTEND;TZID=Europe/London:${D(d(19))}T100000`,
-          'SUMMARY:Booked',
-          'END:VEVENT',
-        ].join('\r\n'),
-      ]);
     case 'x-cottage': // freetobook: one event per night
       return wrap(
         '-//freetobook//EN',
@@ -52,7 +41,7 @@ export function sampleIcs(roomId: string, T: string): string {
           allDay(`CO-${n}@freetobook.com`, d(n), d(n + 1), 'NOT AVAILABLE'),
         ),
       );
-    default: // Monadh: UTC times
+    default: // Monadh: UTC times, plus a London-time (TZID) event
       return wrap('-//Sample//EN', [
         [
           'BEGIN:VEVENT',
@@ -62,16 +51,23 @@ export function sampleIcs(roomId: string, T: string): string {
           'SUMMARY:Booked',
           'END:VEVENT',
         ].join('\r\n'),
+        [
+          'BEGIN:VEVENT',
+          'UID:l1@sample',
+          `DTSTART;TZID=Europe/London:${D(d(32))}T160000`,
+          `DTEND;TZID=Europe/London:${D(d(39))}T100000`,
+          'SUMMARY:Booked',
+          'END:VEVENT',
+        ].join('\r\n'),
         allDay('m2@sample', d(60), d(67), 'Booked'),
       ]);
   }
 }
 
-export const EXTRA_UNITS = ['x-pod1', 'x-pod2', 'x-lodge', 'x-cottage', 'x-monadh'];
+export const EXTRA_UNITS = ['x-pod1', 'x-pod2', 'x-cottage', 'x-monadh'];
 const LABEL: Record<string, string> = {
   'x-pod1': 'Airbnb',
   'x-pod2': 'Booking.com',
-  'x-lodge': 'Other website',
   'x-cottage': 'freetobook',
   'x-monadh': 'SuperControl',
 };

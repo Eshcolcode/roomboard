@@ -5,8 +5,20 @@ import { useEffect, useRef } from 'react';
 import { useDB, thumb } from '../data';
 import { priceLine } from '../data/pricing';
 import { UnitAvailability } from './Availability';
+import type { PanelInit } from './StayPanel';
 
-export function ExtraSheet({ pid, date, onClose }: { pid: string; date?: string; onClose: () => void }) {
+/** Pick the dates here; "Book these dates" hands them to the normal booking flow (Quick card or Classic form). */
+export function ExtraSheet({
+  pid,
+  date,
+  onClose,
+  onOpen,
+}: {
+  pid: string;
+  date?: string;
+  onClose: () => void;
+  onOpen?: (p: PanelInit) => void;
+}) {
   const db = useDB();
   const p = db.properties.find(x => x.id === pid);
   const closeRef = useRef<HTMLButtonElement>(null);
@@ -46,7 +58,19 @@ export function ExtraSheet({ pid, date, onClose }: { pid: string; date?: string;
           </button>
         </header>
         <div className="xs-body">
-          <UnitAvailability p={p} months={2} start={date} onBooked={onClose} />
+          <UnitAvailability
+            p={p}
+            months={2}
+            start={date}
+            onBooked={onClose}
+            onNext={
+              onOpen &&
+              (b => {
+                onClose();
+                onOpen(b);
+              })
+            }
+          />
         </div>
       </div>
     </div>,

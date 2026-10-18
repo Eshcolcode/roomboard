@@ -1247,3 +1247,10 @@
     bottom: 8px;
   }
 }
+
+/* Classic form for an extra property: badge and price where the room details would be */
+.xfixed {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 12px;
+}

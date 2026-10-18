@@ -154,6 +154,46 @@ ok(await p.locator('.top').isVisible(), 'full app still opens from simple mode (
   ok(txt.includes(nice) && !txt.includes('To follow'), 'the card shows the new leaving date (' + nice + ')');
 }
 
+// ---- extra property (Harris), phone: same guest details as a contract room, Sheena ----
+{
+  const p = await pg();
+  await p.selectOption('select.s-who', 'u-client'); await settle(p);
+  await p.goto(U + '#available/p-pod1'); await settle(p);
+  if (await p.locator('select.who').count()) { await p.selectOption('select.who', 'u-client'); await settle(p); }
+  const free = p.locator('[data-unit="x-pod1"] .av-d.s-free:not([disabled])');
+  await free.nth(3).click(); await free.nth(6).click(); await settle(p);
+  await p.locator('[data-unit="x-pod1"] .av-go').click(); await settle(p);
+  const q = p.locator('.q-panel');
+  ok(await q.locator('input[aria-label="Name"]').isVisible() && !(await q.locator('.s-pick.crew').count()), 'extra (phone): booking asks who, as for a contract room (no crew)');
+  await q.locator('.s-pick.tbc').click(); await settle(p);
+  const st = (await stays(p)).find(s => s.roomId === 'x-pod1' && s.bookedBy === 'u-client');
+  ok(!!st && !st.workerId, 'extra (phone): booked with the name to follow');
+  await q.locator('.s-btn:has-text("Done")').click(); await settle(p);
+  // the Simple booking card: name from the list, phone and notes
+  await p.goto(U + '#simple/stay/' + st.id); await p.reload(); await settle(p);
+  const t0 = await p.locator('body').innerText();
+  ok(t0.includes('Add the name') && /Add phone or notes/.test(t0) && t0.includes('whole property') && /Indicative £\d+/.test(t0) && !t0.includes('Move room'), 'extra card (Simple): name, phone/notes, price, whole-property badge; no Move room');
+  await shot(p, 'extra-card');
+  await p.click('.s-act:has-text("Add the name")'); await settle(p);
+  await p.fill('input[aria-label="Name"]', 'Iain');
+  await p.click('.s-pick:has-text("Iain Smith")'); await settle(p);
+  await p.click('[data-act="details"]'); await settle(p);
+  await p.fill('input[aria-label="Phone number"]', '07700 900666');
+  await p.fill('textarea[aria-label="Notes"]', 'Needs ground floor');
+  await p.click('button[type=submit]:has-text("Save")'); await settle(p);
+  const x = await p.evaluate(() => JSON.parse(localStorage.getItem('roomboard-demo-v2')));
+  const iain = x.workers.find(w => w.name === 'Iain Smith');
+  const s2 = x.stays.find(s => s.id === st.id);
+  ok(s2.workerId === iain.id && iain.phone === '07700 900666' && s2.notes === 'Needs ground floor', 'extra card (Simple): name picked from the list, phone and notes saved');
+  await shot(p, 'extra-card-named');
+  // Donald's own guest: dates only for Sheena, no edit, no name
+  const dg = x.stays.find(s => s.roomId === 'x-cottage' && s.bookedBy === 'u-donald');
+  await p.goto(U + '#simple/stay/' + dg.id); await p.reload(); await settle(p);
+  const t1 = await p.locator('body').innerText();
+  ok(!t1.includes('Direct guest') && !t1.includes('Swap person') && t1.includes('ask him'), "Donald's own extra guest stays dates-only to Sheena");
+  await p.close();
+}
+
 ok(!errs.length, 'no console/page errors ' + errs.join(' | '));
 await b.close();
 console.log(`\n${pass} passed, ${fail} failed`);

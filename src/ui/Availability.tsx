@@ -3,7 +3,7 @@
 // stand-alone #availability page. A booking is confirmed straight away (whole property, indicative price shown);
 // Donald is told, and invoicing happens separately.
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { data, useDB, me, thumb } from '../data';
+import { data, useDB, me, stayLabel, thumb } from '../data';
 import type { Property } from '../data';
 import { addDays, diffDays, fmt, londonToday } from '../dates';
 import { dayState, openBlocker, ownOn, prefill, rangeFree, unitOf } from '../data/extras';
@@ -98,11 +98,16 @@ export function UnitAvailability({
   months = 3,
   start,
   onBooked,
+  onNext,
 }: {
   p: Property;
   months?: number;
   start?: string;
   onBooked?: () => void;
+  /** In the app: the dates go on to the normal booking flow (who is staying from the workers list or a new
+   * name, or name to follow; then phone, notes, rota), the same one the contract rooms use. Without it (the
+   * stand-alone availability page) the booking is made here with an optional name. */
+  onNext?: (b: { roomId: string; date: string; departure: string | null }) => void;
 }) {
   const db = useDB();
   const u = me();
@@ -161,6 +166,7 @@ export function UnitAvailability({
   const ready = !!from && (open ? !blocker : !!to);
   const send = async () => {
     if (!from || !ready) return;
+    if (onNext) return onNext({ roomId: room.id, date: from, departure: open ? null : to });
     setBusy(true);
     try {
       await data.saveStay({
@@ -219,8 +225,7 @@ export function UnitAvailability({
           <b>Your bookings here</b>
           {yours.map(s => (
             <span key={s.id}>
-              {fmt(s.arrival)} → {s.departure ? fmt(s.departure) : 'until further notice'} ·{' '}
-              {s.holdLabel || 'Name to follow'} ·{' '}
+              {fmt(s.arrival)} → {s.departure ? fmt(s.departure) : 'until further notice'} · {stayLabel(s)} ·{' '}
               {estimateLine(db, p, s.departure ? diffDays(s.arrival, s.departure) : null)}
             </span>
           ))}
@@ -288,10 +293,12 @@ export function UnitAvailability({
             )}
             {canAsk && ready && (
               <>
-                <label className="av-who">
-                  Who is staying? <small>(optional)</small>
-                  <input value={who} onChange={e => setWho(e.target.value)} placeholder="Name to follow" />
-                </label>
+                {!onNext && (
+                  <label className="av-who">
+                    Who is staying? <small>(optional)</small>
+                    <input value={who} onChange={e => setWho(e.target.value)} placeholder="Name to follow" />
+                  </label>
+                )}
                 <p className="av-est" data-est={p.id}>
                   <b>{estimateLine(db, p, open ? null : nights)}</b>
                   <small>
@@ -302,7 +309,11 @@ export function UnitAvailability({
                 <button className="s-btn big av-go" disabled={busy} onClick={send}>
                   {open ? 'Book open-ended' : 'Book these dates'}
                 </button>
-                <p className="av-small">Confirmed straight away · Donald is notified · invoiced separately</p>
+                <p className="av-small">
+                  {onNext
+                    ? 'Next: who is staying (name can follow) · confirmed straight away · invoiced separately'
+                    : 'Confirmed straight away · Donald is notified · invoiced separately'}
+                </p>
               </>
             )}
           </>

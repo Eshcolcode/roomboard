@@ -1,5 +1,7 @@
-// Quick card for a booking of an extra property (Harris, Uig, Monadh, Abhainn Cottage). Bookings are confirmed
-// straight away: no request step. Shows the indicative price; Donald, or Sheena for her own booking, can cancel.
+// Extra properties (Harris, Uig, Monadh, Abhainn Cottage). Bookings are confirmed straight away: no request step.
+// The bookings you may change use the normal booking card (Change.tsx: name, phone, notes, dates, rota, cancel)
+// with ExtraBits added (indicative price, end date / open-ended). ExtraCard is the read-only view of a booking
+// someone else made (Donald's own guests): dates only, no guest details.
 import { useState } from 'react';
 import { data, useDB, me, stayLabel, thumb } from '../data';
 import type { Stay } from '../data';
@@ -10,16 +12,14 @@ import { DateField } from '../ui/DateField';
 import { addDays } from '../dates';
 import type { Notify } from './Book';
 
-export function ExtraCard({ stay, onHome, notify }: { stay: Stay; onHome: () => void; notify: Notify }) {
+/** The extras-only part of a booking card: the indicative price and the end date / open-ended control. */
+export function ExtraBits({ stay, onHome, notify }: { stay: Stay; onHome: () => void; notify: Notify }) {
   const db = useDB();
-  const u = me();
-  const [ask, setAsk] = useState(false);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState('');
   const room = db.rooms.find(r => r.id === stay.roomId)!;
   const p = db.properties.find(x => x.id === room.propertyId)!;
   const nights = stay.departure ? diffDays(stay.arrival, stay.departure) : null;
-  const mine = u.role === 'manager' || stay.bookedBy === u.id;
   const [end, setEnd] = useState(stay.departure ?? '');
   const saveEnd = async (dep: string | null) => {
     setBusy(true);
@@ -34,34 +34,52 @@ export function ExtraCard({ stay, onHome, notify }: { stay: Stay; onHome: () => 
       setBusy(false);
     }
   };
-  const cancel = async () => {
-    setBusy(true);
-    setProblem('');
-    try {
-      await data.deleteStay(stay.id);
-      notify(`Cancelled · ${p.name}${u.role === 'client' ? ' · Donald is told' : ''}`, 1);
-      onHome();
-    } catch (e) {
-      setProblem((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  };
-  if (ask)
-    return (
-      <Box
-        step="x-cancel"
-        title="Cancel this booking?"
-        sub={`${p.name} · ${fmt(stay.arrival)} → ${stay.departure ? fmt(stay.departure) : 'open'}`}
-        onBack={() => setAsk(false)}
-        onClose={onHome}
-      >
-        <button className="s-btn big red" disabled={busy} onClick={cancel}>
-          Cancel booking
-        </button>
-        {problem && <Note tone="bad">{problem}</Note>}
-      </Box>
-    );
+  return (
+    <>
+      <div className="price-box" data-price={p.id}>
+        <b>{estimateLine(db, p, nights)}</b>
+        <small>
+          {priceLine(db, p)}. {PRICE_NOTE}
+        </small>
+      </div>
+      <div className="x-end" data-end={stay.id}>
+        <label htmlFor={'end-' + stay.id}>
+          <b>{stay.departure ? 'End date (check-out)' : 'Open-ended · set an end date when you know it'}</b>
+        </label>
+        <div className="x-endrow">
+          <DateField
+            id={'end-' + stay.id}
+            value={end}
+            min={addDays(stay.arrival, 1)}
+            onChange={setEnd}
+            label="End date"
+          />
+          <button
+            className="s-btn"
+            disabled={busy || !end || end <= stay.arrival || end === stay.departure}
+            onClick={() => saveEnd(end)}
+          >
+            Save end date
+          </button>
+        </div>
+        {stay.departure && (
+          <button className="s-link" disabled={busy} onClick={() => saveEnd(null)}>
+            Make it open-ended (until further notice)
+          </button>
+        )}
+      </div>
+      {problem && <Note tone="bad">{problem}</Note>}
+    </>
+  );
+}
+
+/** Read-only card for an extra-property booking made by someone else: dates and price only, never the guest. */
+export function ExtraCard({ stay, onHome }: { stay: Stay; onHome: () => void }) {
+  const db = useDB();
+  const u = me();
+  const room = db.rooms.find(r => r.id === stay.roomId)!;
+  const p = db.properties.find(x => x.id === room.propertyId)!;
+  const nights = stay.departure ? diffDays(stay.arrival, stay.departure) : null;
   return (
     <Box
       step="x-card"
@@ -78,7 +96,7 @@ export function ExtraCard({ stay, onHome, notify }: { stay: Stay; onHome: () => 
             {fmt(stay.arrival)} → {stay.departure ? fmt(stay.departure) : 'until further notice'}
             {nights ? ` · ${nights} night${nights === 1 ? '' : 's'}` : ''}
           </span>
-          <span>{stayLabel(stay)}</span>
+          {u.role === 'manager' && <span>{stayLabel(stay)}</span>}
         </div>
       </div>
       <div className="price-box" data-price={p.id}>
@@ -87,42 +105,7 @@ export function ExtraCard({ stay, onHome, notify }: { stay: Stay; onHome: () => 
           {priceLine(db, p)}. {PRICE_NOTE}
         </small>
       </div>
-      {mine && (
-        <div className="x-end" data-end={stay.id}>
-          <label htmlFor={'end-' + stay.id}>
-            <b>{stay.departure ? 'End date (check-out)' : 'Open-ended · set an end date when you know it'}</b>
-          </label>
-          <div className="x-endrow">
-            <DateField
-              id={'end-' + stay.id}
-              value={end}
-              min={addDays(stay.arrival, 1)}
-              onChange={setEnd}
-              label="End date"
-            />
-            <button
-              className="s-btn"
-              disabled={busy || !end || end <= stay.arrival || end === stay.departure}
-              onClick={() => saveEnd(end)}
-            >
-              Save end date
-            </button>
-          </div>
-          {stay.departure && (
-            <button className="s-link" disabled={busy} onClick={() => saveEnd(null)}>
-              Make it open-ended (until further notice)
-            </button>
-          )}
-        </div>
-      )}
-      {mine ? (
-        <button className="s-btn big ghost" onClick={() => setAsk(true)}>
-          Cancel booking
-        </button>
-      ) : (
-        <Note tone="ok">Booked by Donald. To change it, ask him.</Note>
-      )}
-      {problem && <Note tone="bad">{problem}</Note>}
+      <Note tone="ok">Booked by Donald. To change it, ask him.</Note>
       <a className="s-link" href={'#available/' + p.id} onClick={onHome}>
         Property details and availability
       </a>

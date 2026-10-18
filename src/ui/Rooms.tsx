@@ -295,7 +295,7 @@ function ExtrasSection({ onOpen }: { onOpen: (p: PanelInit) => void }) {
           );
         })}
       </div>
-      {sheet && <ExtraSheet pid={sheet.pid} date={sheet.date} onClose={() => setSheet(null)} />}
+      {sheet && <ExtraSheet pid={sheet.pid} date={sheet.date} onClose={() => setSheet(null)} onOpen={onOpen} />}
     </section>
   );
 }

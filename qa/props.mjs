@@ -43,6 +43,34 @@ async function as(p, id) {
   await p.selectOption(sel, id);
   await settle(p);
 }
+// After "Book these dates": the same booking flow as the contract rooms. Quick: "Who is staying?" then
+// "<Property> booked!" with phone / notes / rota; Classic: the stay form. name = a new name, worker = a saved
+// worker picked from the list, neither = name to follow.
+async function whoNext(p, { name, worker } = {}) {
+  await settle(p);
+  if (await p.locator('aside.panel').count()) {
+    const f = p.locator('aside.panel');
+    if (worker) {
+      await f.locator('#f-wq').fill(worker.split(' ')[0]);
+      await f.locator(`.chips .chip:has-text("${worker}")`).first().click();
+    } else {
+      await f.locator('.seg button:has-text("Hold · name to follow")').click();
+      if (name) await f.locator('#f-hold').fill(name);
+    }
+    await f.locator('.pa .btn.primary').click();
+  } else {
+    const q = p.locator('.q-panel');
+    const box = q.locator('input[aria-label="Name"]');
+    if (worker) {
+      await box.fill(worker.split(' ')[0]);
+      await q.locator(`.s-pick:has-text("${worker}")`).first().click();
+    } else if (name) {
+      await box.fill(name);
+      await box.press('Enter');
+    } else await q.locator('.s-pick.tbc').click();
+  }
+  await settle(p);
+}
 // first run of n free nights (from day >= 2) in a unit, by reading the grid itself
 async function pickFree(p, scope, n) {
   const days = await p
@@ -203,12 +231,55 @@ await settle(p);
     t.includes('Indicative £150 for 3 nights') && t.includes('Long-term deals possible'),
     'Quick card: indicative estimate',
   );
+  ok(/\bCancel\b/.test(t) && !/Confirm|Decline/.test(t), 'Quick card: no confirm/decline; Sheena can cancel her own');
   ok(
-    t.includes('Cancel booking') && !/Confirm|Decline/.test(t),
-    'Quick card: no confirm/decline; Sheena can cancel her own',
+    t.includes('Add the name') &&
+      t.includes('Change dates') &&
+      /Add phone or notes/.test(t) &&
+      !t.includes('Move room') &&
+      t.includes('whole property'),
+    'Quick card (extra): the same guest actions as a contract booking (name, phone/notes, dates), no Move room',
   );
 }
 await shot(p, '3b-extra-card');
+// Sheena names her extra booking from the workers list she holds, then adds a phone and notes
+{
+  const q = p.locator('.q-panel');
+  await q.locator('.s-act:has-text("Add the name")').click();
+  await q.locator('input[aria-label="Name"]').fill('Euan');
+  await q.locator('.s-pick:has-text("Euan Morrison")').first().click();
+  await settle(p);
+  const w = (await db(p)).workers.find(x => x.name === 'Euan Morrison');
+  let s = (await db(p)).stays.find(x => x.id === bk1.id);
+  ok(!!w && s.workerId === w.id && !s.holdLabel, 'extra (Quick, desktop): name picked from the workers list');
+  await q.locator('[data-act="details"]').click();
+  await q.locator('input[aria-label="Phone number"]').fill('07700 900111');
+  await q.locator('textarea[aria-label="Notes"]').fill('Late ferry, arrives 11pm');
+  await q.locator('button[type=submit]:has-text("Save")').click();
+  await settle(p);
+  const x = await db(p);
+  s = x.stays.find(y => y.id === bk1.id);
+  ok(
+    x.workers.find(y => y.id === w.id).phone === '07700 900111' && s.notes === 'Late ferry, arrives 11pm',
+    'extra (Quick, desktop): phone saved on the worker, notes on the booking',
+  );
+  ok(
+    (await q.innerText()).includes('Late ferry') && (await q.innerText()).includes('07700 900111'),
+    'extra card shows the phone and notes',
+  );
+  // swap person: a brand-new name (Sheena's crew: added to her workers list)
+  await q.locator('.s-act:has-text("Swap person")').click();
+  await q.locator('input[aria-label="Name"]').fill('Hamish New');
+  await q.locator('input[aria-label="Name"]').press('Enter');
+  await settle(p);
+  const y = await db(p);
+  const hw = y.workers.find(z => z.name === 'Hamish New');
+  ok(!!hw && y.stays.find(z => z.id === bk1.id).workerId === hw.id, 'extra: swap person to a new name');
+  await q.locator('.s-act:has-text("Swap person")').click();
+  await q.locator('.s-pick.tbc').click();
+  await settle(p);
+  ok(!(await db(p)).stays.find(z => z.id === bk1.id).workerId, 'extra: back to "Name to follow"');
+}
 await p.keyboard.press('Escape');
 await settle(p);
 // filter to the extras only
@@ -236,9 +307,17 @@ ok(await p.locator('.pp-head h1:has-text("Uig")').isVisible(), 'property page fo
   );
 }
 await pickFree(p, '[data-unit="x-pod2"]', 2);
-await p.fill('[data-unit="x-pod2"] .av-who input', 'Mrs Visitor');
+ok(!(await p.locator('[data-unit="x-pod2"] .av-who').count()), 'in the app the dates go on to the booking flow');
 await p.click('[data-unit="x-pod2"] .av-go');
 await settle(p);
+ok(
+  (await p.locator('aside.panel .xtag').isVisible()) &&
+    /Indicative £\d+ for 2 nights/.test(await p.locator('aside.panel [data-price="p-pod2"]').innerText()) &&
+    !(await p.locator('aside.panel #f-room').count()) &&
+    (await p.locator('aside.panel #f-notes').isVisible()),
+  'Classic: an extra opens the stay form (badge, indicative price, notes; no room choice)',
+);
+await whoNext(p, { name: 'Mrs Visitor' });
 {
   const x = await db(p);
   const s2 = x.stays.find(s => s.roomId === 'x-pod2' && s.holdLabel === 'Mrs Visitor');
@@ -252,7 +331,10 @@ await settle(p);
     "Donald's guest: log is Donald-only",
   );
 }
+// back to Quick (the default) for the board's in-place booking
+await p.evaluate(() => localStorage.setItem('rb-ui-mode', 'quick'));
 await p.goto(U + '#board');
+await p.reload();
 await settle(p);
 await p.click('.seg button:has-text("6 wks")');
 await settle(p);
@@ -300,20 +382,52 @@ await shot(p, '3c-board-donald');
   ok((await nOf()) === n0 - 1, 'in-place sheet: − shortens the stay by a night (' + n0 + ' → ' + (n0 - 1) + ')');
   await sh.locator('button[aria-label="One night more"]').click();
   ok((await nOf()) === n0, 'in-place sheet: + lengthens it again');
-  await sh.locator('.av-who input').fill('Board Sheet Test');
   await sh.locator('.av-go').click();
   await settle(p);
-  const made = (await db(p)).stays.find(s => s.holdLabel === 'Board Sheet Test' || s.name === 'Board Sheet Test');
+  const q = p.locator('.q-panel');
+  ok(
+    !(await p.locator('.xs').count()) &&
+      (await q.locator('.s-pick.tbc').isVisible()) &&
+      !(await q.locator('.s-pick.crew').count()),
+    'in-place sheet: "Book these dates" goes on to "Who is staying?" (workers list, new name, name to follow; no crew)',
+  );
+  await whoNext(p, { name: 'Board Sheet Test' });
+  let x0 = await db(p);
+  const made = x0.stays.find(s => s.holdLabel === 'Board Sheet Test');
   ok(
     !!made && made.roomId === 'x-pod1' && made.arrival === D(k) && (await p.evaluate(() => location.hash)) === '#board',
-    'in-place sheet: "Book these dates" books Harris without leaving the board',
+    'in-place sheet: Harris booked without leaving the board',
   );
-  await sh.locator('.av-done').click();
+  ok(
+    !x0.workers.some(w => w.name === 'Board Sheet Test'),
+    "Donald's own extra guest is not added to the shared workers list",
+  );
+  ok(
+    (await q.innerText()).includes('Harris') &&
+      (await q.innerText()).includes('booked!') &&
+      /Indicative £\d+/.test(await q.locator('[data-price="booking"]').innerText()),
+    'Booked! step with the indicative price',
+  );
+  await q.locator('.s-extra:has-text("Phone number")').click();
+  await q.locator('input[aria-label="Phone number"]').fill('07700 900222');
+  await q.locator('button[type=submit]:has-text("Save")').click();
+  await settle(p);
+  await q.locator('.s-extra:has-text("Notes")').click();
+  await q.locator('textarea[aria-label="Notes"]').fill('Key in the lockbox');
+  await q.locator('button[type=submit]:has-text("Save")').click();
+  await settle(p);
+  x0 = await db(p);
+  ok(
+    /Phone: 07700 900222/.test(x0.stays.find(s => s.id === made.id).notes) &&
+      /Key in the lockbox/.test(x0.stays.find(s => s.id === made.id).notes),
+    'at creation: phone and notes added to the extra booking',
+  );
+  await q.locator('.s-btn:has-text("Done")').click();
   await settle(p);
   ok(
     !(await p.locator('.xs').count()) &&
       (await p.locator('[data-extra="p-pod1"] [data-stay="' + made?.id + '"]').count()) === 1,
-    'in-place sheet: Done closes it and the new booking is on the board',
+    'Done closes it and the new booking is on the board',
   );
   // Esc closes too
   const tr2 = await p.locator('[data-extra="p-pod2"] .track').boundingBox();
@@ -520,14 +634,30 @@ ok(
   );
   await shot(p, '8-sheet-phone');
   await sh.locator('.av-go').click();
-  await settle(p);
+  await whoNext(p, { worker: 'Fraser Munro' });
+  const fr = (await db(p)).workers.find(w => w.name === 'Fraser Munro');
+  const mk = (await db(p)).stays.find(s => s.roomId === 'x-pod2' && s.workerId === fr.id);
   ok(
-    (await sh.locator('.av-msg.ok').isVisible()) && (await p.evaluate(() => location.hash)) === h0,
-    'phone sheet: booked in place',
+    !!mk &&
+      (await p.evaluate(() => location.hash)) === h0 &&
+      (await p.locator('.q-panel').innerText()).includes('booked!'),
+    'phone: booked in place with a worker picked from the list',
   );
-  await sh.locator('.av-done').click();
-  await settle(p);
-  ok(!(await p.locator('.xs').count()), 'phone sheet: Done closes it');
+  {
+    const q = p.locator('.q-panel');
+    await q.locator('.s-extra:has-text("Notes")').click();
+    await q.locator('textarea[aria-label="Notes"]').fill('Phone booking note');
+    await q.locator('button[type=submit]:has-text("Save")').click();
+    await settle(p);
+    ok(
+      (await db(p)).stays.find(s => s.id === mk.id).notes === 'Phone booking note' &&
+        (await p.evaluate(() => document.documentElement.scrollWidth)) <= 392,
+      'phone: notes added at creation, fits the width',
+    );
+    await q.locator('.s-btn:has-text("Done")').click();
+    await settle(p);
+  }
+  ok(!(await p.locator('.xs').count()) && !(await p.locator('.q-panel').count()), 'phone sheet: Done closes it');
 }
 // phone: swipe the gallery and the viewer
 await p.goto(U + '#available/p-lr');
@@ -582,6 +712,8 @@ p = await pg(1440, 950, 'available/p-pod2', { user: 'u-client' });
   ok((await p.locator(`${u} .av-d.sel`).count()) > 20, 'open-ended: every later night is shown as part of the booking');
   await shot(p, '10-open-ended');
   await p.locator(`${u} .av-go:has-text("Book open-ended")`).click();
+  await whoNext(p);
+  await p.locator('.q-panel .s-btn:has-text("Done")').click();
   await settle(p);
   const st = (await db(p)).stays.find(s => s.roomId === 'x-pod2' && s.arrival === first);
   ok(

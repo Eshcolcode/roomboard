@@ -103,15 +103,15 @@ async function audit(p, tag) {
   await p.locator('.av-d.s-free:not([disabled])').nth(2).click();
   await p.locator('.av-d.s-free:not([disabled])').nth(4).click();
   await p.waitForTimeout(200);
-  ok(await p.locator('.av-who input').isVisible(), 'self-test: the name box is showing');
+  ok(await p.locator('.av-step button').first().isVisible(), 'self-test: the booking bar is showing');
   ok(!(await scan(p)).length, 'self-test: clean page passes');
-  await p.addStyleTag({ content: '.av-who input{min-height:100vh}' });
+  await p.addStyleTag({ content: '.av-step button{min-height:100vh}' });
   const r1 = await scan(p);
   ok(
-    r1.some(x => /too tall: input/.test(x)),
-    'self-test: catches a screen-tall input (' + r1[0] + ')',
+    r1.some(x => /too tall: button/.test(x)),
+    'self-test: catches a screen-tall button (' + r1[0] + ')',
   );
-  await p.addStyleTag({ content: '.av-who input{min-height:52px} .pp-head{width:900px}' });
+  await p.addStyleTag({ content: '.av-step button{min-height:44px} .pp-head{width:900px}' });
   const r2 = await scan(p);
   ok(
     r2.some(x => /sideways/.test(x)),

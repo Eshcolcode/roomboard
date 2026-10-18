@@ -14,10 +14,11 @@ import type { PanelInit } from './StayPanel';
 import { toast } from './overlays';
 import './props.css';
 
-export function Properties({ sub, start }: { sub?: string; start?: string; onOpen?: (p: PanelInit) => void }) {
+export function Properties({ sub, start, onOpen }: { sub?: string; start?: string; onOpen?: (p: PanelInit) => void }) {
   const db = useDB();
   const p = sub ? db.properties.find(x => x.id === sub) : undefined;
-  if (p) return <PropertyPage p={p} start={start && /^\d{4}-\d\d-\d\d$/.test(start) ? start : undefined} />;
+  if (p)
+    return <PropertyPage p={p} start={start && /^\d{4}-\d\d-\d\d$/.test(start) ? start : undefined} onOpen={onOpen} />;
   const T = londonToday();
   const contract = db.properties.filter(x => x.contracted);
   const extras = db.properties.filter(x => !x.contracted);
@@ -301,7 +302,7 @@ function RoomPhotos({ photos, name }: { photos?: Photo[]; name: string }) {
   );
 }
 
-function PropertyPage({ p, start }: { p: Property; start?: string }) {
+function PropertyPage({ p, start, onOpen }: { p: Property; start?: string; onOpen?: (p: PanelInit) => void }) {
   const db = useDB();
   const u = me();
   const units = db.units.filter(x => x.propertyId === p.id);
@@ -394,7 +395,7 @@ function PropertyPage({ p, start }: { p: Property; start?: string }) {
       ) : (
         <section className="pp-unit" aria-label="Availability">
           <h2 className="pp-h2">Availability</h2>
-          <UnitAvailability p={p} start={start} />
+          <UnitAvailability p={p} start={start} onNext={onOpen} />
         </section>
       )}
       {!p.contracted && u.role === 'manager' && <CalendarLinks p={p} />}

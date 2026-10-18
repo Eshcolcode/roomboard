@@ -129,11 +129,14 @@ function Shell({ wide }: { wide: boolean }) {
 
   // Quick (default): the one-question quick card / booking flow. Classic: the original panel, unchanged.
   const open = (p: PanelInit) => {
-    // extras always use the quick card: the classic form only knows contract rooms
-    const extra =
+    // an extra-property booking someone else made (Donald's own guests, to Sheena) only ever opens as the
+    // read-only quick card (dates only); every other booking, extras included, opens in the chosen mode
+    const othersExtra =
       !!p.stay &&
+      u.role !== 'manager' &&
+      p.stay.bookedBy !== u.id &&
       !db.properties.find(x => x.id === db.rooms.find(r => r.id === p.stay!.roomId)?.propertyId)?.contracted;
-    if ((uiMode === 'quick' || extra) && u.role !== 'cleaner') {
+    if ((uiMode === 'quick' || othersExtra) && u.role !== 'cleaner') {
       setPanel(null);
       setQuick({ init: p, k: Date.now() });
     } else setPanel(p);

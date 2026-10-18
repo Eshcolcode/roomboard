@@ -102,6 +102,27 @@ export function checkBatch(db: DB, inputs: StayInput[], ignore: string[] = []): 
         s.id !== inp.id &&
         overlaps(s.arrival, s.departure, inp.arrival, d),
     );
+    const r = db.rooms.find(x => x.id === inp.roomId);
+    const extra = !!r && db.properties.find(p => p.id === r.propertyId)?.contracted === false;
+    const viewer = db.users?.find(u => u.id === db.currentUser);
+    // an extra property: Sheena never learns who else has it, and dates booked on other sites count too
+    if (clash && extra && viewer?.role === 'client' && clash.bookedBy !== viewer.id) {
+      out.push({
+        index,
+        text: `${roomText(db, inp.roomId)} is taken on some of those dates (${fmt(clash.arrival)} → ${clash.departure ? fmt(clash.departure) : 'open-ended'}).`,
+      });
+      return;
+    }
+    const block = extra
+      ? (db.blocks ?? []).find(b => b.roomId === inp.roomId && overlaps(b.from, b.to, inp.arrival, d))
+      : undefined;
+    if (!clash && block) {
+      out.push({
+        index,
+        text: `${roomText(db, inp.roomId)} is taken ${fmt(block.from)} → ${fmt(block.to)}. Choose other dates.`,
+      });
+      return;
+    }
     if (clash) {
       out.push({
         index,

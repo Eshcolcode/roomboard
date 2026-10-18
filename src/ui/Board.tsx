@@ -266,7 +266,7 @@ export function Board({ onOpen }: { onOpen: (p: PanelInit) => void }) {
           </span>
         </div>
       </div>
-      {sheet && <ExtraSheet pid={sheet.pid} date={sheet.date} onClose={() => setSheet(null)} />}
+      {sheet && <ExtraSheet pid={sheet.pid} date={sheet.date} onClose={() => setSheet(null)} onOpen={onOpen} />}
     </div>
   );
 }

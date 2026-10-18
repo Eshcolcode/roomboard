@@ -1,7 +1,7 @@
 // Quick mode for the full app: the one-question quick card / booking flow opens from the board, room cards,
 // lists and search, as a bottom sheet (phone) or side panel (desktop). Classic mode keeps the old panel.
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { data } from '../data';
+import { data, useDB } from '../data';
 import type { Stay } from '../data';
 import { useEscape } from '../ui/hooks';
 import { Book } from './Book';
@@ -130,6 +130,7 @@ export function QuickSheet({
   onDetails: (s: Stay) => void;
   notify: Notify;
 }) {
+  const db = useDB();
   useEscape(onClose);
   useEffect(() => {
     const opener = document.activeElement as HTMLElement | null;
@@ -181,18 +182,22 @@ export function QuickSheet({
     if (d.dy > 90) onClose();
     else ref.current.style.transform = '';
   };
+  // a new booking of an extra property is titled with that property (booked whole, not "a room")
+  const xr = !init.stay && init.roomId ? db.rooms.find(r => r.id === init.roomId) : undefined;
+  const xp = xr ? db.properties.find(p => p.id === xr.propertyId && !p.contracted) : undefined;
+  const title = init.stay ? 'Booking' : xp ? `Book ${xp.name}` : 'Book a room';
   const panel = (
     <div
       ref={ref}
       className={'q-panel s-scope ' + (wide ? 'side' : 'sheet')}
       role="dialog"
       aria-modal={!wide}
-      aria-label={init.stay ? 'Booking' : 'Book a room'}
+      aria-label={title}
       onClick={e => e.stopPropagation()}
     >
       <div className="q-bar" onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
         {!wide && <span className="q-grab" aria-hidden title="Swipe down to close" />}
-        <span className="q-title">{init.stay ? 'Booking' : 'Book a room'}</span>
+        <span className="q-title">{title}</span>
         <button className="q-x" onClick={onClose} aria-label="Close">
           ✕
         </button>

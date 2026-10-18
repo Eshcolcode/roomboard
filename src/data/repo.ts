@@ -1,6 +1,6 @@
 // The ONE data-access interface the UI talks to. Implementations: local.ts (demo) and supabase.ts.
 // Reads come from the shared snapshot in core.ts (useDB); writes go through these commands.
-import type { Changeover, Enquiry, Series, Stay, StayInput, Worker } from './core';
+import type { Changeover, Enquiry, Series, Settings, Stay, StayInput, Worker } from './core';
 export interface Repo {
   mode: 'demo' | 'supabase';
   init(): Promise<void>;
@@ -17,9 +17,8 @@ export interface Repo {
   addEnquiry(e: Omit<Enquiry, 'id' | 'ts' | 'status'>): Promise<void>;
   createSeries(base: Omit<Series, 'id' | 'createdBy' | 'createdAt'>, stays: StayInput[]): Promise<Series>; // crew booking: all stays or none
   updateSeries(next: Series, what: string): Promise<void>; // extend / shorten / cancel the whole series
-  /** Extra properties: the provider answers a client's request (confirm keeps the dates, decline frees them). */
-  confirmRequest(id: string): Promise<void>;
-  declineRequest(id: string, reason: string): Promise<void>;
+  /** Donald's settings (indicative rate per room per week). Manager only. */
+  setSettings(s: Partial<Settings>): Promise<void>;
   /** Booking calendars: read every linked calendar now (live: the ical-sync edge function). */
   syncFeeds(): Promise<{ conflicts: number }>;
   /** The export feed of one unit: a link to paste into Airbnb / Booking.com (live) and the .ics text. */

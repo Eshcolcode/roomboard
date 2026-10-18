@@ -1,8 +1,8 @@
 // Supabase backend. Mirrors supabase/migrations/*.sql. Derived changeovers, activity log and the alert
 // outbox are written by database triggers, so this file only reads tables and performs the user's writes.
 import { createClient, type RealtimeChannel } from '@supabase/supabase-js';
-import { S, publish, ConflictError } from './core';
-import type { DB, Stay, Changeover, Worker, Series, StayInput } from './core';
+import { S, publish, ConflictError, DEFAULT_SETTINGS } from './core';
+import type { DB, Stay, Changeover, Worker, Series, Settings, StayInput } from './core';
 import { reshape } from './crew';
 import { londonToday } from '../dates';
 import type { Repo } from './repo';
@@ -41,7 +41,7 @@ const mapStay = (r: R.StayRow): Stay => ({
   updatedAt: r.updated_at,
   seriesId: r.series_id ?? null,
   slot: r.slot ?? null,
-  request: r.request ?? null,
+  bookedBy: r.booked_by ?? null,
 });
 const mapSeries = (r: R.SeriesRow): Series => ({
   id: r.id,
@@ -108,6 +108,10 @@ const mapCo = (r: R.ChangeoverRow): Changeover => ({
 });
 
 const rows = <T>(d: unknown): T[] => (d ?? []) as T[];
+const settingsFrom = (rs: R.SettingsRow[]): Settings => {
+  const v = Number(rs.find(r => r.key === 'rate_per_room_week')?.value);
+  return { ...DEFAULT_SETTINGS, ...(Number.isFinite(v) && v > 0 ? { ratePerRoomWeek: v } : {}) };
+};
 
 async function refresh() {
   const {
@@ -118,7 +122,7 @@ async function refresh() {
     return;
   }
   const q = (t: string, order = 'id') => sb.from(t).select('*').order(order);
-  const [pr, pp, un, rm, wk, st, co, ac, al, en, se, fd, bl, tk] = await Promise.all([
+  const [pr, pp, un, rm, wk, st, co, ac, al, en, se, fd, bl, tk, cf] = await Promise.all([
     q('profiles'),
     q('properties', 'sort'),
     q('units', 'sort'),
@@ -134,6 +138,7 @@ async function refresh() {
     q('ical_blocks', 'start_date'),
     // Sheena cannot read other guests' stays in the extras (0008 RLS): she gets their dates only
     sb.rpc('extra_taken'),
+    sb.from('app_settings').select('*'), // everyone reads; only the manager can change (0008)
   ]);
   publish({
     v: 1,
@@ -191,7 +196,9 @@ async function refresh() {
       userId: r.user_id,
       text: r.text,
       propertyId: r.property_id ?? undefined,
+      ...(r.manager_only ? { managerOnly: true } : {}),
     })),
+    settings: settingsFrom(rows<R.SettingsRow>(cf.data)),
     alerts: rows<R.AlertRow>(al.data).map(r => ({
       id: r.id,
       ts: r.created_at,
@@ -259,8 +266,6 @@ const toRow = (
   away_from: i.away?.from ?? null,
   away_to: i.away?.to ?? null,
   notes: i.notes,
-  // a client's booking of an extra property is forced to a request by the stays_request trigger (0008)
-  ...('request' in i ? { request: (i as { request?: 'pending' | null }).request ?? null } : {}),
 });
 const fail = (e: R.PgError | null | undefined) => {
   if (e?.code === '23P01') throw new Error('That room is already taken for some of those nights.');
@@ -471,12 +476,13 @@ export const supabaseRepo: Repo = {
     undoStack.push({ kind: 'batch', items: done });
     await refresh();
   },
-  async confirmRequest(id) {
-    fail((await sb.rpc('answer_request', { p_stay: id, p_confirm: true, p_reason: '' })).error);
-    await refresh();
-  },
-  async declineRequest(id, reason) {
-    fail((await sb.rpc('answer_request', { p_stay: id, p_confirm: false, p_reason: reason })).error);
+  async setSettings(s) {
+    if (s.ratePerRoomWeek !== undefined) {
+      const r = Math.round(s.ratePerRoomWeek);
+      if (!Number.isFinite(r) || r <= 0 || r > 100000)
+        throw new Error('Enter a weekly price in pounds, for example 350.');
+      fail((await sb.from('app_settings').update({ value: r }).eq('key', 'rate_per_room_week')).error);
+    }
     await refresh();
   },
   async syncFeeds() {

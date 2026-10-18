@@ -1,8 +1,8 @@
-// Demo commands for extra properties: confirm / decline a client's request, and the calendar links.
+// Demo commands for extra properties: the calendar links, the export, and Donald's indicative rate.
 import { fmt, londonToday } from '../../dates';
-import { S, iso, validate, roomOf, roomLabel, propOf, stayLabel } from '../core';
-import type { StayInput } from '../core';
-import { snap, commit, log } from './store';
+import { S, iso, roomOf, roomLabel, propOf, stayLabel, DEFAULT_SETTINGS } from '../core';
+import type { Settings } from '../core';
+import { commit, log } from './store';
 import { queueFor, usersOf, actorRole } from './alerts';
 import { SAMPLE_ICS, blocksFrom } from './feeds';
 import { blockClashes, unitIcs } from '../extras';
@@ -13,28 +13,15 @@ function needManager() {
   if (actorRole() !== 'manager') throw new Error('Only Donald can do that.');
 }
 
-export function confirmRequest(id: string) {
+/** Donald's indicative rate (£ per room per week). Sheena cannot change it. */
+export function setSettings(next: Partial<Settings>) {
   needManager();
-  const s = S.db.stays.find(x => x.id === id);
-  if (!s || s.request !== 'pending') throw new Error('This request was already answered.');
-  const err = validate({ ...(s as StayInput), request: null });
-  if (err) throw new Error(err);
-  snap(`confirmed request · ${unitName(s.roomId)}`);
-  Object.assign(s, { request: null, version: s.version + 1, updatedBy: S.db.currentUser, updatedAt: iso() });
-  const t = `Confirmed ${unitName(s.roomId)} for ${stayLabel(s)}, ${dates(s.arrival, s.departure)} · invoiced separately`;
-  log(t, roomOf(s.roomId).propertyId);
-  usersOf('client').forEach(u => queueFor(u, `Request confirmed · ${unitName(s.roomId)}`, t));
-  commit();
-}
-export function declineRequest(id: string, reason: string) {
-  needManager();
-  const s = S.db.stays.find(x => x.id === id);
-  if (!s || s.request !== 'pending') throw new Error('This request was already answered.');
-  snap(`declined request · ${unitName(s.roomId)}`);
-  S.db.stays = S.db.stays.filter(x => x.id !== id);
-  const t = `Declined ${unitName(s.roomId)} for ${dates(s.arrival, s.departure)}${reason ? ` — ${reason}` : ''}`;
-  log(t, roomOf(s.roomId).propertyId);
-  usersOf('client').forEach(u => queueFor(u, `Request declined · ${unitName(s.roomId)}`, t));
+  const cur = { ...DEFAULT_SETTINGS, ...(S.db.settings ?? {}) };
+  const r = next.ratePerRoomWeek;
+  if (r !== undefined && (!Number.isFinite(r) || r <= 0 || r > 100000))
+    throw new Error('Enter a weekly price in pounds, for example 350.');
+  S.db.settings = { ...cur, ...next, ...(r !== undefined ? { ratePerRoomWeek: Math.round(r) } : {}) };
+  log(`Indicative rate set to £${S.db.settings.ratePerRoomWeek} per room per week`, undefined, true);
   commit();
 }
 
@@ -55,7 +42,7 @@ export function syncFeeds(): { conflicts: number } {
   const fresh = blockClashes(S.db).filter(c => !before.has(c.stay.id + c.block.from));
   for (const c of fresh) {
     const t = `${unitName(c.stay.roomId)} is now booked elsewhere ${dates(c.block.from, c.block.to)}, overlapping ${stayLabel(c.stay)} (${dates(c.stay.arrival, c.stay.departure)}). Check for a double booking.`;
-    log('⚠ ' + t, roomOf(c.stay.roomId).propertyId);
+    log('⚠ ' + t, roomOf(c.stay.roomId).propertyId, true); // Donald only
     usersOf('manager').forEach(u => queueFor(u, `⚠ Possible double booking · ${unitName(c.stay.roomId)}`, t));
   }
   commit();

@@ -112,49 +112,6 @@
 .pp-todo span {
   font-weight: 700;
 }
-.pp-req {
-  margin: 16px 0 4px;
-  padding: 14px 16px;
-  border-radius: 16px;
-  background: var(--pu-bg);
-  border: 2px solid var(--pu-line);
-}
-.page-req {
-  max-width: 1500px;
-  margin: 0 auto;
-}
-.page-req .pp-req {
-  margin: 0 0 14px;
-}
-.pp-req h3 {
-  margin: 0 0 8px;
-  font-size: 17px;
-  color: var(--pu-ink);
-}
-.pp-rq {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 8px 0;
-  border-top: 1px solid var(--pu-line);
-}
-.pp-rq span {
-  flex: 1;
-  display: grid;
-}
-.pp-rq b {
-  font-size: 16px;
-}
-.pp-rq small {
-  font-size: 14px;
-  color: var(--mute);
-}
-.pp-rq .btn {
-  min-height: 44px;
-  padding: 0 18px;
-  font-size: 15px;
-}
-/* property page */
 .pp-book {
   display: grid;
   justify-items: center;
@@ -429,9 +386,6 @@
 .av-key .k.taken::before {
   background: #cbd5e1;
 }
-.av-key .k.request::before {
-  background: var(--pu-line);
-}
 .av-months {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -471,11 +425,6 @@
   border-color: #cbd5e1;
   color: #475569;
   text-decoration: line-through;
-}
-.av-d.s-request {
-  background: var(--pu-bg);
-  border-color: var(--pu-line);
-  color: var(--pu-ink);
 }
 .av-d.s-past {
   background: transparent;
@@ -543,14 +492,6 @@
   color: var(--mute);
 }
 .av-who input,
-.x-field input {
-  min-height: 52px;
-  padding: 0 14px;
-  border: 2px solid var(--line);
-  border-radius: 14px;
-  font-size: 18px;
-}
-/* stand-alone availability page */
 .avp {
   min-height: 100vh;
   background: var(--bg);
@@ -678,25 +619,9 @@
 .x-sum b {
   font-size: 21px;
 }
-.x-two {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-}
-.s-btn.x-ok {
-  background: var(--em-ink);
-  border-color: var(--em-ink);
-}
 .x-small {
   font-size: 14.5px;
   color: var(--mute);
-}
-.x-field {
-  display: grid;
-  gap: 6px;
-  margin-bottom: 14px;
-  font-size: 16px;
-  font-weight: 700;
 }
 @media (max-width: 640px) {
   .pp-title h1,
@@ -719,4 +644,127 @@
   .pp-rooms {
     grid-template-columns: 1fr;
   }
+}
+
+/* extra properties in the Rooms view */
+.xsec h3 small {
+  display: block;
+  font-weight: 500;
+}
+.x14 {
+  display: grid;
+  grid-template-columns: repeat(14, 1fr);
+  gap: 3px;
+  margin: 8px 0 4px;
+}
+.x14 i {
+  height: 12px;
+  border-radius: 3px;
+  background: var(--em, #10b981);
+}
+.x14 i.t {
+  background: repeating-linear-gradient(135deg, #cbd5e1 0 3px, #f1f5f9 3px 6px);
+  border: 1px solid #cbd5e1;
+}
+.xline {
+  font-size: 12.5px;
+  color: var(--mute);
+  margin: 4px 0 8px;
+}
+.xbtns {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.xbtns .btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  text-decoration: none;
+  font-weight: 700;
+}
+/* indicative prices */
+.price-box {
+  margin: 12px 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--em-bg, #ecfdf5);
+  border: 1px solid #a7f3d0;
+  color: var(--em-ink, #065f46);
+}
+.price-box b {
+  display: block;
+  font-size: 15px;
+}
+.price-box small {
+  display: block;
+  margin-top: 3px;
+  font-size: 12.5px;
+}
+.pp-price,
+.price-line {
+  display: block;
+  color: var(--em-ink, #065f46) !important;
+  font-weight: 600;
+}
+.pp-price-note {
+  margin: 0 0 12px;
+  color: var(--mute);
+}
+.pp-price-note b {
+  color: var(--em-ink, #065f46);
+}
+.av-est {
+  margin: 6px 0 10px;
+  color: var(--em-ink, #065f46);
+}
+.av-est b,
+.av-est small {
+  display: block;
+}
+.av-est small {
+  color: var(--mute);
+  font-size: 12px;
+}
+.pp-rate {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 12px 14px;
+  margin: 0 0 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+}
+.pp-rate label {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex: 1;
+  min-width: 240px;
+}
+.pp-rate label > span:first-child {
+  flex: 1;
+}
+.pp-rate b,
+.pp-rate small {
+  display: block;
+}
+.pp-rate small {
+  color: var(--mute);
+}
+.pp-rate-in {
+  font-weight: 700;
+  font-size: 18px;
+}
+.pp-rate-in input {
+  width: 90px;
+  font-size: 18px;
+  padding: 8px 10px;
+  margin-left: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
 }

@@ -1,5 +1,5 @@
 // Supabase Edge Function: one secret .ics link per extra unit, for Airbnb / Booking.com to import, so dates
-// booked in Roomboard are blocked there. Confirmed bookings only (not pending requests), as all-day "Booked"
+// booked in Roomboard are blocked there. Every Roomboard booking (all are confirmed when made), as all-day "Booked"
 // events with no guest details. GET /functions/v1/ical-export?t=<token from ical_exports>
 // Not deployed yet. Deploy with: supabase functions deploy ical-export --no-verify-jwt (the token is the secret)
 import { createClient } from 'npm:@supabase/supabase-js@2';
@@ -20,7 +20,6 @@ Deno.serve(async req => {
       .from('stays')
       .select('arrival, departure')
       .eq('room_id', ex.room_id)
-      .is('request', null)
       .or(`departure.is.null,departure.gt.${addDays(today, -30)}`),
   ]);
   // same rule as the app (src/data/extras.ts unitIcs): open-ended stays block a year

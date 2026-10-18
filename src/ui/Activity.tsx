@@ -15,6 +15,9 @@ export function ActivityView() {
   };
   const roles: Role[] = viewer.role === 'manager' ? ['client', 'manager', 'cleaner'] : [viewer.role];
   const alerts = viewer.role === 'manager' ? db.alerts : db.alerts.filter(a => a.toUserId === viewer.id);
+  // Donald-only entries (his own extra-property guests, calendar clashes) never reach Sheena (the database
+  // also withholds them: activity.manager_only, 0008)
+  const log = viewer.role === 'manager' ? db.activity : db.activity.filter(a => !a.managerOnly);
 
   return (
     <div className="page">
@@ -27,7 +30,7 @@ export function ActivityView() {
       <div className="grid2">
         <section className="card">
           <h3>Activity log</h3>
-          {db.activity.map(a => (
+          {log.map(a => (
             <div className="act" key={a.id}>
               <div className="avt sm">
                 {name(a.userId)
@@ -50,7 +53,7 @@ export function ActivityView() {
               </div>
             </div>
           ))}
-          {!db.activity.length && <p className="empty-state">Nothing has changed yet.</p>}
+          {!log.length && <p className="empty-state">Nothing has changed yet.</p>}
         </section>
         <div>
           <section className="card">

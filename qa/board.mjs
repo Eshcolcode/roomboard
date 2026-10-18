@@ -73,6 +73,7 @@ await p.keyboard.press('Escape'); await settle(p);
 // ---------- desktop: drag still works in Quick mode ----------
 {
   const a0 = (await db(p)).stays.find(s => s.roomId === 'lr-6').arrival;
+  await p.locator('.row[data-room="lr-6"]').scrollIntoViewIfNeeded(); // rooms now list Eshcol first
   const bb = await p.locator('.row[data-room="lr-6"] .bar').first().boundingBox();
   const W = 56;
   await p.mouse.move(bb.x + 40, bb.y + bb.height / 2); await p.mouse.down();

@@ -89,6 +89,15 @@ Run the demo (`npm run build && npx vite preview`, or open the uploaded site), t
 - [ ] **Drag:** moving a bar shows the new room/dates live (red with the reason on a clash), asks for confirmation on drop, and can be undone; a clash is refused. Dragging the right edge changes the departure. Enter on a bar still opens the panel.
 - [ ] `npm run lint` is clean; the CI workflow (`ci/github-actions-ci.yml`, to be moved into `.github/workflows/`) runs lint, types, unit, build and e2e on push.
 
+## Extra properties and prices (18 Oct 2026)
+- [ ] Order everywhere (board, Rooms, availability, Properties): Eshcol, Loch Roag, Harris, Uig, Monadh, Abhainn Cottage.
+- [ ] Desktop board: an *Extra properties* group with one row each; Sheena sees her own bookings as bars and everything else as **Taken**; Donald sees names and **Booked elsewhere**. Clicking a free day opens that property to book. Phone: the same four on Rooms with tonight, the next 14 nights and **Book**.
+- [ ] Sheena books an extra directly: **Book these dates** shows the indicative estimate first; the booking is confirmed straight away, Donald gets a "New booking" alert; no confirm/decline step anywhere.
+- [ ] Taken dates (calendar or another booking) cannot be booked; the message names nobody.
+- [ ] Every property shows **Indicative £350 per room per week**; extras say whole property with the bedroom total (Monadh 2 = £700, Abhainn 3 = £1,050, Harris and Uig 1 = £350); "long-term deals possible".
+- [ ] Donald changes the rate on Properties and every price follows; Sheena has no rate setting (and the database refuses her update).
+- [ ] Sheena's activity shows none of Donald's own extra guests and no booking-site names.
+
 ## Roles
 - [ ] The cleaner sees only Today and Cleaning, with first names, and can tick Guest has left / Start clean / Mark ready.
 - [ ] Only the provider books cleans or takes an out-of-window exception.

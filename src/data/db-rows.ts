@@ -17,7 +17,7 @@ export interface StayRow {
   updated_at: string;
   series_id?: N<string>;
   slot?: N<number>;
-  request?: N<'pending'>;
+  booked_by?: N<string>;
 }
 export interface ChangeoverRow {
   id: string;
@@ -91,6 +91,11 @@ export interface ActivityRow {
   user_id: string;
   text: string;
   property_id: N<string>;
+  manager_only?: boolean;
+}
+export interface SettingsRow {
+  key: string;
+  value: unknown;
 }
 export interface AlertRow {
   id: string;

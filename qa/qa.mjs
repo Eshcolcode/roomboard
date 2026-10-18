@@ -629,7 +629,8 @@ ok(
   'C5 phone FAB Add stay / Hold',
   'phone',
 );
-ok((await m.locator('.rr').count()) === 19, '6/C5 phone per-room list (19 rooms)', 'phone');
+ok((await m.locator('.rr:not(.xcard)').count()) === 19, '6/C5 phone per-room list (19 rooms)', 'phone');
+ok((await m.locator('.xcard').count()) === 4, 'phone: the 4 extra properties after the contract rooms', 'phone');
 await m.click('.fab button:has-text("Add stay")');
 const box = await m.locator('.panel').boundingBox();
 ok(box && box.width >= 389 && box.height >= 843, 'phone: stay panel is a full-screen sheet', 'phone');
@@ -684,7 +685,7 @@ ok(await m.locator('.sheet button:has-text("Properties")').isVisible(), 'phone: 
   const q = await page(1440, 950, ctx);
   await reset(q, 'rooms');
   const V = 'v2';
-  ok((await q.locator('.rcard').count()) === 19, 'v2 Rooms: one card per contracted room (19)', V);
+  ok((await q.locator('.rcard:not(.xcard)').count()) === 19, 'v2 Rooms: one card per contracted room (19)', V);
   const r8 = await q.locator('.rcard[data-room="lr-8"]').innerText();
   ok(
     /Departing today/i.test(r8) && /Quick update/.test(r8) && /Next arrival/i.test(r8),
@@ -887,6 +888,9 @@ ok(await m.locator('.sheet button:has-text("Properties")').isVisible(), 'phone: 
     V,
   );
   // resize
+  // keep the grip clear of the "Not moved" toast at the bottom (the board is longer now it has the extras)
+  await q.locator('.row[data-room="lr-6"]').evaluate(e => e.scrollIntoView({ block: 'center' }));
+  await q.waitForTimeout(100);
   const bb3 = await q.locator('.row[data-room="lr-6"] .bar .grip').first().boundingBox();
   await q.mouse.move(bb3.x + 4, bb3.y + bb3.height / 2);
   await q.mouse.down();

@@ -5,8 +5,8 @@
 ## Users and roles
 | Role | Who | Can |
 |---|---|---|
-| Client coordinator | Client's accommodation lead | Add/edit/cancel stays and holds in contracted rooms. Manage saved workers. See changeover status (read-only). Send requests for other properties. See the activity log |
-| Provider manager | Donald / team | Everything. Schedule changeovers and assign cleaners. See all requests and the alert outbox |
+| Client coordinator | Client's accommodation lead | Add/edit/cancel stays and holds in contracted rooms. Manage saved workers. See changeover status (read-only). Book the extra properties directly (confirmed straight away, whole property; she sees and changes only her own, others as dates). See the activity log |
+| Provider manager | Donald / team | Everything. Schedule changeovers and assign cleaners. Sees every extra booking and the alert outbox; sets the indicative rate |
 | Cleaner | Housekeeping | Today/Upcoming and Changeovers only, with first names only. Move own tasks to In progress → Ready |
 
 ## Properties (confirmed by Donald, 16 Oct 2026)
@@ -68,7 +68,7 @@ The pure rules live in `src/data/rules.ts` (TypeScript) and `supabase/migrations
 |---|---|
 | Cleaner | Changeover alerts only: scheduled, rescheduled, invalidated, ready-by moved, flagged/cancelled |
 | Client (Sheena) | Stay changes made **by the provider**, and *room ready*. Never any cleaner names |
-| Provider | Stay changes made **by the client**, departure confirmations, invalidated or flagged changeovers, requests for other properties |
+| Provider | Stay changes made **by the client**, departure confirmations, invalidated or flagged changeovers, new bookings of extra properties made by the client |
 
 - **Channels:** each user gets **one channel by default (email)**. SMS is opt-in per user (Activity → My alerts). Push only when enabled.
 - **Own edits:** a user is never alerted about their own edit.

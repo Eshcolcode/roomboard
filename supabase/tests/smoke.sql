@@ -59,23 +59,28 @@ do $$ begin perform apply_series('{"label":"Clash","property_id":"p-lr","start_d
   '[{"room_id":"lr-2","hold_label":"X","arrival":"2027-02-03","departure":"2027-02-06","slot":0}]', '[]', '{}', 'booked'); raise notice 'FAIL crew clash';
 exception when others then raise notice 'PASS crew clash rolls back whole booking: %', sqlerrm; end $$;
 select 'T16 crew clash left nothing behind' t, count(*) = 0 ok from series where label = 'Clash';
--- extras: requests, answers, iCal blocks (0008)
+-- extras: direct bookings (no request step), privacy, indicative prices, iCal blocks (0008)
 set request.uid = '00000000-0000-0000-0000-000000000001'; -- Sheena
 insert into stays(room_id,hold_label,arrival,departure) values ('x-pod1','Calum','2027-03-01','2027-03-04');
-select 'T17 client booking of an extra is a pending request' t, request = 'pending' ok from stays where room_id='x-pod1' and hold_label='Calum';
-select 'T18 Donald alerted: New request' t, count(*) > 0 ok from alert_outbox where subject like 'New request%' and recipient_id='00000000-0000-0000-0000-000000000002';
+select 'T17 client books an extra straight away (no request step), recorded as hers' t, booked_by = '00000000-0000-0000-0000-000000000001' ok from stays where room_id='x-pod1' and hold_label='Calum';
+select 'T17a no request column any more' t, not exists (select 1 from information_schema.columns where table_name='stays' and column_name='request') ok;
+select 'T18 Donald alerted: New booking with the indicative price (1 bedroom, £350/7 x 3 = £150)' t, count(*) > 0 ok from alert_outbox
+  where subject like 'New booking%' and body like '%Indicative £150 for 3 nights%' and recipient_id='00000000-0000-0000-0000-000000000002';
 select 'T19 extras make no changeovers' t, count(*) = 0 ok from changeovers where room_id like 'x-%';
-update stays set version = version, request = null where room_id='x-pod1' and hold_label='Calum';
-select 'T20 client cannot confirm their own request' t, request = 'pending' ok from stays where room_id='x-pod1' and hold_label='Calum';
-do $$ begin perform answer_request((select id from stays where hold_label='Calum'), true); raise notice 'FAIL client answered'; exception when others then raise notice 'PASS only Donald answers requests: %', sqlerrm; end $$;
+update stays set version = version, notes = 'Late arrival' where room_id='x-pod1' and hold_label='Calum';
+select 'T20 client can change her own extra booking' t, notes = 'Late arrival' ok from stays where hold_label='Calum';
 set request.uid = '00000000-0000-0000-0000-000000000002'; -- Donald
-select answer_request((select id from stays where hold_label='Calum'), true);
-select 'T21 confirm makes it a booking' t, request is null ok from stays where hold_label='Calum';
-select 'T22 Sheena told: Request confirmed' t, count(*) > 0 ok from alert_outbox where subject like 'Request confirmed%' and recipient_id='00000000-0000-0000-0000-000000000001';
+insert into stays(room_id,hold_label,arrival,departure) values ('x-monadh','Mrs Direct','2027-03-10','2027-03-17');
+select 'T21 Donald''s own extra booking is private: activity hidden from Sheena, no alert to her' t,
+  (select bool_and(manager_only) from activity where entity_id = (select id::text from stays where hold_label='Mrs Direct'))
+  and not exists (select 1 from alert_outbox where recipient_id='00000000-0000-0000-0000-000000000001' and body like '%Mrs Direct%') ok;
+select 'T21a whole-property price: Monadh 2 bedrooms x £350 = £700 a week' t, indicative_price('x-monadh','2027-03-10','2027-03-17') like 'Indicative £700 for 7 nights%' ok;
 set request.uid = '00000000-0000-0000-0000-000000000001';
-do $$ begin update stays set version = version, notes = 'x' where hold_label='Calum'; raise notice 'FAIL client edited confirmed extra'; exception when others then raise notice 'PASS confirmed extra locked for client: %', sqlerrm; end $$;
-insert into stays(room_id,worker_id,hold_label,arrival,departure,request) values ('lr-5',null,'Contract','2027-03-01','2027-03-03','pending');
-select 'T23 contract rooms never hold requests' t, request is null ok from stays where hold_label='Contract';
+do $$ begin insert into stays(room_id,hold_label,arrival,departure) values ('x-monadh','Crew','2027-03-15','2027-03-20'); raise notice 'FAIL double booking allowed';
+exception when others then if sqlerrm like '%Direct%' then raise notice 'FAIL clash message names a guest'; else raise notice 'PASS taken dates blocked without naming anyone: %', sqlerrm; end if; end $$;
+do $$ begin update stays set version = version, notes = 'x' where hold_label='Mrs Direct'; raise notice 'FAIL client edited Donald''s extra'; exception when others then raise notice 'PASS Donald''s extra bookings locked for Sheena: %', sqlerrm; end $$;
+insert into stays(room_id,worker_id,hold_label,arrival,departure) values ('lr-5',null,'Contract','2027-03-01','2027-03-03');
+select 'T23 contract rooms book as before' t, count(*) = 1 ok from stays where hold_label='Contract';
 -- feed + blocks (as the sync would write them)
 -- one feed row per extra unit, naming a secret (no URLs in the database)
 select 'T24a a feed row per extra unit, each naming an ICAL_ secret, none linked yet' t, count(*) = 4 and bool_and(env_key ~ '^ICAL_') and not bool_or(linked) ok from ical_feeds;
@@ -110,10 +115,26 @@ do $$ begin insert into stays(room_id,hold_label,arrival,departure) values ('x-p
 insert into stays(room_id,hold_label,arrival,departure) values ('x-pod2','Ewan','2027-05-01','2027-05-03');
 set request.uid = '00000000-0000-0000-0000-000000000002';
 insert into stays(room_id,hold_label,arrival,departure) values ('x-cottage','Direct guest','2027-05-01','2027-05-08');
-select 'T29 Donald books extras directly (no request)' t, request is null ok from stays where hold_label='Direct guest';
-select answer_request((select id from stays where hold_label='Ewan'), false, 'Pod closed for repairs');
-select 'T30 decline removes the request' t, count(*) = 0 ok from stays where hold_label='Ewan';
-select 'T31 Sheena told why' t, count(*) > 0 ok from alert_outbox where subject like 'Request declined%' and body like '%Pod closed for repairs%';
+select 'T29 Donald books extras directly' t, count(*) = 1 ok from stays where hold_label='Direct guest';
+set request.uid = '00000000-0000-0000-0000-000000000001';
+delete from stays where hold_label='Ewan';
+select 'T30 Sheena can cancel her own extra booking' t, count(*) = 0 ok from stays where hold_label='Ewan';
+select 'T31 double-booking log is Donald-only and names no booking site' t, bool_and(manager_only) and not bool_or(text like '%Airbnb%') ok from activity where text like '⚠ Possible double booking%';
+-- RLS as an ordinary signed-in role: settings, activity, others' extra bookings
+grant select, update on app_settings to rb_rls_probe; grant select on activity, stays to rb_rls_probe;
+set role rb_rls_probe;
+set request.uid = '00000000-0000-0000-0000-000000000001'; -- Sheena
+select 'T34 Sheena reads the rate' t, (value #>> '{}')::int = 350 ok from app_settings where key = 'rate_per_room_week';
+update app_settings set value = '1' where key = 'rate_per_room_week';
+select 'T35 Sheena cannot change the rate' t, (value #>> '{}')::int = 350 ok from app_settings where key = 'rate_per_room_week';
+select 'T36 Sheena sees no Donald-only activity' t, count(*) = 0 ok from activity where manager_only;
+select 'T37 Sheena cannot read Donald''s extra bookings (dates only via extra_taken)' t, count(*) = 0 ok from stays where hold_label in ('Mrs Direct','Direct guest');
+select 'T37a Sheena reads her own extra booking' t, count(*) = 1 ok from stays where hold_label = 'Calum';
+set request.uid = '00000000-0000-0000-0000-000000000002'; -- Donald
+update app_settings set value = '400' where key = 'rate_per_room_week';
+select 'T38 Donald changes the rate' t, (value #>> '{}')::int = 400 ok from app_settings where key = 'rate_per_room_week';
+reset role;
+select 'T39 prices follow the rate (Abhainn 3 bedrooms x £400, 7 nights = £1,200)' t, indicative_price('x-cottage','2027-06-01','2027-06-08') like 'Indicative £1,200 for 7 nights%' ok;
 set request.uid = '00000000-0000-0000-0000-000000000001';
 select 'T32 extra_taken gives Sheena dates without names' t, count(*) = 1 ok from extra_taken() where room_id = 'x-cottage' and start_date = '2027-05-01';
 select 'T33 export tokens for every extra unit' t, count(*) = 4 ok from ical_exports;

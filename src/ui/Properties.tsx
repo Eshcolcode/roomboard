@@ -1,20 +1,22 @@
-// Properties: every house with its real details and photos. Contract houses list their rooms (bathroom type,
-// photos); extra properties show availability and take requests ("Extra · invoiced separately").
+// Properties: every house with its real details, photos and indicative price. Contract houses list their rooms;
+// extra properties show availability and are booked straight away, whole ("Extra · invoiced separately").
+// Donald sets the one indicative rate here (Sheena sees the prices only).
 // Unknown items are marked "details to come", never invented. #available, #available/<propertyId>.
 import { useState } from 'react';
-import { data, useDB, me, bathText, stayLabel, thumb } from '../data';
-import type { Photo, Property, Stay } from '../data';
+import { data, useDB, me, bathText, thumb } from '../data';
+import type { Photo, Property } from '../data';
 import { fmt, londonToday } from '../dates';
-import { nextFree, pendingRequests, unitOf } from '../data/extras';
+import { nextFree, unitOf } from '../data/extras';
+import { priceLine, rate, PRICE_NOTE } from '../data/pricing';
 import { UnitAvailability } from './Availability';
 import type { PanelInit } from './StayPanel';
 import { toast } from './overlays';
 import './props.css';
 
-export function Properties({ sub, onOpen }: { sub?: string; onOpen: (p: PanelInit) => void }) {
+export function Properties({ sub }: { sub?: string; onOpen?: (p: PanelInit) => void }) {
   const db = useDB();
   const p = sub ? db.properties.find(x => x.id === sub) : undefined;
-  if (p) return <PropertyPage p={p} onOpen={onOpen} />;
+  if (p) return <PropertyPage p={p} />;
   const T = londonToday();
   const contract = db.properties.filter(x => x.contracted);
   const extras = db.properties.filter(x => !x.contracted);
@@ -24,15 +26,24 @@ export function Properties({ sub, onOpen }: { sub?: string; onOpen: (p: PanelIni
         <h1>Properties</h1>
         <p>All in Breasclete, Isle of Lewis</p>
       </div>
-      <Requests onOpen={onOpen} />
+      <p className="pp-price-note">
+        <b>Indicative {'£' + rate(db).toLocaleString('en-GB')} per room per week</b> · {PRICE_NOTE}
+      </p>
+      {me().role === 'manager' && <RateSetting />}
       <h2 className="pp-h2">Contract houses</h2>
       <div className="pp-cards">
         {contract.map(x => (
-          <PropCard key={x.id} p={x} line={`${db.rooms.filter(r => r.propertyId === x.id).length} bedrooms`} />
+          <PropCard
+            key={x.id}
+            p={x}
+            line={`${db.rooms.filter(r => r.propertyId === x.id).length} bedrooms · booked per room`}
+            price={priceLine(db, x)}
+          />
         ))}
       </div>
       <h2 className="pp-h2">
-        Extra properties <small>Extra · invoiced separately · outside the contract allocation</small>
+        Extra properties{' '}
+        <small>Booked as a whole property · invoiced separately · outside the contract allocation</small>
       </h2>
       <div className="pp-cards">
         {extras.map(x => {
@@ -44,6 +55,7 @@ export function Properties({ sub, onOpen }: { sub?: string; onOpen: (p: PanelIni
               p={x}
               extra
               line={[x.beds, x.sleeps && `Sleeps ${x.sleeps}`].filter(Boolean).join(' · ') || 'Details to come'}
+              price={priceLine(db, x)}
               status={nf ? (nf === T ? 'Free tonight' : `Free from ${fmt(nf)}`) : 'Fully booked for now'}
             />
           );
@@ -88,7 +100,19 @@ function Enquiries() {
   );
 }
 
-function PropCard({ p, line, status, extra }: { p: Property; line: string; status?: string; extra?: boolean }) {
+function PropCard({
+  p,
+  line,
+  price,
+  status,
+  extra,
+}: {
+  p: Property;
+  line: string;
+  price: string;
+  status?: string;
+  extra?: boolean;
+}) {
   return (
     <a className="pp-card" href={'#available/' + p.id} data-prop={p.id}>
       {p.photo ? (
@@ -99,6 +123,7 @@ function PropCard({ p, line, status, extra }: { p: Property; line: string; statu
       <span className="pp-cb">
         <b>{p.name}</b>
         <small>{line}</small>
+        <small className="pp-price">{price}</small>
         {status && <em className={status.startsWith('Free') ? 'ok' : ''}>{status}</em>}
         {extra && <span className="xtag">Extra · invoiced separately</span>}
       </span>
@@ -106,33 +131,42 @@ function PropCard({ p, line, status, extra }: { p: Property; line: string; statu
   );
 }
 
-/** Requests for extra properties: Donald answers them, Sheena sees they are waiting. */
-export function Requests({ onOpen }: { onOpen: (p: PanelInit) => void }) {
+/** Donald only: the one indicative rate used for every price in the app. Sheena sees the prices, not this. */
+function RateSetting() {
   const db = useDB();
-  const u = me();
-  const list = pendingRequests(db);
-  if (!list.length || u.role === 'cleaner') return null;
-  const name = (s: Stay) => db.properties.find(p => p.id === db.rooms.find(r => r.id === s.roomId)!.propertyId)!.name;
+  const [v, setV] = useState(String(rate(db)));
+  const [busy, setBusy] = useState(false);
+  const save = async () => {
+    setBusy(true);
+    try {
+      await data.setSettings({ ratePerRoomWeek: Number(v) });
+      toast(`Indicative rate set to £${Math.round(Number(v))} per room per week`);
+    } catch (e) {
+      toast((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
   return (
-    <section className="pp-req" aria-label="Requests for extra properties">
-      <h3>
-        {u.role === 'manager'
-          ? `${list.length} request${list.length === 1 ? '' : 's'} to answer`
-          : `Waiting for Donald (${list.length})`}
-      </h3>
-      {list.map(s => (
-        <div className="pp-rq" key={s.id}>
-          <span>
-            <b>{name(s)}</b>
-            <small>
-              {fmt(s.arrival)} → {s.departure ? fmt(s.departure) : 'open'} · {stayLabel(s)}
-            </small>
-          </span>
-          <button className="btn primary" onClick={() => onOpen({ stay: s })}>
-            {u.role === 'manager' ? 'Answer' : 'View'}
-          </button>
-        </div>
-      ))}
+    <section className="pp-rate" aria-label="Indicative rate">
+      <label>
+        <span>
+          <b>Indicative rate</b>
+          <small>Per room per week, used for every property. Only you can change it.</small>
+        </span>
+        <span className="pp-rate-in">
+          £
+          <input
+            inputMode="numeric"
+            value={v}
+            onChange={e => setV(e.target.value.replace(/[^\d]/g, ''))}
+            aria-label="Indicative rate in pounds per room per week"
+          />
+        </span>
+      </label>
+      <button className="btn primary" disabled={busy || !v || Number(v) === rate(db)} onClick={save}>
+        Save
+      </button>
     </section>
   );
 }
@@ -156,7 +190,7 @@ function Gallery({ photos, name }: { photos: Photo[]; name: string }) {
   );
 }
 
-function PropertyPage({ p, onOpen }: { p: Property; onOpen: (x: PanelInit) => void }) {
+function PropertyPage({ p }: { p: Property }) {
   const db = useDB();
   const u = me();
   const units = db.units.filter(x => x.propertyId === p.id);
@@ -188,6 +222,15 @@ function PropertyPage({ p, onOpen }: { p: Property; onOpen: (x: PanelInit) => vo
         </p>
       </div>
       <p className="pp-blurb">{p.blurb}</p>
+      <div className="price-box" data-price={p.id}>
+        <b>{priceLine(db, p)}</b>
+        <small>
+          {p.contracted
+            ? 'Each room is priced on its own.'
+            : 'Booked as a whole property: every bedroom is charged, even if only one is used.'}{' '}
+          Pro rata: the weekly price ÷ 7 per night. {PRICE_NOTE}
+        </small>
+      </div>
       {facts.length > 0 && (
         <dl className="pp-facts">
           {facts.map(([k, v]) => (
@@ -243,7 +286,6 @@ function PropertyPage({ p, onOpen }: { p: Property; onOpen: (x: PanelInit) => vo
         </section>
       )}
       {!p.contracted && u.role === 'manager' && <CalendarLinks p={p} />}
-      {p.contracted && <Requests onOpen={onOpen} />}
       {p.todo?.length ? (
         <p className="pp-todo">
           <span>Details to come:</span> {p.todo.join(' · ')}

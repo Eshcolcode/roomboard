@@ -22,6 +22,8 @@ import type { PanelInit } from './StayPanel';
 import { confirmDialog, toast } from './overlays';
 import { copySummary } from './summary';
 import { Icon } from './icons';
+import { dayState, nextFree, segments, unitOf } from '../data/extras';
+import { priceLine, PRICE_NOTE } from '../data/pricing';
 
 /** "Leaves Fri 23 Oct (planned)" / "Until further notice" / "Departure TBC" — never "departs Until further notice". */
 export function leaving(s: Stay) {
@@ -186,6 +188,7 @@ export function Rooms({ onOpen }: { onOpen: (p: PanelInit) => void }) {
           </section>
         );
       })}
+      {filter === 'all' && <ExtrasSection onOpen={onOpen} />}
       {filter !== 'all' && !rooms.some(show) && (
         <p className="empty-state">
           No rooms match.{' '}
@@ -196,6 +199,82 @@ export function Rooms({ onOpen }: { onOpen: (p: PanelInit) => void }) {
       )}
       {!props.length && <p className="empty-state">No properties yet.</p>}
     </div>
+  );
+}
+
+/** Extra properties (booked whole): live status from Roomboard bookings and their booking calendars. */
+function ExtrasSection({ onOpen }: { onOpen: (p: PanelInit) => void }) {
+  const db = useDB();
+  const u = me();
+  const T = londonToday();
+  const extras = db.properties.filter(p => !p.contracted);
+  if (!extras.length || u.role === 'cleaner') return null;
+  const next14 = Array.from({ length: 14 }, (_, i) => addDays(T, i));
+  return (
+    <section aria-label="Extra properties" className="rooms rgroup xsec">
+      <h3>
+        Extra properties
+        <small>Whole property · invoiced separately · {PRICE_NOTE}</small>
+      </h3>
+      <div className="rgrid">
+        {extras.map(p => {
+          const r = unitOf(db, p.id);
+          if (!r) return null;
+          const tonight = segments(db, r.id, T, addDays(T, 1), u)[0];
+          const nf = nextFree(db, r.id, T);
+          const mineNext = segments(db, r.id, T, addDays(T, 365), u).find(g => g.stay);
+          const n = p.bedrooms ?? 1;
+          const [tone, label] = !tonight ? ['emerald', 'Free tonight'] : ['slate', tonight.stay ? 'Booked' : 'Taken'];
+          return (
+            <article
+              className={'rr rcard xcard tone-' + tone}
+              key={p.id}
+              data-extra={p.id}
+              aria-label={`${p.name}: ${label}`}
+            >
+              <header>
+                <div>
+                  <b>{p.name}</b>
+                  <small>
+                    Whole property · {n} bedroom{n === 1 ? '' : 's'}
+                  </small>
+                </div>
+                <span className={'spill sp-' + tone}>{label}</span>
+              </header>
+              <div className="occ">
+                <div>
+                  <small>Tonight</small>
+                  <b>{!tonight ? 'Free' : tonight.stay ? stayLabel(tonight.stay) : 'Taken'}</b>
+                </div>
+              </div>
+              <div className="x14" aria-label="Next 14 nights" role="img">
+                {next14.map(d => (
+                  <i
+                    key={d}
+                    className={dayState(db, r.id, d) === 'free' ? 'f' : 't'}
+                    title={`${fmt(d)}: ${dayState(db, r.id, d) === 'free' ? 'free' : 'taken'}`}
+                  />
+                ))}
+              </div>
+              <p className="xline">
+                {nf === T ? '' : nf ? `Next free ${fmt(nf)} · ` : 'Fully booked for now · '}
+                {priceLine(db, p)}
+              </p>
+              <div className="xbtns">
+                <a className="btn primary" href={'#available/' + p.id}>
+                  Book
+                </a>
+                {mineNext?.stay && (
+                  <button className="btn ghost" onClick={() => onOpen({ stay: mineNext.stay! })}>
+                    {mineNext.stay.arrival <= T ? 'Current booking' : `Booking ${fmt(mineNext.stay.arrival)}`}
+                  </button>
+                )}
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 

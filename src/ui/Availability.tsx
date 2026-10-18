@@ -1,11 +1,13 @@
 // Extra properties: three-month availability per unit (free / taken only, never who), pick dates by tapping
-// the first night and the check-out day, then "Request these dates". Used on the property page and on the
-// stand-alone #availability page. A client's booking here is a request that Donald confirms.
+// the first night and the check-out day, then "Book these dates". Used on the property page and on the
+// stand-alone #availability page. A booking is confirmed straight away (whole property, indicative price shown);
+// Donald is told, and invoicing happens separately.
 import { useMemo, useState } from 'react';
 import { data, useDB, me, thumb } from '../data';
 import type { Property } from '../data';
 import { addDays, diffDays, fmt, londonToday } from '../dates';
 import { dayState, rangeFree, unitOf } from '../data/extras';
+import { estimateLine, priceLine, PRICE_NOTE } from '../data/pricing';
 import type { DayState } from '../data/extras';
 import './props.css';
 
@@ -18,7 +20,6 @@ const nextMonth = (m: string) => {
 const STATE_TEXT: Record<DayState, string> = {
   free: 'free',
   taken: 'taken',
-  request: 'requested',
   elsewhere: 'taken',
 };
 
@@ -85,7 +86,7 @@ function Month({
   );
 }
 
-/** Three months for one extra unit, with date picking and the request button. */
+/** Three months for one extra unit, with date picking and the booking button. */
 export function UnitAvailability({ p, months = 3 }: { p: Property; months?: number }) {
   const db = useDB();
   const u = me();
@@ -129,9 +130,10 @@ export function UnitAvailability({ p, months = 3 }: { p: Property; months?: numb
       setMsg({
         ok: true,
         text:
-          u.role === 'client'
-            ? `Request sent: ${p.name}, ${fmt(from)} → ${fmt(to)}. Donald will confirm. Invoiced separately.`
-            : `Booked: ${p.name}, ${fmt(from)} → ${fmt(to)}.`,
+          `Booked and confirmed: ${p.name} (whole property), ${fmt(from)} → ${fmt(to)}. ` +
+          `${estimateLine(db, p, diffDays(from, to))}. ` +
+          (u.role === 'client' ? 'Donald has been notified. ' : '') +
+          'Invoiced separately; long-term deals possible.',
       });
       setFrom(null);
       setTo(null);
@@ -147,7 +149,6 @@ export function UnitAvailability({ p, months = 3 }: { p: Property; months?: numb
       <div className="av-key" aria-hidden>
         <span className="k free">Free</span>
         <span className="k taken">Taken</span>
-        <span className="k request">Requested</span>
       </div>
       <div className="av-months">
         {list.map(m => (
@@ -175,10 +176,14 @@ export function UnitAvailability({ p, months = 3 }: { p: Property; months?: numb
                   Who is staying? <small>(optional)</small>
                   <input value={who} onChange={e => setWho(e.target.value)} placeholder="Name to follow" />
                 </label>
+                <p className="av-est" data-est={p.id}>
+                  <b>{estimateLine(db, p, nights)}</b>
+                  <small>Whole property · {PRICE_NOTE}</small>
+                </p>
                 <button className="s-btn big av-go" disabled={busy} onClick={send}>
-                  {u.role === 'client' ? 'Request these dates' : 'Book these dates'}
+                  Book these dates
                 </button>
-                {u.role === 'client' && <p className="av-small">Extra · invoiced separately · Donald confirms</p>}
+                <p className="av-small">Confirmed straight away · Donald is notified · invoiced separately</p>
               </>
             )}
           </>
@@ -229,7 +234,7 @@ export function AvailabilityPage({ only }: { only?: string }) {
         <h1>Extra properties</h1>
         <p className="avp-lead">
           Breasclete, Isle of Lewis · next 3 months. <b>Extra · invoiced separately</b>, outside the contract
-          allocation.
+          allocation. Each is booked as a whole property. {PRICE_NOTE}
         </p>
         {only && (
           <p>
@@ -248,6 +253,7 @@ export function AvailabilityPage({ only }: { only?: string }) {
                 <h2>{p.name}</h2>
                 <p>{[p.beds, p.sleeps && `Sleeps ${p.sleeps}`].filter(Boolean).join(' · ') || 'Details to come'}</p>
                 <span className="xtag">Extra · invoiced separately</span>
+                <span className="price-line">{priceLine(db, p)}</span>
                 <a className="avp-more" href={'#available/' + p.id}>
                   Details and photos ›
                 </a>

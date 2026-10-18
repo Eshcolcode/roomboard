@@ -548,6 +548,60 @@ main {
 .lg.away {
   background: var(--gold);
 }
+/* extra properties on the board: own group, one row each, booked whole */
+.xgrp {
+  border-top: 2px solid var(--gold);
+  align-items: center;
+}
+.xgrp-note {
+  position: sticky;
+  left: 230px;
+  padding: 6px 12px;
+  font-size: 11.5px;
+  color: var(--em-ink);
+}
+.xrow .rl b::after {
+  content: 'Extra';
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 9.5px;
+  font-weight: 700;
+  background: var(--em-bg);
+  color: var(--em-ink);
+  vertical-align: 1px;
+}
+.xrow .track {
+  cursor: pointer;
+}
+.bar.xbar {
+  background: linear-gradient(180deg, var(--teal), #065f46);
+}
+.xblock {
+  position: absolute;
+  top: 5px;
+  height: 34px;
+  border-radius: 7px;
+  padding: 0 9px;
+  display: flex;
+  align-items: center;
+  background: repeating-linear-gradient(135deg, #e2e8f0 0 7px, #f1f5f9 7px 14px);
+  border: 1px solid #cbd5e1;
+  color: var(--mute);
+  font-size: 11px;
+  font-weight: 600;
+  overflow: hidden;
+  white-space: nowrap;
+  z-index: 2;
+  cursor: default;
+}
+.xblock.elsewhere {
+  border-style: dashed;
+}
+.lg.xtaken {
+  background: repeating-linear-gradient(135deg, #cbd5e1 0 3px, #f1f5f9 3px 6px);
+  border: 1px solid #cbd5e1;
+}
 .tl {
   color: var(--red);
 }

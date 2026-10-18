@@ -10,7 +10,7 @@ import type { Block, Feed } from '../core';
 import { mergeRanges, parseICS } from '../ical';
 import MONADH from './monadh-sample.ics?raw';
 
-export const EXTRA_UNITS = ['x-pod1', 'x-pod2', 'x-cottage', 'x-monadh'];
+export const EXTRA_UNITS = ['x-pod1', 'x-pod2', 'x-monadh', 'x-cottage'];
 const LABEL: Record<string, string> = {
   'x-pod1': 'Harris calendar',
   'x-pod2': 'Uig calendar',

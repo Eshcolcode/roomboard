@@ -1,4 +1,4 @@
-import { S, publish, uid, iso, reconcile } from '../core';
+import { S, publish, uid, iso, reconcile, DEFAULT_SETTINGS } from '../core';
 import type { DB, Stay, Changeover, Series } from '../core';
 import { seed } from './seed';
 import { alertStayChange } from './alerts';
@@ -10,7 +10,8 @@ import { londonToday } from '../../dates';
  * v1 → v2: real details + extras. v2 → v3 (18 Oct 2026): Lodge merged into Monadh, Harris/Uig, Loch Roag photos,
  * calendar links become secret server settings (only Monadh linked). */
 export function upgrade(x: DB): DB {
-  if ((x.v ?? 1) >= 3) return x;
+  if ((x.v ?? 1) >= 4) return x;
+  if ((x.v ?? 1) === 3) return toV4(x);
   const old = new Map(x.properties.map(p => [p.id, p]));
   x.properties = structuredClone(PROPERTIES).map(p => ({
     ...p,
@@ -23,6 +24,28 @@ export function upgrade(x: DB): DB {
   x.stays = x.stays.filter(st => ids.has(st.roomId)); // e.g. requests on the old separate Lodge
   Object.assign(x, demoFeeds(londonToday()));
   x.v = 3;
+  return toV4(x);
+}
+/** v3 → v4 (18 Oct 2026): no more requests (extras are booked straight away), who booked each stay, Donald's
+ * indicative rate, property order Eshcol, Loch Roag, Harris, Uig, Monadh, Abhainn Cottage, bedroom counts. */
+function toV4(x: DB): DB {
+  const old = new Map(x.properties.map(p => [p.id, p]));
+  x.properties = structuredClone(PROPERTIES).map(p => ({
+    ...p,
+    checkout: old.get(p.id)?.checkout ?? p.checkout,
+    checkin: old.get(p.id)?.checkin ?? p.checkin,
+  }));
+  x.units = structuredClone(UNITS);
+  x.rooms = structuredClone(ROOMS);
+  const manager = x.users.find(u => u.role === 'manager')?.id ?? null;
+  const client = x.users.find(u => u.role === 'client')?.id ?? null;
+  x.stays = x.stays.map(st => {
+    const { request, ...rest } = st as Stay & { request?: string | null };
+    // a waiting request was Sheena's; anything else already there counts as Donald's
+    return { ...rest, bookedBy: rest.bookedBy ?? (request === 'pending' ? client : manager) };
+  });
+  x.settings = { ...DEFAULT_SETTINGS, ...(x.settings ?? {}) };
+  x.v = 4;
   return x;
 }
 
@@ -82,9 +105,9 @@ export function commit() {
   localStorage.setItem(KEY, JSON.stringify(n));
   publish(n);
 }
-export function log(text: string, propertyId?: string) {
-  S.db.activity = [{ id: uid(), ts: iso(), userId: S.db.currentUser, text, propertyId }, ...S.db.activity].slice(
-    0,
-    300,
-  );
+export function log(text: string, propertyId?: string, managerOnly = false) {
+  S.db.activity = [
+    { id: uid(), ts: iso(), userId: S.db.currentUser, text, propertyId, ...(managerOnly ? { managerOnly } : {}) },
+    ...S.db.activity,
+  ].slice(0, 300);
 }

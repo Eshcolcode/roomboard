@@ -14,7 +14,7 @@ import { TodayList } from './ui/Today';
 import { Changeovers } from './ui/Changeovers';
 import { Workers } from './ui/Workers';
 import { FreeRooms } from './ui/FreeRooms';
-import { Properties, Requests } from './ui/Properties';
+import { Properties } from './ui/Properties';
 import { AvailabilityPage } from './ui/Availability';
 import { ActivityView } from './ui/Activity';
 import { Search } from './ui/Search';
@@ -129,7 +129,7 @@ function Shell({ wide }: { wide: boolean }) {
 
   // Quick (default): the one-question quick card / booking flow. Classic: the original panel, unchanged.
   const open = (p: PanelInit) => {
-    // extras (requests to confirm) always use the quick card: the classic form only knows contract rooms
+    // extras always use the quick card: the classic form only knows contract rooms
     const extra =
       !!p.stay &&
       !db.properties.find(x => x.id === db.rooms.find(r => r.id === p.stay!.roomId)?.propertyId)?.contracted;
@@ -242,14 +242,7 @@ function Shell({ wide }: { wide: boolean }) {
 
       <main>
         {cur === 'board' && <Board onOpen={open} />}
-        {cur === 'rooms' && (
-          <>
-            <div className="page-req">
-              <Requests onOpen={open} />
-            </div>
-            <Rooms onOpen={open} />
-          </>
-        )}
+        {cur === 'rooms' && <Rooms onOpen={open} />}
         {cur === 'free' && <FreeRooms onOpen={open} />}
         {cur === 'today' && <TodayList onOpen={open} />}
         {cur === 'changeovers' && <Changeovers />}

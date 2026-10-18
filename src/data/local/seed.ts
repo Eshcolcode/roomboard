@@ -1,5 +1,5 @@
 import { addDays, londonToday, fmt } from '../../dates';
-import { uid, iso } from '../core';
+import { uid, iso, DEFAULT_SETTINGS } from '../core';
 import type { DB, User, Stay, DepStatus, Changeover, Worker, Property, Unit, Room, Activity } from '../core';
 import { PROPERTIES, UNITS, ROOMS } from '../properties';
 import { demoFeeds } from './feeds';
@@ -98,6 +98,8 @@ export function seed(): DB {
     S('es-8', 12, -5, 1, 'confirmed'),
     S('es-8', 18, 1, 15),
     S('es-10', 17, -1, 13),
+    // Donald's own guest in an extra property: Sheena sees these dates as "taken", never who
+    S('x-cottage', null, 3, 10, 'planned', { holdLabel: 'Direct guest', bookedBy: 'u-donald', updatedBy: 'u-donald' }),
   ];
   const changeovers: Changeover[] = [
     {
@@ -138,7 +140,8 @@ export function seed(): DB {
     },
   ];
   return {
-    v: 3,
+    v: 4,
+    settings: { ...DEFAULT_SETTINGS },
     users,
     properties,
     units,

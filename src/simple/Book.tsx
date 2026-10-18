@@ -9,6 +9,7 @@ import { Box, Calendar, Chip, Note } from './parts';
 import { WhoPick } from './Who';
 import type { WhoAnswer } from './Who';
 import { freeIn, suggestBlock, roomText, roomNum } from './logic';
+import { estimate, estimateLine, gbp, rate, PRICE_NOTE } from '../data/pricing';
 
 type Step = 'who' | 'count' | 'arrive' | 'leave' | 'room' | 'done';
 type Extra = null | 'phone' | 'email' | 'note' | 'rota' | 'rota-len' | 'rota-off';
@@ -838,6 +839,29 @@ export function Book({
           </span>
           {first.seriesId && doneExtras.includes('rota') && <span className="s-tag">Repeats as a rota</span>}
         </div>
+      </div>
+      <div className="price-box" data-price="booking">
+        <b>
+          {single || !first.departure
+            ? estimateLine(
+                db,
+                db.properties.find(p => p.id === r0.propertyId)!,
+                first.departure ? diffDays(first.arrival, first.departure) : null,
+              ) + (single ? '' : ` × ${stays.length} rooms`)
+            : `Indicative ${gbp(
+                stays.reduce(
+                  (t, s) =>
+                    t +
+                    estimate(
+                      db,
+                      db.properties.find(p => p.id === db.rooms.find(r => r.id === s.roomId)!.propertyId)!,
+                      s.departure ? diffDays(s.arrival, s.departure) : 0,
+                    ),
+                  0,
+                ),
+              )} for ${stays.length} rooms (${gbp(rate(db))} per room per week ÷ 7 per night)`}
+        </b>
+        <small>{PRICE_NOTE}</small>
       </div>
       <span className="s-lbl">Add more now? All optional</span>
       <div className="s-stack">

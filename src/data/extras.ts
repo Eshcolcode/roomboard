@@ -4,7 +4,7 @@ import { addDays, overlaps } from '../dates';
 import type { Block, DB, Stay } from './core';
 import { exportICS, mergeRanges } from './ical';
 
-export type DayState = 'free' | 'taken' | 'request' | 'elsewhere';
+export type DayState = 'free' | 'taken' | 'elsewhere';
 
 export const extraProps = (db: DB) => db.properties.filter(p => !p.contracted);
 export const unitOf = (db: DB, propertyId: string) => db.rooms.find(r => r.propertyId === propertyId);
@@ -14,7 +14,7 @@ const live = (db: DB, roomId: string) => db.stays.filter(s => s.roomId === roomI
 export function dayState(db: DB, roomId: string, d: string): DayState {
   const n = addDays(d, 1);
   const st = live(db, roomId).find(s => overlaps(s.arrival, s.departure, d, n));
-  if (st) return st.request === 'pending' ? 'request' : 'taken';
+  if (st) return 'taken';
   if ((db.blocks ?? []).some(b => b.roomId === roomId && overlaps(b.from, b.to, d, n))) return 'elsewhere';
   return 'free';
 }
@@ -29,14 +29,12 @@ export function nextFree(db: DB, roomId: string, from: string): string | null {
   return null;
 }
 
-/** The .ics Donald pastes into Airbnb / Booking.com: confirmed bookings only, merged, no names. */
+/** The .ics Donald pastes into Airbnb / Booking.com: Roomboard bookings, merged, no names. */
 export function unitIcs(db: DB, roomId: string, now?: Date): string {
   const r = db.rooms.find(x => x.id === roomId)!;
   const p = db.properties.find(x => x.id === r.propertyId)!;
   const ranges = mergeRanges(
-    live(db, roomId)
-      .filter(s => !s.request)
-      .map(s => ({ from: s.arrival, to: s.departure ?? addDays(s.arrival, 365) })),
+    live(db, roomId).map(s => ({ from: s.arrival, to: s.departure ?? addDays(s.arrival, 365) })),
   ).map(x => ({ ...x, id: `${roomId}-${x.from}` }));
   return exportICS({ name: `${p.name} · Roomboard`, host: 'roomboard.pages.dev', ranges, now });
 }
@@ -49,5 +47,35 @@ export function blockClashes(db: DB): { block: Block; stay: Stay }[] {
       if (overlaps(s.arrival, s.departure, b.from, b.to)) out.push({ block: b, stay: s });
   return out;
 }
-export const pendingRequests = (db: DB) =>
-  db.stays.filter(s => s.request === 'pending').sort((a, b) => a.arrival.localeCompare(b.arrival));
+
+export interface Segment {
+  from: string;
+  to: string | null; // null = open-ended
+  kind: 'stay' | 'taken' | 'elsewhere';
+  stay?: Stay; // only for bookings this person may see in full
+}
+/**
+ * What one extra unit looks like between `from` and `to` for this person, for the board and the Rooms view.
+ * Donald sees every booking, plus dates booked on other sites. Sheena sees her own bookings; everything else
+ * (Donald's guests, other sites) is just "taken", with no name and no site.
+ */
+export function segments(
+  db: DB,
+  roomId: string,
+  from: string,
+  to: string,
+  me: { id: string; role: string },
+): Segment[] {
+  const client = me.role !== 'manager';
+  const out: Segment[] = [];
+  for (const s of live(db, roomId)) {
+    if (!overlaps(s.arrival, s.departure, from, to)) continue;
+    const full = !client || (me.role === 'client' && s.bookedBy === me.id);
+    out.push({ from: s.arrival, to: s.departure, kind: full ? 'stay' : 'taken', ...(full ? { stay: s } : {}) });
+  }
+  for (const b of db.blocks ?? []) {
+    if (b.roomId !== roomId || !overlaps(b.from, b.to, from, to)) continue;
+    out.push({ from: b.from, to: b.to, kind: client || b.feedId === 'taken' ? 'taken' : 'elsewhere' });
+  }
+  return out.sort((a, b) => a.from.localeCompare(b.from));
+}

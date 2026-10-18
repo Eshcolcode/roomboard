@@ -10,30 +10,6 @@ const POD_BOOKING =
 
 export const PROPERTIES: Property[] = [
   {
-    id: 'p-lr',
-    name: 'Loch Roag Guest House',
-    short: 'Loch Roag',
-    contracted: true,
-    checkout: '10:00',
-    checkin: '15:00',
-    area: AREA,
-    address: '22A Breasclete, Isle of Lewis HS2 9EF',
-    blurb:
-      'Family-run guest house overlooking Loch Roag, close to the Callanish Standing Stones. 9 bedrooms: Rooms 1–5 upstairs and 6–9 downstairs, with two kitchens and a large games room and lounge. Most bedrooms look across Loch Roag towards Callanish and the hills of Uig and Harris.',
-    features: ['9 bedrooms', 'Two kitchens', 'Large games room & lounge', 'Free parking', 'Free Wi-Fi'],
-    photo: 'img/lr-room3.webp',
-    photos: [
-      ph('lr-room3', 'Room 3, with windows looking out over Loch Roag'),
-      ph('lr-room1', 'Room 1'),
-      ph('lr-room6-7', 'Downstairs bedroom (Rooms 6 and 7)'),
-      ph('lr-room8', 'Room 8'),
-      ph('lr-room9-bath', 'Room 9 ensuite shower'),
-    ],
-    website: 'https://lochroag.com/',
-    credit: "Room photos: Donald's Google Photos albums (October 2026)",
-    todo: ['Photos of Room 4', 'Outside and shared-space photos (kitchens, games room, lounge)'],
-  },
-  {
     id: 'p-es',
     name: 'Eshcol Worker Accommodation',
     short: 'Eshcol',
@@ -67,10 +43,35 @@ export const PROPERTIES: Property[] = [
     mapUrl: 'https://maps.app.goo.gl/mvJ8TRz1fuh4FGsX9',
     credit: "Photos and room details: Donald's Eshcol share page (July 2026)",
   },
+  {
+    id: 'p-lr',
+    name: 'Loch Roag Guest House',
+    short: 'Loch Roag',
+    contracted: true,
+    checkout: '10:00',
+    checkin: '15:00',
+    area: AREA,
+    address: '22A Breasclete, Isle of Lewis HS2 9EF',
+    blurb:
+      'Family-run guest house overlooking Loch Roag, close to the Callanish Standing Stones. 9 bedrooms: Rooms 1–5 upstairs and 6–9 downstairs, with two kitchens and a large games room and lounge. Most bedrooms look across Loch Roag towards Callanish and the hills of Uig and Harris.',
+    features: ['9 bedrooms', 'Two kitchens', 'Large games room & lounge', 'Free parking', 'Free Wi-Fi'],
+    photo: 'img/lr-room3.webp',
+    photos: [
+      ph('lr-room3', 'Room 3, with windows looking out over Loch Roag'),
+      ph('lr-room1', 'Room 1'),
+      ph('lr-room6-7', 'Downstairs bedroom (Rooms 6 and 7)'),
+      ph('lr-room8', 'Room 8'),
+      ph('lr-room9-bath', 'Room 9 ensuite shower'),
+    ],
+    website: 'https://lochroag.com/',
+    credit: "Room photos: Donald's Google Photos albums (October 2026)",
+    todo: ['Photos of Room 4', 'Outside and shared-space photos (kitchens, games room, lounge)'],
+  },
   // Pods: Donald, 18 Oct 2026: the pod once called "Pod 1" is Harris View, the other is Uig View. Shown as Harris
   // and Uig. The website photos may show either pod (they are the same design).
   {
     id: 'p-pod1',
+    bedrooms: 1,
     brand: 'Hebridean Holiday Cabins',
     name: 'Harris',
     short: 'Harris',
@@ -100,6 +101,7 @@ export const PROPERTIES: Property[] = [
   },
   {
     id: 'p-pod2',
+    bedrooms: 1,
     brand: 'Hebridean Holiday Cabins',
     name: 'Uig',
     short: 'Uig',
@@ -126,9 +128,40 @@ export const PROPERTIES: Property[] = [
     credit:
       'Photos and details: hebrideanholidaycabins.co.uk (the two pods are the same design; photos may show either)',
   },
+  // Donald, 18 Oct 2026: "The Lodge" is Monadh, the only Whitefalls lodge offered. Description is Donald's, word
+  // for word. Website photos may be used.
+  {
+    id: 'p-monadh',
+    bedrooms: 2,
+    brand: 'Whitefalls Spa Lodges',
+    name: 'Monadh',
+    short: 'Monadh',
+    contracted: false,
+    checkout: '10:00',
+    checkin: '16:00',
+    area: AREA,
+    address: 'Whitefalls, Breasclete, Isle of Lewis HS2 9ED',
+    blurb:
+      'Monadh is a self-catering lodge at Whitefalls Spa Lodges in Breasclete on the Isle of Lewis. It has an open-plan living and dining area, a fully equipped kitchen, and a private indoor spa suite with a RiverBath whirlpool bath, infrared sauna and monsoon shower.',
+    beds: '2 bedrooms',
+    sleeps: 'up to 4',
+    photo: 'img/whitefalls-exterior.webp',
+    photos: [
+      ph('whitefalls-exterior', 'Monadh from outside'),
+      ph('whitefalls-lounge', 'Living room with big windows'),
+      ph('whitefalls-kitchen', 'Open-plan kitchen and dining area'),
+      ph('whitefalls-bedroom', 'Bedroom'),
+      ph('whitefalls-spa', 'Private spa suite'),
+    ],
+    features: ['Private spa suite', 'Full kitchen', 'Washer/dryer', 'Wi-Fi', 'Parking'],
+    website: 'https://www.whitefalls.co.uk/luxury-selfcatering-hebrides/',
+    bookingUrl: 'https://secure.supercontrol.co.uk/availability/availability_search.asp?ownerID=859&siteID=10573',
+    credit: 'Photos: whitefalls.co.uk',
+  },
   // Donald, 18 Oct 2026: the 3-bedroom cottage is Abhainn Cottage.
   {
     id: 'p-cottage',
+    bedrooms: 3,
     name: 'Abhainn Cottage',
     short: 'Abhainn Cottage',
     contracted: false,
@@ -155,45 +188,17 @@ export const PROPERTIES: Property[] = [
     credit: 'Photos and details: luxuryhebrideancottage.co.uk',
     todo: ['Check-in and check-out times'],
   },
-  // Donald, 18 Oct 2026: "The Lodge" is Monadh, the only Whitefalls lodge offered. Description is Donald's, word
-  // for word. Website photos may be used.
-  {
-    id: 'p-monadh',
-    brand: 'Whitefalls Spa Lodges',
-    name: 'Monadh',
-    short: 'Monadh',
-    contracted: false,
-    checkout: '10:00',
-    checkin: '16:00',
-    area: AREA,
-    address: 'Whitefalls, Breasclete, Isle of Lewis HS2 9ED',
-    blurb:
-      'Monadh is a self-catering lodge at Whitefalls Spa Lodges in Breasclete on the Isle of Lewis. It has an open-plan living and dining area, a fully equipped kitchen, and a private indoor spa suite with a RiverBath whirlpool bath, infrared sauna and monsoon shower.',
-    sleeps: 'up to 4',
-    photo: 'img/whitefalls-exterior.webp',
-    photos: [
-      ph('whitefalls-exterior', 'Monadh from outside'),
-      ph('whitefalls-lounge', 'Living room with big windows'),
-      ph('whitefalls-kitchen', 'Open-plan kitchen and dining area'),
-      ph('whitefalls-bedroom', 'Bedroom'),
-      ph('whitefalls-spa', 'Private spa suite'),
-    ],
-    features: ['Private spa suite', 'Full kitchen', 'Washer/dryer', 'Wi-Fi', 'Parking'],
-    website: 'https://www.whitefalls.co.uk/luxury-selfcatering-hebrides/',
-    bookingUrl: 'https://secure.supercontrol.co.uk/availability/availability_search.asp?ownerID=859&siteID=10573',
-    credit: 'Photos: whitefalls.co.uk',
-  },
 ];
 
 export const UNITS: Unit[] = [
-  { id: 'un-lr-up', propertyId: 'p-lr', name: 'Upstairs · Rooms 1–5' },
-  { id: 'un-lr-down', propertyId: 'p-lr', name: 'Downstairs · Rooms 6–9' },
   { id: 'un-es-main', propertyId: 'p-es', name: 'Main house · Rooms 1–7' },
   { id: 'un-es-flat', propertyId: 'p-es', name: 'Downstairs flat · Rooms 8–10' },
+  { id: 'un-lr-up', propertyId: 'p-lr', name: 'Upstairs · Rooms 1–5' },
+  { id: 'un-lr-down', propertyId: 'p-lr', name: 'Downstairs · Rooms 6–9' },
   { id: 'un-pod1', propertyId: 'p-pod1', name: 'Harris' },
   { id: 'un-pod2', propertyId: 'p-pod2', name: 'Uig' },
-  { id: 'un-cottage', propertyId: 'p-cottage', name: 'Abhainn Cottage' },
   { id: 'un-monadh', propertyId: 'p-monadh', name: 'Monadh' },
+  { id: 'un-cottage', propertyId: 'p-cottage', name: 'Abhainn Cottage' },
 ];
 
 // Loch Roag room photos from Donald's Google Photos room albums (18 Oct 2026), assigned by album (folder) name.
@@ -249,25 +254,6 @@ const ES_BATH: Bath[] = [
 ];
 
 export const ROOMS: Room[] = [
-  ...Array.from({ length: 9 }, (_, k): Room => {
-    const i = k + 1;
-    const bath: Bath = i === 2 || i === 3 ? 'shared' : i === 8 ? 'private' : 'ensuite';
-    return {
-      id: `lr-${i}`,
-      propertyId: 'p-lr',
-      unitId: i <= 5 ? 'un-lr-up' : 'un-lr-down',
-      floor: i <= 5 ? 'Upstairs' : 'Downstairs',
-      name: `Room ${i}`,
-      bath,
-      ...(LR_PHOTOS[i] ? { photo: LR_PHOTOS[i][0].src, photos: LR_PHOTOS[i] } : {}),
-      note:
-        bath === 'shared'
-          ? `Shares a shower room with Room ${i === 2 ? 3 : 2}`
-          : bath === 'private'
-            ? 'Private shower room (not ensuite)'
-            : 'Ensuite',
-    };
-  }),
   ...Array.from({ length: 10 }, (_, k): Room => {
     const i = k + 1;
     const bath = ES_BATH[k];
@@ -294,13 +280,32 @@ export const ROOMS: Room[] = [
             : undefined,
     };
   }),
+  ...Array.from({ length: 9 }, (_, k): Room => {
+    const i = k + 1;
+    const bath: Bath = i === 2 || i === 3 ? 'shared' : i === 8 ? 'private' : 'ensuite';
+    return {
+      id: `lr-${i}`,
+      propertyId: 'p-lr',
+      unitId: i <= 5 ? 'un-lr-up' : 'un-lr-down',
+      floor: i <= 5 ? 'Upstairs' : 'Downstairs',
+      name: `Room ${i}`,
+      bath,
+      ...(LR_PHOTOS[i] ? { photo: LR_PHOTOS[i][0].src, photos: LR_PHOTOS[i] } : {}),
+      note:
+        bath === 'shared'
+          ? `Shares a shower room with Room ${i === 2 ? 3 : 2}`
+          : bath === 'private'
+            ? 'Private shower room (not ensuite)'
+            : 'Ensuite',
+    };
+  }),
   // Each extra property is booked whole, as one unit.
   ...(
     [
       ['x-pod1', 'p-pod1', 'un-pod1', 'Whole pod'],
       ['x-pod2', 'p-pod2', 'un-pod2', 'Whole pod'],
-      ['x-cottage', 'p-cottage', 'un-cottage', 'Whole cottage'],
       ['x-monadh', 'p-monadh', 'un-monadh', 'Whole lodge'],
+      ['x-cottage', 'p-cottage', 'un-cottage', 'Whole cottage'],
     ] as const
   ).map(([id, propertyId, unitId, name]): Room => ({ id, propertyId, unitId, name, bath: 'ensuite' })),
 ];

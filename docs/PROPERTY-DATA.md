@@ -173,6 +173,30 @@ yet** to **Calendar linked**. To change a link, set the secret again; to unlink,
 | Abhainn Cottage (`x-cottage`) | `ICAL_ABHAINN` | waiting for the link |
 | Monadh (`x-monadh`) | `ICAL_MONADH` | link in hand (SuperControl), kept outside the repo; set it when the live database is set up |
 
+## Indicative prices (Donald, 18 Oct 2026)
+- One rate for every property: **Indicative £350 per room per week**. Donald changes it on *Properties* (live:
+  `app_settings.rate_per_room_week`, readable by everyone signed in, writable by the manager only; demo: this
+  browser). Sheena sees prices but cannot change them.
+- Eshcol and Loch Roag are priced **per room**. Harris, Uig, Monadh and Abhainn Cottage are booked **whole**: every
+  bedroom is charged, even if one is used.
+- Pro rata: **weekly ÷ 7 per night**, rounded to the nearest pound (at £350: £50 a room a night).
+- Always shown as indicative: invoiced separately, long-term deals possible.
+
+| Property | Bedrooms assumed | Source | Indicative price at £350 |
+|---|---|---|---|
+| Eshcol | 10 rooms | D, rooms above | £350 per room per week |
+| Loch Roag | 9 rooms | D, rooms above | £350 per room per week |
+| Harris | 1 | HHC: 1 bedroom + sofa bed (sofa bed not charged) | £350 a week, whole |
+| Uig | 1 | HHC: 1 bedroom + sofa bed (sofa bed not charged) | £350 a week, whole |
+| Monadh | 2 | D brief, "The Lodge (2 ensuite)" = Monadh | £700 a week, whole |
+| Abhainn Cottage | 3 | D, "three-bedroom cottage" (AC: bedroom 3 is a sofa bed and desk room, reached through another; counted, Donald to say if not) | £1,050 a week, whole |
+
+## Booking an extra property
+Sheena books directly (no request step): the booking is confirmed straight away and Donald gets a "New booking"
+alert with the indicative price. Dates already taken (a booking calendar or another Roomboard booking) are refused,
+without saying who has them. Sheena sees and changes only her own extra bookings; Donald's other guests show to her
+as **Taken**, and his bookings there do not appear in her activity or alerts (`activity.manager_only`, 0008).
+
 ## How the iCal sync works (ready to deploy, not deployed)
 - Calendar links are **secrets**. They are stored only as Supabase Edge Function secrets (`ICAL_*`). They are not in
   the repo, not in the database and never shown in the app. Error messages never include them.
@@ -185,11 +209,12 @@ yet** to **Calendar linked**. To change a link, set the secret again; to unlink,
   calendars now**. For each feed: no secret = not linked (old blocks cleared, no error); otherwise fetch, parse with
   `supabase/functions/_shared/ical.ts` (identical to `src/data/ical.ts`; a unit test enforces that), keep ranges
   ending after today, call `replace_ical_blocks`. A failed read keeps the old blocks and shows a plain reason. A new
-  overlap with a Roomboard booking sends Donald one **⚠ Possible double booking** alert.
+  overlap with a Roomboard booking sends Donald one **⚠ Possible double booking** alert (the activity line is
+  Donald-only and names no booking site).
 - Parser rules: all-day DTEND is the check-out day (exclusive); local-midnight all-day events are read as plain dates,
   so the 25 Oct 2026 BST→GMT change cannot shift them; bookings and "Closed" periods are both unavailable; cancelled
   events are ignored; the same UID twice counts once (highest SEQUENCE wins); only dates leave the parser.
-- Edge function `ical-export?t=<token>`: confirmed bookings only, as all-day "Booked" events with no guest details.
+- Edge function `ical-export?t=<token>`: every Roomboard booking of the unit, as all-day "Booked" events with no guest details.
 - Demo / preview: only Monadh is linked, using `src/data/local/monadh-sample.ics`: a sanitised copy of the real
   SuperControl feed's structure and dates, with guest names, booking refs and UIDs replaced by fakes. Labelled
   **Simulated**. Harris, Uig and Abhainn Cottage show **Calendar not linked yet**.

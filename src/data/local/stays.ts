@@ -1,4 +1,4 @@
-import { londonToday, fmt } from '../../dates';
+import { londonToday, fmt, diffDays } from '../../dates';
 import {
   S,
   uid,
@@ -19,18 +19,22 @@ import type { Stay, StayInput } from '../core';
 import { snap, commit, log, undoStack } from './store';
 import { stayError } from '../rules';
 import { alertStayChange, handle } from './alerts';
+import { estimateLine } from '../pricing';
+
+/** An extra-property booking Sheena made (she may see and change it); Donald's own ones stay private. */
+const clientOwned = (s: Stay) => S.db.users.find(u => u.id === s.bookedBy)?.role === 'client';
 
 export function saveStay(inp: StayInput): Stay {
   if (inp.depStatus === 'tbc' || inp.depStatus === 'ufn') inp = { ...inp, departure: null };
-  // Extra properties: the client asks, the provider confirms. A client's booking there is always a request.
+  // Extra properties are booked whole and confirmed straight away (Donald is told; invoiced separately).
+  // Sheena can change or cancel only her own extra bookings; she never sees who else has one.
   const extra = isExtra(roomOf(inp.roomId).propertyId);
   const actor = S.db.users.find(u => u.id === S.db.currentUser)?.role;
-  if (extra && actor === 'client') {
-    const cur = inp.id ? S.db.stays.find(s => s.id === inp.id) : undefined;
-    if (cur && !cur.request) throw new Error('This booking is confirmed. Ask Donald to change it.');
-    inp = { ...inp, request: 'pending' };
-  } else if (!extra && inp.request) inp = { ...inp, request: null };
-  else if (inp.id) inp = { ...inp, request: S.db.stays.find(s => s.id === inp.id)?.request ?? null };
+  if (actor === 'client' && inp.id) {
+    const cur = S.db.stays.find(s => s.id === inp.id);
+    if (cur && (extra || isExtra(roomOf(cur.roomId).propertyId)) && cur.bookedBy !== S.db.currentUser)
+      throw new Error('This booking was made by Donald. Ask him to change it.');
+  }
   const err = validate(inp);
   if (err) throw new Error(err);
   if (inp.id) {
@@ -63,19 +67,29 @@ export function saveStay(inp: StayInput): Stay {
     if ((cur.notes ?? '') !== (inp.notes ?? '')) changes.push('notes updated');
     Object.assign(cur, inp, { version: cur.version + 1, updatedBy: S.db.currentUser, updatedAt: iso() });
     const text = `${roomLabel(cur.roomId)} · ${stayLabel(cur)}: ${changes.join(', ') || 'no changes'}`;
-    log(text, r.propertyId);
+    const priv = extra && !clientOwned(cur);
+    log(text, r.propertyId, priv);
     handle(reconcile(S.db));
-    if (changes.length) alertStayChange(`Stay updated · ${roomLabel(cur.roomId)}`, text);
+    if (changes.length && !priv) alertStayChange(`Stay updated · ${roomLabel(cur.roomId)}`, text);
     commit();
     return cur;
   }
-  const s: Stay = { id: uid(), ...inp, version: 1, updatedBy: S.db.currentUser, updatedAt: iso() } as Stay;
+  const s: Stay = {
+    id: uid(),
+    ...inp,
+    bookedBy: S.db.currentUser,
+    version: 1,
+    updatedBy: S.db.currentUser,
+    updatedAt: iso(),
+  } as Stay;
   S.db.stays.push(s);
-  if (s.request) {
-    const name = propOf(r.propertyId).name;
-    const t = `Request: ${name} for ${who}, ${fmt(s.arrival)} → ${depText(s)} · extra, invoiced separately. Confirm or decline in Roomboard.`;
-    log(t, r.propertyId);
-    alertStayChange(`New request · ${name}`, t);
+  if (extra) {
+    const p = propOf(r.propertyId);
+    const nights = s.departure ? diffDays(s.arrival, s.departure) : null;
+    const t = `Booked ${p.name} (whole property) for ${who}, ${fmt(s.arrival)} → ${depText(s)} · ${estimateLine(S.db, p, nights)} · extra, invoiced separately`;
+    log(t, r.propertyId, actor !== 'client');
+    // Donald is told when Sheena books; his own bookings of extras are never sent to Sheena
+    if (actor === 'client') alertStayChange(`New booking · ${p.name}`, t);
     commit();
     return s;
   }
@@ -90,13 +104,17 @@ export function deleteStay(id: string) {
   const s = S.db.stays.find(x => x.id === id);
   if (!s) return;
   const role = S.db.users.find(u => u.id === S.db.currentUser)?.role;
-  if (role === 'client' && isExtra(roomOf(s.roomId).propertyId) && !s.request)
-    throw new Error('This booking is confirmed. Ask Donald to cancel it.');
+  const extra = isExtra(roomOf(s.roomId).propertyId);
+  if (role === 'client' && extra && s.bookedBy !== S.db.currentUser)
+    throw new Error('This booking was made by Donald. Ask him to cancel it.');
   snap(`cancelled ${stayLabel(s)} · ${roomLabel(s.roomId)}`);
   S.db.stays = S.db.stays.filter(x => x.id !== id);
-  log(`Cancelled ${stayLabel(s)} · ${roomLabel(s.roomId)} (${fmt(s.arrival)})`, roomOf(s.roomId).propertyId);
+  const text = `Cancelled ${stayLabel(s)} · ${roomLabel(s.roomId)} (${fmt(s.arrival)})`;
+  const priv = extra && !clientOwned(s);
+  log(text, roomOf(s.roomId).propertyId, priv);
   handle(reconcile(S.db));
-  alertStayChange(`Stay cancelled · ${roomLabel(s.roomId)}`, `${stayLabel(s)} from ${fmt(s.arrival)} cancelled`);
+  if (!priv)
+    alertStayChange(`Stay cancelled · ${roomLabel(s.roomId)}`, `${stayLabel(s)} from ${fmt(s.arrival)} cancelled`);
   commit();
 }
 export function confirmDeparture(id: string) {

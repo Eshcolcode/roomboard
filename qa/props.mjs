@@ -1,4 +1,4 @@
-// Properties + extra-property requests + availability page. node qa/props.mjs (preview on :4173 or QA_URL).
+// Properties + extra-property bookings (direct, whole property) + prices + board extras + availability page. node qa/props.mjs (preview on :4173 or QA_URL).
 // Screens go to SHOTS (default /workspace/flow-shots) as props-*.png.
 import { chromium } from 'playwright';
 const U = process.env.QA_URL ?? 'http://localhost:4173/';
@@ -99,65 +99,118 @@ ok((await p.locator('.avp-card img').count()) >= 3, 'availability: photos shown 
 }
 await p.locator('#av-p-pod1').scrollIntoViewIfNeeded();
 await shot(p, '1-availability-phone');
+ok(
+  JSON.stringify(await p.locator('.avp-card').evaluateAll(cs => cs.map(c => c.id))) ===
+    JSON.stringify(['av-p-pod1', 'av-p-pod2', 'av-p-monadh', 'av-p-cottage']),
+  'availability: order Harris, Uig, Monadh, Abhainn Cottage',
+);
+ok(
+  (await p.locator('.avp-card .price-line:has-text("Indicative £350 per room per week")').count()) === 4 &&
+    (await p.locator('#av-p-cottage .price-line').innerText()).includes('3 bedrooms = £1,050 a week'),
+  'availability: indicative price on every extra (Abhainn whole property 3 × £350)',
+);
 const iPick = await pickFree(p, '[data-unit="x-pod1"]', 3);
 ok(
-  iPick >= 0 && (await p.locator('[data-unit="x-pod1"] .av-go:has-text("Request these dates")').isVisible()),
-  'Sheena: picking dates shows "Request these dates"',
+  iPick >= 0 && (await p.locator('[data-unit="x-pod1"] .av-go:has-text("Book these dates")').isVisible()),
+  'Sheena: picking dates shows "Book these dates" (no request step)',
+);
+ok(
+  (await p.locator('[data-unit="x-pod1"] .av-est').innerText()).includes(
+    'Indicative £150 for 3 nights (£350 a week ÷ 7 × 3)',
+  ),
+  'Sheena: pro-rata estimate before booking',
 );
 await p.fill('[data-unit="x-pod1"] .av-who input', 'Calum Test');
 await p.locator('[data-unit="x-pod1"] .av-bar').scrollIntoViewIfNeeded();
-await shot(p, '2-request-phone');
+await shot(p, '2-book-phone');
 await p.click('[data-unit="x-pod1"] .av-go');
 await settle(p);
+{
+  const m = await p.locator('[data-unit="x-pod1"] .av-msg.ok').innerText();
+  ok(
+    m.includes('Booked and confirmed') &&
+      m.includes('Donald has been notified') &&
+      m.includes('£150') &&
+      /long-term/.test(m),
+    'confirmation: booked straight away, Donald notified, indicative £150, long-term deals possible',
+  );
+}
+let bk1 = (await db(p)).stays.find(s => s.roomId === 'x-pod1' && s.holdLabel === 'Calum Test');
+ok(bk1 && bk1.bookedBy === 'u-client' && !('request' in bk1), 'client booking of an extra is a confirmed booking');
+ok((await p.locator('[data-unit="x-pod1"] .av-d.s-taken').count()) >= 3, 'booked nights now show as taken');
 ok(
-  (await p.locator('[data-unit="x-pod1"] .av-msg.ok').innerText()).includes('Donald will confirm'),
-  'request sent message',
+  (await db(p)).alerts.some(a => a.toUserId === 'u-donald' && /New booking/.test(a.subject) && /£150/.test(a.body)),
+  'Donald is alerted, with the indicative price',
 );
-let req = (await db(p)).stays.find(s => s.roomId === 'x-pod1' && s.holdLabel === 'Calum Test');
-ok(req && req.request === 'pending', 'client booking of an extra is a pending request');
-ok((await p.locator('[data-unit="x-pod1"] .av-d.s-request').count()) === 3, 'requested nights show as requested');
 // a booked-elsewhere night cannot be picked
 ok(
   await p.locator('[data-unit="x-monadh"] .av-d.s-elsewhere').first().isDisabled(),
   'booked-elsewhere nights cannot be picked',
 );
 
-// ---------- Donald answers in the Quick card (desktop) ----------
-await p.goto(U + '#rooms');
-await p.reload();
+// ---------- the main board includes the extras (desktop), Sheena ----------
+await p.setViewportSize({ width: 1440, height: 950 });
+await p.goto(U + '#board');
 await settle(p);
-await as(p, 'u-donald');
-ok(await p.locator('.pp-req:has-text("1 request to answer")').isVisible(), 'Donald: request banner on Rooms');
+await p.click('.seg button:has-text("6 wks")');
+await settle(p);
+ok(
+  JSON.stringify(await p.locator('.xrow').evaluateAll(rs => rs.map(r => r.dataset.extra))) ===
+    JSON.stringify(['p-pod1', 'p-pod2', 'p-monadh', 'p-cottage']),
+  'board: extra properties live on the main board, in order, after Eshcol and Loch Roag',
+);
+ok(
+  JSON.stringify(await p.locator('.board .grp .gl b').evaluateAll(bs => bs.map(b => b.textContent))) ===
+    JSON.stringify(['Eshcol Worker Accommodation', 'Loch Roag Guest House', 'Extra properties']),
+  'board: group order Eshcol, Loch Roag, extras',
+);
+ok(
+  (await p.locator(`[data-extra="p-pod1"] .xbar[data-stay="${bk1.id}"]`).count()) === 1,
+  'board: Sheena sees her own extra booking',
+);
 {
-  const x = await db(p);
+  const row = await p.locator('[data-extra="p-cottage"]').innerText();
   ok(
-    x.alerts?.some?.(a => /New request/.test(JSON.stringify(a))) || x.log.some(l => /request/i.test(JSON.stringify(l))),
-    'Donald: alert/log for the new request',
+    (await p.locator('[data-extra="p-cottage"] .xblock').count()) >= 1 && !row.includes('Direct guest'),
+    "board: Donald's own guest shows to Sheena as Taken, no name",
+  );
+  ok(
+    (await p.locator('[data-extra="p-monadh"] .xblock').count()) >= 1 &&
+      !(await p.locator('[data-extra="p-monadh"] .xblock.elsewhere').count()),
+    'board: Monadh calendar dates show to Sheena as Taken (no site)',
+  );
+  ok(
+    /Indicative £350 per room per week/.test(await p.locator('.xgrp').innerText()),
+    'board: price note on the extras group',
   );
 }
-await p.setViewportSize({ width: 1440, height: 950 });
+await shot(p, '3-board-sheena');
+await p.click('[data-extra="p-pod1"] .xbar');
 await settle(p);
-await p.click('.pp-req button:has-text("Answer")');
+{
+  const t = await p.locator('.q-panel').innerText();
+  ok(
+    t.includes('Indicative £150 for 3 nights') && t.includes('Long-term deals possible'),
+    'Quick card: indicative estimate',
+  );
+  ok(
+    t.includes('Cancel booking') && !/Confirm|Decline/.test(t),
+    'Quick card: no confirm/decline; Sheena can cancel her own',
+  );
+}
+await shot(p, '3b-extra-card');
+await p.keyboard.press('Escape');
+await settle(p);
+// filter to the extras only
+await p.selectOption('select[aria-label="Property filter"]', 'extras');
 await settle(p);
 ok(
-  (await p.locator('.q-panel button:has-text("Confirm")').isVisible()) &&
-    (await p.locator('.q-panel button:has-text("Decline")').isVisible()),
-  'Quick card: one-tap Confirm / Decline',
+  (await p.locator('.xrow').count()) === 4 && !(await p.locator('.row:not(.xrow)').count()),
+  'board filter: extras only',
 );
-ok(
-  (await p.locator('.q-panel').innerText()).includes('Extra · invoiced separately'),
-  'Quick card: labelled extra, invoiced separately',
-);
-await shot(p, '3-confirm-card');
-await p.click('.q-panel button:has-text("Confirm")');
-await settle(p);
-req = (await db(p)).stays.find(s => s.id === req.id);
-ok(req && req.request == null, 'Confirm: request becomes a booking');
-ok(!(await p.locator('.pp-req').count()), 'Confirm: banner gone');
-ok(JSON.stringify(await db(p)).includes('Request confirmed'), 'Confirm: Sheena is told');
 
-// ---------- decline, from Classic mode ----------
-p = await pg(1440, 950, 'available/p-pod2', { user: 'u-client', mode: 'classic' });
+// ---------- Donald books an extra directly; it stays private ----------
+p = await pg(1440, 950, 'available/p-pod2', { mode: 'classic' });
 ok(await p.locator('.pp-head h1:has-text("Uig")').isVisible(), 'property page for an extra');
 {
   const bk = p.locator('a.pp-book');
@@ -167,31 +220,70 @@ ok(await p.locator('.pp-head h1:has-text("Uig")').isVisible(), 'property page fo
       /^https:\/\/booking-directly\.com\/widgets\/[^?]+\/properties$/.test(await bk.getAttribute('href')),
     'extra: "Check availability" opens the public booking page in a new tab',
   );
+  ok(
+    (await p.locator('.price-box').innerText()).includes('whole property, 1 bedroom = £350 a week'),
+    'Uig: indicative whole-property price on the property page',
+  );
 }
 await pickFree(p, '[data-unit="x-pod2"]', 2);
+await p.fill('[data-unit="x-pod2"] .av-who input', 'Mrs Visitor');
 await p.click('[data-unit="x-pod2"] .av-go');
-await settle(p);
-const req2 = (await db(p)).stays.find(s => s.roomId === 'x-pod2' && s.request === 'pending');
-ok(!!req2, 'second request (pod 2) sent from the property page');
-await as(p, 'u-donald');
-await p.goto(U + '#rooms');
-await settle(p);
-await p.click('.pp-req button:has-text("Answer")');
-await settle(p);
-ok(
-  (await p.locator('.q-panel').isVisible()) && !(await p.locator('.panel').count()),
-  'Classic mode: requests still open in the Quick card',
-);
-await p.click('.q-panel button:has-text("Decline")');
-await settle(p);
-await p.fill('.q-panel .x-field input', 'Pod booked for maintenance');
-await p.click('.q-panel button:has-text("Decline request")');
 await settle(p);
 {
   const x = await db(p);
-  ok(!x.stays.some(s => s.id === req2.id), 'Decline: request removed');
-  ok(JSON.stringify(x).includes('Pod booked for maintenance'), 'Decline: reason sent to Sheena');
+  const s2 = x.stays.find(s => s.roomId === 'x-pod2' && s.holdLabel === 'Mrs Visitor');
+  ok(s2 && s2.bookedBy === 'u-donald', 'Donald books an extra directly');
+  ok(
+    !x.alerts.some(a => a.toUserId === 'u-client' && a.body.includes('Mrs Visitor')),
+    "Donald's guest: no alert to Sheena",
+  );
+  ok(
+    x.activity.filter(a => a.text.includes('Mrs Visitor')).every(a => a.managerOnly),
+    "Donald's guest: log is Donald-only",
+  );
 }
+await p.goto(U + '#board');
+await settle(p);
+await p.click('.seg button:has-text("6 wks")');
+await settle(p);
+ok(
+  (await p.locator('[data-extra="p-cottage"] .xbar:has-text("Direct guest")').count()) === 1,
+  'board: Donald sees his own guests by name',
+);
+ok(
+  (await p.locator('[data-extra="p-monadh"] .xblock.elsewhere:has-text("Booked elsewhere")').count()) >= 1,
+  'board: Donald sees "Booked elsewhere"',
+);
+await shot(p, '3c-board-donald');
+await as(p, 'u-client');
+await p.goto(U + '#activity');
+await settle(p);
+{
+  const t = await p.locator('body').innerText();
+  ok(!t.includes('Mrs Visitor') && !t.includes('Direct guest'), "Sheena's activity: none of Donald's extra guests");
+  ok(!/SuperControl|Airbnb/.test(t), "Sheena's activity: no booking-site names");
+}
+
+// ---------- Donald's rate setting ----------
+p = await pg(1440, 950, 'available');
+ok(await p.locator('.pp-rate').isVisible(), 'Donald: indicative rate setting on Properties');
+await p.fill('.pp-rate input', '400');
+await p.click('.pp-rate button:has-text("Save")');
+await settle(p);
+ok((await db(p)).settings.ratePerRoomWeek === 400, 'Donald: rate saved');
+ok(
+  (await p.locator('[data-prop="p-es"] .pp-price').innerText()) === 'Indicative £400 per room per week' &&
+    (await p.locator('[data-prop="p-monadh"] .pp-price').innerText()).includes('2 bedrooms = £800 a week'),
+  'prices follow the rate everywhere',
+);
+await shot(p, '5b-rate');
+await as(p, 'u-client');
+ok(!(await p.locator('.pp-rate').count()), 'Sheena: cannot edit the rate');
+ok(
+  (await p.locator('.pp-price-note').innerText()).includes('£400 per room per week') &&
+    /Long-term deals possible/.test(await p.locator('.pp-price-note').innerText()),
+  'Sheena: sees the indicative rate and that long-term deals are possible',
+);
 
 // ---------- property pages ----------
 p = await pg(1440, 950, 'available/p-es', { user: 'u-client' });
@@ -229,7 +321,12 @@ ok(
 );
 await p.goto(U + '#available');
 await settle(p);
-ok((await p.locator('[data-prop]').count()) === 6, 'Properties list: 2 contract houses + 4 extras');
+ok(
+  JSON.stringify(await p.locator('[data-prop]').evaluateAll(cs => cs.map(c => c.dataset.prop))) ===
+    JSON.stringify(['p-es', 'p-lr', 'p-pod1', 'p-pod2', 'p-monadh', 'p-cottage']),
+  'Properties list: Eshcol, Loch Roag, Harris, Uig, Monadh, Abhainn Cottage',
+);
+ok((await p.locator('[data-prop] .pp-price').count()) === 6, 'Properties list: indicative price on every card');
 ok(!(await p.locator('.pp-cal').count()), 'Sheena: no calendar-link settings or enquiry list');
 await shot(p, '5-properties-list');
 
@@ -265,6 +362,22 @@ p = await pg(390, 844, 'available/p-cottage', { user: 'u-client' });
 const sw = await p.evaluate(() => document.documentElement.scrollWidth);
 ok(sw <= 392, 'phone: property page fits the width (' + sw + ')');
 ok((await p.locator('.av-d').first().boundingBox()).height >= 44, 'phone: day cells are big enough to tap');
+// phone main view: the extras are on Rooms too
+await p.goto(U + '#rooms');
+await settle(p);
+ok(
+  JSON.stringify(await p.locator('.xcard').evaluateAll(cs => cs.map(c => c.dataset.extra))) ===
+    JSON.stringify(['p-pod1', 'p-pod2', 'p-monadh', 'p-cottage']),
+  'phone Rooms: the 4 extras, in order',
+);
+ok(
+  (await p.locator('.xcard .x14').count()) === 4 && (await p.locator('.xcard a:has-text("Book")').count()) === 4,
+  'phone Rooms: next 14 nights and a Book button on each',
+);
+ok(!(await p.locator('.xsec').innerText()).includes('Direct guest'), "phone Rooms: no names of Donald's guests");
+ok((await p.evaluate(() => document.documentElement.scrollWidth)) <= 392, 'phone Rooms: fits the width');
+await p.locator('.xsec').scrollIntoViewIfNeeded();
+await shot(p, '7-rooms-extras-phone');
 
 console.log(errs.length ? 'Console errors:\n' + errs.join('\n') : 'No console errors');
 console.log(`\n${pass} passed, ${fail} failed`);

@@ -1,10 +1,10 @@
 // Demo commands for extra properties: confirm / decline a client's request, and the calendar links.
 import { fmt, londonToday } from '../../dates';
-import { S, uid, iso, validate, roomOf, roomLabel, propOf, stayLabel } from '../core';
+import { S, iso, validate, roomOf, roomLabel, propOf, stayLabel } from '../core';
 import type { StayInput } from '../core';
 import { snap, commit, log } from './store';
 import { queueFor, usersOf, actorRole } from './alerts';
-import { blocksFrom, sampleIcs } from './feeds';
+import { SAMPLE_ICS, blocksFrom } from './feeds';
 import { blockClashes, unitIcs } from '../extras';
 
 const unitName = (roomId: string) => propOf(roomOf(roomId).propertyId).name;
@@ -38,17 +38,19 @@ export function declineRequest(id: string, reason: string) {
   commit();
 }
 
-/** Demo sync: sample feeds are re-read through the real parser; real links can only be read by the live server. */
+/** Demo sync: linked sample calendars are re-read through the real parser; unlinked ones block nothing. */
 export function syncFeeds(): { conflicts: number } {
   const T = londonToday();
   const before = new Set(blockClashes(S.db).map(c => c.stay.id + c.block.from));
   for (const f of S.db.feeds ?? []) {
     S.db.blocks = (S.db.blocks ?? []).filter(b => b.feedId !== f.id);
-    if (f.simulated) {
-      S.db.blocks.push(...blocksFrom(f, sampleIcs(f.roomId, T)));
+    const text = SAMPLE_ICS[f.roomId];
+    f.linked = !!text;
+    f.error = null;
+    if (text) {
+      S.db.blocks.push(...blocksFrom(f, text, T));
       f.lastSync = iso();
-      f.error = null;
-    } else f.error = 'Demo mode: real links are read by the live server (every 30 minutes).';
+    } else f.lastSync = null;
   }
   const fresh = blockClashes(S.db).filter(c => !before.has(c.stay.id + c.block.from));
   for (const c of fresh) {
@@ -58,26 +60,6 @@ export function syncFeeds(): { conflicts: number } {
   }
   commit();
   return { conflicts: blockClashes(S.db).length };
-}
-export function addFeed(f: { roomId: string; label: string; url: string }) {
-  needManager();
-  const url = f.url.trim();
-  if (!/^(https?|webcal):\/\//i.test(url)) throw new Error('Paste the full calendar link (it starts with https://).');
-  S.db.feeds = [
-    ...(S.db.feeds ?? []),
-    { id: uid(), roomId: f.roomId, label: f.label.trim() || 'Calendar', url, lastSync: null, error: null },
-  ];
-  log(`Added calendar link "${f.label || 'Calendar'}" for ${unitName(f.roomId)}`, roomOf(f.roomId).propertyId);
-  commit();
-}
-export function removeFeed(id: string) {
-  needManager();
-  const f = (S.db.feeds ?? []).find(x => x.id === id);
-  if (!f) return;
-  S.db.feeds = (S.db.feeds ?? []).filter(x => x.id !== id);
-  S.db.blocks = (S.db.blocks ?? []).filter(b => b.feedId !== id);
-  log(`Removed calendar link "${f.label}" for ${unitName(f.roomId)}`, roomOf(f.roomId).propertyId);
-  commit();
 }
 export const exportLink = (roomId: string) => ({ url: null, text: unitIcs(S.db, roomId) });
 export { roomLabel };

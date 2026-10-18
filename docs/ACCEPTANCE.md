@@ -119,6 +119,15 @@ Do this on a real Supabase project with the production build in `VITE_DATA_MODE=
 - [ ] **Room 4, case 1:** Ready/Start are refused by the database before the 21 Oct departure is recorded as vacated.
 - [ ] **Room 4, case 2:** a clean on 23 Oct after the 22 Oct arrival is refused without an exception, and stays flagged with one.
 - [ ] **Notifications with every browser closed:** pg_cron runs `dispatch-alerts`, and email arrives.
+- [ ] **Booking calendars (iCal):** run migration 0008; deploy `ical-sync` and `ical-export`
+  (`supabase functions deploy ical-sync` / `supabase functions deploy ical-export --no-verify-jwt`); add Vault secrets
+  `project_url` and `service_role_key` (Dashboard → Project Settings → Vault) so the 3-hourly pg_cron job can call
+  `ical-sync`; set `supabase secrets set ICAL_MONADH=<link>` (Grok Bot holds it; never commit it). Then:
+  - [ ] **Read calendars now** on Monadh → "Calendar linked · SuperControl"; on the availability page Sheena sees
+    16–19 Nov 2026 and 20 Dec 2026 – 4 Jan 2027 as **Taken** (check-out days free), with no names and no site name.
+  - [ ] Harris, Uig and Abhainn Cottage say **Calendar not linked yet**, with no error, and block nothing.
+  - [ ] `select * from cron.job where jobname = 'ical-sync'` shows `17 */3 * * *`; after 3 hours `last_synced_at` moves.
+  - [ ] `ical_blocks` holds dates only; `ical_feeds` holds no URL; Sheena's API key reads 0 rows from `ical_feeds`.
   - Force a failure (bad API key) → row is `failed`/retry with backoff → fix the key → `accepted` / `delivered`.
   - The same event never sends twice (dedupe).
   - The 07:00 digest arrives at 07:00 London time on both sides of the 25 Oct clock change.

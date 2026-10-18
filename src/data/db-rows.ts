@@ -140,7 +140,7 @@ export interface FeedRow {
   id: string;
   room_id: string;
   label: string;
-  url: string;
+  linked: boolean;
   last_synced_at: N<string>;
   last_error: N<string>;
 }

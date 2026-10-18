@@ -20,10 +20,8 @@ export interface Repo {
   /** Extra properties: the provider answers a client's request (confirm keeps the dates, decline frees them). */
   confirmRequest(id: string): Promise<void>;
   declineRequest(id: string, reason: string): Promise<void>;
-  /** iCal links: read every import link now (live: the ical-sync edge function). */
+  /** Booking calendars: read every linked calendar now (live: the ical-sync edge function). */
   syncFeeds(): Promise<{ conflicts: number }>;
-  addFeed(f: { roomId: string; label: string; url: string }): Promise<void>;
-  removeFeed(id: string): Promise<void>;
   /** The export feed of one unit: a link to paste into Airbnb / Booking.com (live) and the .ics text. */
   exportLink(roomId: string): Promise<{ url: string | null; text: string }>;
   undo(): Promise<void>; // revert the last stay command made in this session

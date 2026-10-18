@@ -2,7 +2,8 @@
 import { describe, expect, it } from 'vitest';
 import srcCopy from './ical.ts?raw';
 import fnCopy from '../../supabase/functions/_shared/ical.ts?raw';
-import { exportICS, mergeRanges, parseICS } from './ical';
+import MONADH from './local/monadh-sample.ics?raw';
+import { exportICS, feedLink, mergeRanges, parseICS } from './ical';
 
 const cal = (...ev: string[]) => ['BEGIN:VCALENDAR', 'VERSION:2.0', ...ev, 'END:VCALENDAR'].join('\r\n');
 const ev = (...l: string[]) => ['BEGIN:VEVENT', ...l, 'END:VEVENT'].join('\r\n');
@@ -90,6 +91,105 @@ describe('parseICS', () => {
       from: '2026-12-01',
       to: '2026-12-02',
     });
+  });
+});
+
+describe('SuperControl (Monadh) feed: sanitised copy of the real feed structure', () => {
+  const r = parseICS(MONADH);
+  it('reads all 14 events; local-midnight TZID all-day dates are kept as dates, DTEND exclusive', () => {
+    expect(r).toHaveLength(14);
+    // 21 Oct 2025 (BST) to 25 Oct: 4 nights, checkout day free
+    expect(r[0]).toMatchObject({ from: '2025-10-21', to: '2025-10-25' });
+    // after the clock change (26 Oct 2025, GMT): no day shift
+    expect(r[1]).toMatchObject({ from: '2025-10-27', to: '2025-10-30' });
+    expect(mergeRanges(r).filter(x => x.to > '2026-10-18')).toEqual([
+      { from: '2026-11-16', to: '2026-11-19' },
+      { from: '2026-12-20', to: '2027-01-04' },
+    ]);
+  });
+  it('"Closed" periods are unavailable too', () => {
+    expect(r.some(x => x.from === '2026-06-13' && x.to === '2026-06-27')).toBe(true);
+    expect(r.some(x => x.from === '2026-12-20' && x.to === '2027-01-04')).toBe(true);
+  });
+  it('keeps dates only: no guest names, phone numbers, emails or booking refs', () => {
+    expect(MONADH).toMatch(/Guestname/); // the sample does carry fake guest details…
+    expect(JSON.stringify(r)).not.toMatch(/Guest|Booking|01632|example|Closed|Monadh/); // …and none come out
+    expect(r.every(x => Object.keys(x).sort().join() === 'from,to,uid')).toBe(true);
+  });
+});
+
+describe('parseICS: all-day across the 25 Oct 2026 clock change, Closed, duplicates', () => {
+  it('TZID midnights over 25 Oct 2026 (BST → GMT) give the right nights, with or without the all-day flag', () => {
+    const r = parseICS(
+      cal(
+        ev(
+          'UID:p',
+          'X-MICROSOFT-CDO-ALLDAYEVENT:TRUE',
+          'DTSTART;TZID=Europe/London:20261024T000000',
+          'DTEND;TZID=Europe/London:20261027T000000',
+        ),
+        ev('UID:q', 'DTSTART;TZID=Europe/London:20261025T000000', 'DTEND;TZID=Europe/London:20261026T000000'),
+        ev('UID:r', 'DTSTART;VALUE=DATE:20261025', 'DTEND;VALUE=DATE:20261026'),
+      ),
+    );
+    expect(r.map(x => [x.from, x.to])).toEqual([
+      ['2026-10-24', '2026-10-27'],
+      ['2026-10-25', '2026-10-26'],
+      ['2026-10-25', '2026-10-26'],
+    ]);
+  });
+  it('a "Closed" event blocks even if marked free; a plain free event does not', () => {
+    const r = parseICS(
+      cal(
+        ev('UID:s', 'SUMMARY:Closed', 'TRANSP:TRANSPARENT', 'DTSTART;VALUE=DATE:20261220', 'DTEND;VALUE=DATE:20270104'),
+        ev(
+          'UID:t',
+          'SUMMARY:Owner note',
+          'TRANSP:TRANSPARENT',
+          'DTSTART;VALUE=DATE:20261110',
+          'DTEND;VALUE=DATE:20261111',
+        ),
+      ),
+    );
+    expect(r).toEqual([{ uid: 's', from: '2026-12-20', to: '2027-01-04' }]);
+  });
+  it('the same UID twice counts once: highest SEQUENCE wins, else the later one', () => {
+    const r = parseICS(
+      cal(
+        ev('UID:u', 'SEQUENCE:2', 'DTSTART;VALUE=DATE:20261201', 'DTEND;VALUE=DATE:20261205'),
+        ev('UID:u', 'SEQUENCE:1', 'DTSTART;VALUE=DATE:20261101', 'DTEND;VALUE=DATE:20261103'),
+        ev('UID:v', 'DTSTART;VALUE=DATE:20261110', 'DTEND;VALUE=DATE:20261112'),
+        ev('UID:v', 'DTSTART;VALUE=DATE:20261111', 'DTEND;VALUE=DATE:20261114'),
+      ),
+    );
+    expect(r).toEqual([
+      { uid: 'u', from: '2026-12-01', to: '2026-12-05' },
+      { uid: 'v', from: '2026-11-11', to: '2026-11-14' },
+    ]);
+  });
+});
+
+describe('feedLink: feed links come from server secrets', () => {
+  const env: Record<string, string> = {
+    ICAL_MONADH: ' https://calendar.example/feed.ics ',
+    ICAL_UIG: 'webcal://calendar.example/uig.ics',
+    ICAL_HARRIS: '',
+    ICAL_BAD: 'not a link',
+    SUPABASE_SERVICE_ROLE_KEY: 'https://looks-like-a-link',
+  };
+  const get = (k: string) => env[k];
+  it('reads the secret, trims it, and turns webcal: into https:', () => {
+    expect(feedLink('ICAL_MONADH', get)).toBe('https://calendar.example/feed.ics');
+    expect(feedLink('ICAL_UIG', get)).toBe('https://calendar.example/uig.ics');
+  });
+  it('missing, blank or not-a-link = not linked yet (null), never an error', () => {
+    expect(feedLink('ICAL_ABHAINN', get)).toBeNull();
+    expect(feedLink('ICAL_HARRIS', get)).toBeNull();
+    expect(feedLink('ICAL_BAD', get)).toBeNull();
+  });
+  it('only ICAL_* names can be read', () => {
+    expect(feedLink('SUPABASE_SERVICE_ROLE_KEY', get)).toBeNull();
+    expect(feedLink('ical_monadh', get)).toBeNull();
   });
 });
 

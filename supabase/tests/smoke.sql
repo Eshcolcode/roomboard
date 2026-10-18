@@ -77,9 +77,23 @@ do $$ begin update stays set version = version, notes = 'x' where hold_label='Ca
 insert into stays(room_id,worker_id,hold_label,arrival,departure,request) values ('lr-5',null,'Contract','2027-03-01','2027-03-03','pending');
 select 'T23 contract rooms never hold requests' t, request is null ok from stays where hold_label='Contract';
 -- feed + blocks (as the sync would write them)
-set request.uid = '00000000-0000-0000-0000-000000000002';
-insert into ical_feeds(room_id,label,url) values ('x-pod1','Airbnb','https://www.airbnb.co.uk/calendar/ical/1.ics');
+-- one feed row per extra unit, naming a secret (no URLs in the database)
+select 'T24a a feed row per extra unit, each naming an ICAL_ secret, none linked yet' t, count(*) = 4 and bool_and(env_key ~ '^ICAL_') and not bool_or(linked) ok from ical_feeds;
+select 'T24b feeds have no url column' t, not exists (select 1 from information_schema.columns where table_name='ical_feeds' and column_name='url') ok;
+do $$ begin insert into ical_feeds(room_id,label,env_key) values ('lr-1','x','SUPABASE_SERVICE_ROLE_KEY'); raise notice 'FAIL feed may name a non-ICAL secret'; exception when others then raise notice 'PASS feeds can only name ICAL_* secrets: %', sqlerrm; end $$;
+-- row-level security only applies to non-superusers: check it as an ordinary signed-in role
+do $$ begin if not exists (select 1 from pg_roles where rolname = 'rb_rls_probe') then create role rb_rls_probe; end if; end $$;
+grant usage on schema public to rb_rls_probe; grant select, update on ical_feeds to rb_rls_probe; grant select on profiles to rb_rls_probe;
+grant execute on all functions in schema public to rb_rls_probe; grant usage on schema auth to rb_rls_probe; grant execute on all functions in schema auth to rb_rls_probe;
+set role rb_rls_probe;
+set request.uid = '00000000-0000-0000-0000-000000000001'; -- Sheena
+select 'T24c Sheena cannot see the calendar settings' t, count(*) = 0 ok from ical_feeds;
+set request.uid = '00000000-0000-0000-0000-000000000002'; -- Donald
+select 'T24d Donald sees each calendar''s status' t, count(*) = 4 ok from ical_feeds;
+do $$ begin update ical_feeds set env_key = 'ICAL_OTHER' where room_id = 'x-pod1'; if found then raise notice 'FAIL Donald changed a feed row from the app'; else raise notice 'PASS feed rows are written by the sync only'; end if; exception when others then raise notice 'PASS feed rows are written by the sync only: %', sqlerrm; end $$;
+reset role;
 set request.uid = ''; -- the sync runs as the service role, not as a person
+update ical_feeds set label = 'Airbnb' where room_id = 'x-pod1';
 select replace_ical_blocks((select id from ical_feeds where label='Airbnb'), '[{"from":"2027-03-03","to":"2027-03-06"},{"from":"2027-04-10","to":"2027-04-12"}]') as clashes \gset
 select 'T24 blocks stored, dates only' t, count(*) = 2 ok from ical_blocks where room_id='x-pod1';
 select 'T25 double booking flagged once' t, :clashes = 1 ok;
@@ -88,6 +102,9 @@ select replace_ical_blocks((select id from ical_feeds where label='Airbnb'), '[{
 select 'T27 re-sync does not re-alert' t, count(*) = 1 ok from alert_outbox where subject like '⚠ Possible double booking%';
 select replace_ical_blocks((select id from ical_feeds where label='Airbnb'), null, 'HTTP 404');
 select 'T28 failed read keeps old blocks + records error' t, (select count(*) from ical_blocks where room_id='x-pod1') = 2 and last_error is not null ok from ical_feeds where label='Airbnb';
+select 'T28a a linked feed reads as linked' t, linked ok from ical_feeds where label='Airbnb';
+select replace_ical_blocks((select id from ical_feeds where room_id='x-cottage'), null);
+select 'T28b no secret set = not linked yet: no blocks, no error' t, not linked and last_error is null and not exists (select 1 from ical_blocks where room_id='x-cottage') ok from ical_feeds where room_id='x-cottage';
 set request.uid = '00000000-0000-0000-0000-000000000001';
 do $$ begin insert into stays(room_id,hold_label,arrival,departure) values ('x-pod1','Late','2027-04-09','2027-04-11'); raise notice 'FAIL booked-elsewhere not blocked'; exception when others then raise notice 'PASS booked-elsewhere dates blocked: %', sqlerrm; end $$;
 insert into stays(room_id,hold_label,arrival,departure) values ('x-pod2','Ewan','2027-05-01','2027-05-03');

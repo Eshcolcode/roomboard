@@ -69,7 +69,8 @@ Source key:
 
 **Monadh** (Whitefalls Spa Lodges). **Confirmed** (D): "The Lodge" in the brief *is* Monadh, so there is one entry
 (`p-monadh`; the old `p-lodge` / `x-lodge` from 0004 is removed by 0008). Website (D):
-https://www.whitefalls.co.uk/luxury-selfcatering-hebrides/. Photos from either Whitefalls lodge may be used (same design).
+https://www.whitefalls.co.uk/luxury-selfcatering-hebrides/. Monadh is the only Whitefalls lodge Roomboard offers (D,
+18 Oct 2026); no other lodge is listed anywhere in the app. Website photos may be used.
 
 Description shown in the app, Donald's words verbatim:
 > Monadh is a self-catering lodge at Whitefalls Spa Lodges in Breasclete on the Isle of Lewis. It has an open-plan living and dining area, a fully equipped kitchen, and a private indoor spa suite with a RiverBath whirlpool bath, infrared sauna and monsoon shower.
@@ -77,7 +78,7 @@ Description shown in the app, Donald's words verbatim:
 | Fact | Source |
 |---|---|
 | "Monadh is currently available to book, for up to four guests" | WF book-now |
-| Two lodges, each with a private indoor spa: double-ended RiverBath whirlpool bath, infrared sauna, monsoon shower | WF |
+| Private indoor spa: double-ended RiverBath whirlpool bath, infrared sauna, monsoon shower | WF |
 | Open-plan living, fully equipped kitchen and dining area; utility area with washer/dryer; Wi-Fi and parking | WF |
 | Check-in from 4pm, check-out by 10am; minimum 3 nights online; closed 20 Dec 2026 – 3 Jan 2027 | WF book-now |
 | Breasclete, Isle of Lewis HS2 9ED | WF |
@@ -89,7 +90,7 @@ These are in `public/img/*.webp`: max 1280 px wide, quality 72, plus 480 px thum
 | `eshcol-*` (exterior, rooms 1–10, baths, kitchen, lounge, games, deck, flat) | Z (mapped by each image's alt text) | Donald's share page |
 | `pod-*` | HHC accommodation + gallery | hebrideanholidaycabins.co.uk. The photos may show either pod |
 | `cottage-*` | AC | luxuryhebrideancottage.co.uk |
-| `whitefalls-*` | WF | whitefalls.co.uk. The photos may show either lodge |
+| `whitefalls-*` | WF | whitefalls.co.uk |
 
 **Loch Roag (`lr-*`, 14 files + 14 thumbs, 0.95 MB)**: from GP, supplied 18 Oct 2026 (16 files in 8 room albums,
 14 distinct by SHA-256; checksums matched Donald's inventory). Built with `python3 scripts/photos.py lr-`: EXIF
@@ -114,8 +115,9 @@ The property gallery reuses five of these room photos; there are no outside or s
 **Confirmed** (D, 18 Oct 2026): the property website photos may be used in the app.
 
 ## Gaps
-**Main gap: the calendar (iCal) links** from Airbnb, Booking.com and freetobook (and SuperControl for Monadh), see below.
-The public booking pages above do not replace them.
+**Main gap: the booking-calendar (iCal) links for Harris, Uig and Abhainn Cottage.** Monadh's (SuperControl) is in
+hand (18 Oct 2026). Until a link is set, the unit shows **Calendar not linked yet** and blocks nothing. The public booking
+pages below do not replace them. How to add one: see *Adding a booking calendar* below.
 
 Smaller items, shown in the app as "Details to come":
 - **Loch Roag**: no Room 4 photos (no Room 4 album); no outside or shared-space photos (kitchens, games room, lounge).
@@ -150,12 +152,46 @@ Extranet → **Rates & Availability** → **Sync calendars** → **Add calendar 
 - Booking.com imports every 2 hours. There is also **Import now**.
 - Only for properties that are Open/Bookable, with 20 room types or fewer and one unit per room type, and with no connectivity provider.
 
-**freetobook** (Abhainn Cottage, the pods' booking portal) and **SuperControl** (Whitefalls): I could not verify their steps from official help pages, so ask the provider or look in their settings for "iCal" / "calendar export". Abhainn Cottage's freetobook calendar already has a public iCal feed (`https://www.freetobook.com/affiliates/ical/358179c72e.ics`). It returns one "NOT AVAILABLE" event per night, which Roomboard merges into stays.
+**freetobook** and **booking-directly** (Abhainn Cottage, the pods): I could not verify their steps from official help pages, so ask the provider or look in their settings for "iCal" / "calendar export". freetobook feeds send one "NOT AVAILABLE" event per night, which Roomboard merges into stays.
 
-## How the iCal sync works (live design, not deployed)
-- `ical_feeds`: the links. Only the manager can see them, because the URLs are secret.
-- `ical_blocks`: dates only, no guest details.
+**SuperControl** (Monadh): the iCal export link is in hand. Its events are all-day bookings and "Closed" periods,
+written as local midnights (`DTSTART;TZID=Europe/London:…T000000` with `X-MICROSOFT-CDO-ALLDAYEVENT:TRUE`); guest
+names and booking details are in SUMMARY/DESCRIPTION and are never stored.
+
+## Adding a booking calendar (one small step for Donald)
+1. Copy the calendar's iCal / "export" link (it usually ends in `.ics`) and paste it to Grok Bot in chat.
+
+That is all. Grok Bot then sets it as a secret on the server, never in the repo, database or app:
+`supabase secrets set ICAL_HARRIS=<link>` (or `ICAL_UIG`, `ICAL_ABHAINN`, `ICAL_MONADH`), then presses
+**Read calendars now** (or waits for the 3-hourly read). The unit's calendar panel changes from **Calendar not linked
+yet** to **Calendar linked**. To change a link, set the secret again; to unlink, `supabase secrets unset ICAL_…`.
+
+| Unit | Secret name | Status (18 Oct 2026) |
+|---|---|---|
+| Harris pod (`x-pod1`) | `ICAL_HARRIS` | waiting for the link |
+| Uig pod (`x-pod2`) | `ICAL_UIG` | waiting for the link |
+| Abhainn Cottage (`x-cottage`) | `ICAL_ABHAINN` | waiting for the link |
+| Monadh (`x-monadh`) | `ICAL_MONADH` | link in hand (SuperControl), kept outside the repo; set it when the live database is set up |
+
+## How the iCal sync works (ready to deploy, not deployed)
+- Calendar links are **secrets**. They are stored only as Supabase Edge Function secrets (`ICAL_*`). They are not in
+  the repo, not in the database and never shown in the app. Error messages never include them.
+- `ical_feeds`: one row per extra unit (seeded by 0008) with the **name** of its secret (`env_key`), whether it is
+  linked, when it was last read and the last error. Donald can read it; only the sync writes it; Sheena cannot see it.
+  `env_key` must start with `ICAL_`, so a row can never point at another secret.
+- `ical_blocks`: dates only (`start_date`, exclusive `end_date`), no guest details. Sheena sees them as **Taken**.
 - `ical_exports`: one secret token per extra unit.
-- Edge function `ical-sync`: every 30 minutes (pg_cron) and on "Read calendars now". It parses the feed with `supabase/functions/_shared/ical.ts`, which is identical to `src/data/ical.ts`; a unit test enforces that. It then calls `replace_ical_blocks`. If the read fails, it keeps the old blocks and shows the error. If a feed overlaps a Roomboard booking, Donald gets one alert: **⚠ Possible double booking**.
+- Edge function `ical-sync` (`index.ts` wiring + `sync.ts` work): every 3 hours (pg_cron, minute 17) and on **Read
+  calendars now**. For each feed: no secret = not linked (old blocks cleared, no error); otherwise fetch, parse with
+  `supabase/functions/_shared/ical.ts` (identical to `src/data/ical.ts`; a unit test enforces that), keep ranges
+  ending after today, call `replace_ical_blocks`. A failed read keeps the old blocks and shows a plain reason. A new
+  overlap with a Roomboard booking sends Donald one **⚠ Possible double booking** alert.
+- Parser rules: all-day DTEND is the check-out day (exclusive); local-midnight all-day events are read as plain dates,
+  so the 25 Oct 2026 BST→GMT change cannot shift them; bookings and "Closed" periods are both unavailable; cancelled
+  events are ignored; the same UID twice counts once (highest SEQUENCE wins); only dates leave the parser.
 - Edge function `ical-export?t=<token>`: confirmed bookings only, as all-day "Booked" events with no guest details.
-- Demo: sample feeds in five real-world styles, labelled **Simulated**.
+- Demo / preview: only Monadh is linked, using `src/data/local/monadh-sample.ics`: a sanitised copy of the real
+  SuperControl feed's structure and dates, with guest names, booking refs and UIDs replaced by fakes. Labelled
+  **Simulated**. Harris, Uig and Abhainn Cottage show **Calendar not linked yet**.
+- Checked 18 Oct 2026 against the real Monadh feed (run locally with the link as an environment variable): 14
+  events read; from today it blocks 16–19 Nov 2026 (booked) and 20 Dec 2026 – 4 Jan 2027 (closed).

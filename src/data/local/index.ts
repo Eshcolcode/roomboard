@@ -7,7 +7,7 @@ import { saveStay, deleteStay, confirmDeparture, saveBatch } from './stays';
 import { updateChangeover, dismissChangeover } from './changeovers';
 import { upsertWorker, addEnquiry } from './misc';
 import { createSeries, updateSeries } from './series';
-import { confirmRequest, declineRequest, syncFeeds, addFeed, removeFeed, exportLink } from './extras';
+import { confirmRequest, declineRequest, syncFeeds, exportLink } from './extras';
 
 export const localRepo: Repo = {
   mode: 'demo',
@@ -81,12 +81,6 @@ export const localRepo: Repo = {
   },
   async syncFeeds() {
     return syncFeeds();
-  },
-  async addFeed(f) {
-    addFeed(f);
-  },
-  async removeFeed(id) {
-    removeFeed(id);
   },
   async exportLink(roomId) {
     return exportLink(roomId);

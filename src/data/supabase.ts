@@ -209,7 +209,7 @@ async function refresh() {
       id: r.id,
       roomId: r.room_id,
       label: r.label,
-      url: r.url,
+      linked: r.linked,
       lastSync: r.last_synced_at,
       error: r.last_error,
     })),
@@ -484,14 +484,6 @@ export const supabaseRepo: Repo = {
     if (error) throw new Error('Could not read the calendar links right now. Try again in a minute.');
     await refresh();
     return { conflicts: (data as { conflicts?: number })?.conflicts ?? 0 };
-  },
-  async addFeed(f) {
-    fail((await sb.from('ical_feeds').insert({ room_id: f.roomId, label: f.label, url: f.url })).error);
-    await refresh();
-  },
-  async removeFeed(id) {
-    fail((await sb.from('ical_feeds').delete().eq('id', id)).error);
-    await refresh();
   },
   async exportLink(roomId) {
     const { data, error } = await sb.from('ical_exports').select('token').eq('room_id', roomId).maybeSingle();

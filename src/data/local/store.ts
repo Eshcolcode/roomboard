@@ -6,9 +6,11 @@ import { PROPERTIES, UNITS, ROOMS } from '../properties';
 import { demoFeeds } from './feeds';
 import { londonToday } from '../../dates';
 
-/** Older demo stores (v1) get the real property details, the extra units and the sample calendar links. */
+/** Older demo stores get the current property details, the extra units and the demo calendar links.
+ * v1 → v2: real details + extras. v2 → v3 (18 Oct 2026): Lodge merged into Monadh, Harris/Uig, Loch Roag photos,
+ * calendar links become secret server settings (only Monadh linked). */
 export function upgrade(x: DB): DB {
-  if ((x.v ?? 1) >= 2) return x;
+  if ((x.v ?? 1) >= 3) return x;
   const old = new Map(x.properties.map(p => [p.id, p]));
   x.properties = structuredClone(PROPERTIES).map(p => ({
     ...p,
@@ -17,8 +19,10 @@ export function upgrade(x: DB): DB {
   }));
   x.units = structuredClone(UNITS);
   x.rooms = structuredClone(ROOMS);
-  if (!x.feeds) Object.assign(x, demoFeeds(londonToday()));
-  x.v = 2;
+  const ids = new Set(x.rooms.map(r => r.id));
+  x.stays = x.stays.filter(st => ids.has(st.roomId)); // e.g. requests on the old separate Lodge
+  Object.assign(x, demoFeeds(londonToday()));
+  x.v = 3;
   return x;
 }
 

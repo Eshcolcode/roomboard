@@ -258,8 +258,8 @@ export function AvailabilityPage({ only }: { only?: string }) {
         ))}
         <p className="avp-foot">
           {data.mode === 'demo'
-            ? 'Simulated: “taken” dates come from sample calendar feeds in this demo.'
-            : 'Taken dates include bookings made on other websites (updated every 30 minutes).'}
+            ? 'Simulated: “taken” dates come from a sample booking calendar in this demo.'
+            : 'Taken dates include bookings made on other websites (checked every 3 hours).'}
         </p>
       </main>
     </div>

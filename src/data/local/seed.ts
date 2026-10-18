@@ -138,7 +138,7 @@ export function seed(): DB {
     },
   ];
   return {
-    v: 2,
+    v: 3,
     users,
     properties,
     units,

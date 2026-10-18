@@ -78,18 +78,24 @@ ok(
 ok((await p.locator('.avp-card img').count()) >= 3, 'availability: photos shown where we have them');
 {
   const x = await db(p);
-  const cottage = await p.locator('[data-unit="x-cottage"] .av-d').evaluateAll(bs => bs.map(b => b.className));
-  const blocked = x.blocks.filter(k => k.roomId === 'x-cottage');
+  const monadh = await p.locator('[data-unit="x-monadh"] .av-d').evaluateAll(bs => bs.map(b => b.className));
+  const blocked = x.blocks.filter(k => k.roomId === 'x-monadh');
   ok(
-    blocked.length > 0 && cottage.some(c => c.includes('s-elsewhere')),
-    'availability: feed dates show as taken (booked elsewhere)',
+    blocked.length > 0 && monadh.some(c => c.includes('s-elsewhere')),
+    'availability: Monadh calendar dates show as taken (booked elsewhere)',
+  );
+  ok(
+    !x.blocks.some(k => k.roomId !== 'x-monadh') &&
+      !(await p.locator('[data-unit="x-pod1"] .av-d.s-elsewhere, [data-unit="x-cottage"] .av-d.s-elsewhere').count()),
+    'availability: calendars not linked yet block nothing',
   );
   const body = await p.locator('body').innerText();
   ok(
     !names(x).some(n => body.includes(n)) && !/Mairi/.test(body),
     'privacy: no guest or cleaner names on the availability page',
   );
-  ok(!/Airbnb|Booking\.com/.test(body), 'privacy: Sheena does not see which site a booking came from');
+  ok(!/Airbnb|Booking\.com|SuperControl/.test(body), 'privacy: Sheena does not see which site a booking came from');
+  ok(!/Guestname|01632|example\.invalid/.test(body), 'privacy: no guest details from the calendar feed');
 }
 await p.locator('#av-p-pod1').scrollIntoViewIfNeeded();
 await shot(p, '1-availability-phone');
@@ -112,7 +118,7 @@ ok(req && req.request === 'pending', 'client booking of an extra is a pending re
 ok((await p.locator('[data-unit="x-pod1"] .av-d.s-request').count()) === 3, 'requested nights show as requested');
 // a booked-elsewhere night cannot be picked
 ok(
-  await p.locator('[data-unit="x-cottage"] .av-d.s-elsewhere').first().isDisabled(),
+  await p.locator('[data-unit="x-monadh"] .av-d.s-elsewhere').first().isDisabled(),
   'booked-elsewhere nights cannot be picked',
 );
 
@@ -232,9 +238,21 @@ p = await pg(1440, 950, 'available/p-cottage');
 await p.click('.pp-cal summary');
 await settle(p);
 ok(
-  (await p.locator('.pp-cal li').count()) >= 1 && (await p.locator('.pp-cal').innerText()).includes('sample'),
-  'Donald: sample calendar link listed',
+  (await p.locator('.pp-feed').innerText()).includes('Calendar not linked yet') &&
+    !(await p.locator('.pp-cal input').count()),
+  'Donald: Abhainn Cottage calendar "not linked yet", no link box to paste into',
 );
+await p.goto(U + '#available/p-monadh');
+await settle(p);
+await p.click('.pp-cal summary');
+await settle(p);
+{
+  const t = await p.locator('.pp-cal').innerText();
+  ok(
+    t.includes('Calendar linked') && t.includes('SuperControl') && !/https?:|\.ics\b/.test(t.replace('(.ics)', '')),
+    'Donald: Monadh calendar linked, link never shown',
+  );
+}
 await p.click('.pp-cal button:has-text("Read calendars now")');
 await settle(p);
 ok(!errs.length, 'no console errors so far');

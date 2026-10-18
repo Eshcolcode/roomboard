@@ -5,6 +5,11 @@
 // Calendar days are Europe/London, half-open like stays: `from` is the first night, `to` is the check-out day.
 // - All-day events (VALUE=DATE): DTEND is already exclusive, so it is the check-out day as it stands.
 // - Timed events (UTC "Z", TZID=… or floating): each end is turned into its London calendar day.
+// - All-day events sent as local midnights (SuperControl: DTSTART;TZID=Europe/London:20261116T000000 plus
+//   X-MICROSOFT-CDO-ALLDAYEVENT:TRUE) are read as plain dates, so a clock change can never shift them a day.
+// - Bookings and "Closed" / owner blocks are all unavailable. Cancelled events are ignored, and so are free
+//   (TRANSPARENT) ones unless they say closed / unavailable / blocked.
+// - The same UID twice (an updated event) counts once: the highest SEQUENCE, else the later one, wins.
 // - Only dates are kept. Summaries, descriptions and guest names are read past and never stored.
 
 export interface IcsEvent {
@@ -85,10 +90,12 @@ function parseLine(line: string): Prop | null {
 }
 
 type When = { allDay: true; day: string } | { allDay: false; ms: number };
-function parseWhen(p: Prop): When | null {
+function parseWhen(p: Prop, allDayHint = false): When | null {
   const v = p.value;
   const d = v.match(/^(\d{4})(\d{2})(\d{2})$/);
-  if (d || p.params.VALUE === 'DATE') {
+  // an all-day event written as a local (not UTC) midnight: keep the wall date as it is
+  const midnight = !v.endsWith('Z') && /^\d{8}T000000$/.test(v);
+  if (d || p.params.VALUE === 'DATE' || (allDayHint && midnight)) {
     const m = v.match(/^(\d{4})(\d{2})(\d{2})/);
     return m ? { allDay: true, day: `${m[1]}-${m[2]}-${m[3]}` } : null;
   }
@@ -109,13 +116,15 @@ function addDuration(w: When, dur: string): When | null {
 }
 const dayOf = (w: When) => (w.allDay ? w.day : dayIn(w.ms, LONDON));
 
-/** Read an .ics file into booked date ranges. Cancelled or free (TRANSPARENT) events are ignored. */
+const CLOSED = /closed|not available|unavailable|blocked/i;
+
+/** Read an .ics file into unavailable date ranges (dates only, one per UID). */
 export function parseICS(text: string): IcsEvent[] {
   const lines = text
     .replace(/\r\n?/g, '\n')
     .replace(/\n[ \t]/g, '') // unfold continuation lines
     .split('\n');
-  const out: IcsEvent[] = [];
+  const byUid = new Map<string, IcsEvent & { seq: number }>();
   let ev: Prop[] | null = null;
   let depth = 0; // ignore nested blocks such as VALARM inside an event
   for (const raw of lines) {
@@ -132,19 +141,23 @@ export function parseICS(text: string): IcsEvent[] {
     else if (up.startsWith('END:') && up !== 'END:VEVENT') depth--;
     else if (up === 'END:VEVENT') {
       const get = (n: string) => ev!.find(p => p.name === n);
+      const hint = /^TRUE$/i.test(get('X-MICROSOFT-CDO-ALLDAYEVENT')?.value ?? '');
       const st = get('DTSTART');
-      const start = st && parseWhen(st);
+      const start = st && parseWhen(st, hint);
       const status = get('STATUS')?.value.toUpperCase();
-      const transp = get('TRANSP')?.value.toUpperCase();
-      if (start && status !== 'CANCELLED' && transp !== 'TRANSPARENT') {
+      const free = get('TRANSP')?.value.toUpperCase() === 'TRANSPARENT' && !CLOSED.test(get('SUMMARY')?.value ?? '');
+      if (start && status !== 'CANCELLED' && !free) {
         const en = get('DTEND');
         const dur = get('DURATION');
-        let end = en ? parseWhen(en) : dur ? addDuration(start, dur.value) : null;
+        let end = en ? parseWhen(en, hint) : dur ? addDuration(start, dur.value) : null;
         if (!end) end = start.allDay ? { allDay: true, day: plusDays(start.day, 1) } : start;
         const from = dayOf(start);
         let to = dayOf(end);
         if (to <= from) to = plusDays(from, 1); // a same-day or zero-length event still blocks that night
-        out.push({ uid: get('UID')?.value || `${from}/${to}`, from, to });
+        const uid = get('UID')?.value || `${from}/${to}`;
+        const seq = +(get('SEQUENCE')?.value ?? 0) || 0;
+        const had = byUid.get(uid);
+        if (!had || seq >= had.seq) byUid.set(uid, { uid, from, to, seq });
       }
       ev = null;
     } else if (depth === 0) {
@@ -152,7 +165,7 @@ export function parseICS(text: string): IcsEvent[] {
       if (p) ev.push(p);
     }
   }
-  return out;
+  return [...byUid.values()].map(({ uid, from, to }) => ({ uid, from, to }));
 }
 
 /** Merge overlapping or back-to-back ranges (feeds such as freetobook send one event per night). */
@@ -166,6 +179,14 @@ export function mergeRanges<T extends Range>(rs: T[]): Range[] {
     } else out.push({ from: r.from, to: r.to });
   }
   return out;
+}
+
+/** A feed's link from its server secret (e.g. ICAL_MONADH). Only ICAL_* names are read, so a feed row can never
+ * point at another secret. Missing, blank or not-a-link = null = "Calendar not linked yet". */
+export function feedLink(envKey: string, env: (k: string) => string | undefined): string | null {
+  if (!/^ICAL_[A-Z0-9_]+$/.test(envKey)) return null;
+  const v = (env(envKey) ?? '').trim();
+  return /^(https?|webcal):\/\/\S+$/i.test(v) ? v.replace(/^webcal:/i, 'https:') : null;
 }
 
 const esc = (t: string) => t.replace(/[\\;,]/g, m => '\\' + m).replace(/\n/g, '\\n');

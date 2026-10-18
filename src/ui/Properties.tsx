@@ -264,13 +264,12 @@ function PropertyPage({ p, onOpen }: { p: Property; onOpen: (x: PanelInit) => vo
   );
 }
 
-/** Donald only: the iCal links that block dates booked elsewhere, and the export link for Airbnb / Booking.com. */
+/** Donald only: is this unit's booking calendar linked, when was it last read, and the export link. The calendar
+ * link itself is a server secret (see docs/PROPERTY-DATA.md): it is never shown or typed in here. */
 function CalendarLinks({ p }: { p: Property }) {
   const db = useDB();
   const room = unitOf(db, p.id)!;
-  const feeds = (db.feeds ?? []).filter(f => f.roomId === room.id);
-  const [url, setUrl] = useState('');
-  const [label, setLabel] = useState('Airbnb');
+  const feed = (db.feeds ?? []).find(f => f.roomId === room.id);
   const [busy, setBusy] = useState(false);
   const run = async (f: () => Promise<unknown>, ok: string) => {
     setBusy(true);
@@ -283,6 +282,14 @@ function CalendarLinks({ p }: { p: Property }) {
       setBusy(false);
     }
   };
+  const when = (t: string) =>
+    new Date(t).toLocaleString('en-GB', {
+      timeZone: 'Europe/London',
+      day: 'numeric',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
   const exportIt = async () => {
     const r = await data.exportLink(room.id);
     if (r.url) {
@@ -299,58 +306,23 @@ function CalendarLinks({ p }: { p: Property }) {
   };
   return (
     <details className="pp-cal">
-      <summary>Calendar links (Airbnb, Booking.com…)</summary>
+      <summary>Booking calendar (iCal)</summary>
       <p className="pp-calp">
-        Dates booked on these calendars show as taken here, with no guest details.
+        Dates booked or closed on this calendar show as taken here, with no guest details.
         {data.mode === 'demo' && <b> Simulated in this demo.</b>}
       </p>
-      <ul>
-        {feeds.map(f => (
-          <li key={f.id}>
-            <span>
-              <b>{f.label}</b>
-              <small>
-                {f.error
-                  ? f.error
-                  : f.lastSync
-                    ? `Read ${new Date(f.lastSync).toLocaleString('en-GB', { timeZone: 'Europe/London', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`
-                    : 'Not read yet'}
-              </small>
-            </span>
-            <button
-              className="linkbtn"
-              disabled={busy}
-              onClick={() => run(() => data.removeFeed(f.id), 'Link removed')}
-            >
-              Remove
-            </button>
-          </li>
-        ))}
-      </ul>
-      <div className="pp-add">
-        <select aria-label="Calendar from" value={label} onChange={e => setLabel(e.target.value)}>
-          <option>Airbnb</option>
-          <option>Booking.com</option>
-          <option>Other</option>
-        </select>
-        <input
-          aria-label="Calendar link (.ics)"
-          placeholder="Paste the calendar link (.ics)"
-          value={url}
-          onChange={e => setUrl(e.target.value)}
-        />
-        <button
-          className="btn"
-          disabled={busy || !url.trim()}
-          onClick={() =>
-            run(async () => {
-              await data.addFeed({ roomId: room.id, label, url });
-              setUrl('');
-            }, 'Calendar link added')
-          }
-        >
-          Add
-        </button>
+      <div className={'pp-feed' + (feed?.linked ? ' on' : '')}>
+        <b>{feed?.linked ? `Calendar linked · ${feed.label}` : 'Calendar not linked yet'}</b>
+        {/* the link itself is never in the app: only its status */}
+        <small>
+          {!feed?.linked
+            ? 'Send the calendar (.ics) link to Grok Bot. It is kept as a secret setting, never shown here.'
+            : feed.error
+              ? `Last read failed: ${feed.error}. The dates from the last good read are kept.`
+              : feed.lastSync
+                ? `Read ${when(feed.lastSync)} · read again every 3 hours`
+                : 'Not read yet'}
+        </small>
       </div>
       <div className="pp-calbtns">
         <button

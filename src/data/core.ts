@@ -150,12 +150,12 @@ export interface Series {
   horizon?: string | null; // until further notice: stays generated up to here
   cancelledFrom?: string | null;
 }
-/** An iCal link (Airbnb, Booking.com, …) that is read to block dates on one bookable unit. */
+/** One extra unit's booking calendar (iCal). The link itself is a server secret and never reaches the app. */
 export interface Feed {
   id: string;
   roomId: string;
   label: string;
-  url: string;
+  linked: boolean; // false = "Calendar not linked yet"
   simulated?: boolean;
   lastSync?: string | null;
   error?: string | null;

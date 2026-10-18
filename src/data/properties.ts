@@ -155,8 +155,8 @@ export const PROPERTIES: Property[] = [
     credit: 'Photos and details: luxuryhebrideancottage.co.uk',
     todo: ['Check-in and check-out times'],
   },
-  // Donald, 18 Oct 2026: "The Lodge" is Monadh, so there is one entry. Description is Donald's, word for word.
-  // Photos from either Whitefalls lodge may be used (same design).
+  // Donald, 18 Oct 2026: "The Lodge" is Monadh, the only Whitefalls lodge offered. Description is Donald's, word
+  // for word. Website photos may be used.
   {
     id: 'p-monadh',
     brand: 'Whitefalls Spa Lodges',
@@ -172,7 +172,7 @@ export const PROPERTIES: Property[] = [
     sleeps: 'up to 4',
     photo: 'img/whitefalls-exterior.webp',
     photos: [
-      ph('whitefalls-exterior', 'The Whitefalls lodges'),
+      ph('whitefalls-exterior', 'Monadh from outside'),
       ph('whitefalls-lounge', 'Living room with big windows'),
       ph('whitefalls-kitchen', 'Open-plan kitchen and dining area'),
       ph('whitefalls-bedroom', 'Bedroom'),
@@ -181,7 +181,7 @@ export const PROPERTIES: Property[] = [
     features: ['Private spa suite', 'Full kitchen', 'Washer/dryer', 'Wi-Fi', 'Parking'],
     website: 'https://www.whitefalls.co.uk/luxury-selfcatering-hebrides/',
     bookingUrl: 'https://secure.supercontrol.co.uk/availability/availability_search.asp?ownerID=859&siteID=10573',
-    credit: 'Photos: whitefalls.co.uk (the lodges are the same design; photos may show either)',
+    credit: 'Photos: whitefalls.co.uk',
   },
 ];
 

@@ -31,20 +31,40 @@ const freeSpan = (roomId: string, n: number) => {
 };
 
 describe('extra properties (demo)', () => {
-  it('seeds 5 bookable extra units with sample calendar blocks, outside the contract counts', async () => {
+  it('seeds 4 bookable extra units; only Monadh has a linked calendar, outside the contract counts', async () => {
     await repo.reset();
     const extras = S.db.properties.filter(p => !p.contracted);
     expect(extras.map(p => p.id)).toEqual(['p-pod1', 'p-pod2', 'p-cottage', 'p-monadh']);
     expect(extras.every(p => S.db.rooms.filter(r => r.propertyId === p.id).length === 1)).toBe(true);
-    expect(S.db.feeds!.every(f => f.simulated)).toBe(true);
-    // the cottage's one-event-per-night sample is merged into stays of nights
-    const cot = S.db.blocks!.filter(b => b.roomId === 'x-cottage');
-    expect(cot.map(b => [b.from, b.to])).toEqual([
-      [addDays(T, 5), addDays(T, 9)],
-      [addDays(T, 25), addDays(T, 32)],
+    expect(S.db.feeds!.map(f => [f.roomId, f.linked])).toEqual([
+      ['x-pod1', false],
+      ['x-pod2', false],
+      ['x-cottage', false],
+      ['x-monadh', true],
     ]);
-    expect(dayState(S.db, 'x-pod1', addDays(T, 3))).toBe('elsewhere');
-    expect(dayState(S.db, 'x-pod1', addDays(T, 7))).toBe('free'); // DTEND exclusive: check-out day is free
+    expect(S.db.feeds!.every(f => !('url' in f))).toBe(true); // links are server secrets, never in the app
+    // not linked yet: no blocks, no error
+    expect(S.db.blocks!.filter(b => b.roomId !== 'x-monadh')).toEqual([]);
+    expect(S.db.feeds!.every(f => !f.error)).toBe(true);
+    const mo = S.db.blocks!.filter(b => b.roomId === 'x-monadh');
+    expect(mo.length).toBeGreaterThan(0);
+    expect(mo.every(b => b.to > T)).toBe(true);
+    expect(dayState(S.db, 'x-monadh', mo[0].from > T ? mo[0].from : T)).toBe('elsewhere');
+    const after = mo[0].to; // DTEND exclusive: check-out day is free unless another block starts that day
+    if (!mo.some(b => b.from === after)) expect(dayState(S.db, 'x-monadh', after)).not.toBe('elsewhere');
+  });
+
+  it('demo Monadh calendar on 18 Oct 2026: booked 16–19 Nov, closed 20 Dec – 4 Jan', async () => {
+    const { blocksFrom, SAMPLE_ICS } = await import('./local/feeds');
+    const f = { id: 'f', roomId: 'x-monadh', label: 'SuperControl', linked: true };
+    expect(blocksFrom(f, SAMPLE_ICS['x-monadh'], '2026-10-18').map(b => [b.from, b.to])).toEqual([
+      ['2026-11-16', '2026-11-19'],
+      ['2026-12-20', '2027-01-04'],
+    ]);
+    // once those have passed the sample moves on by whole 52-week steps, so the demo never goes empty
+    const later = blocksFrom(f, SAMPLE_ICS['x-monadh'], '2027-03-01');
+    expect(later.length).toBeGreaterThan(0);
+    expect(later.every(b => b.to > '2027-03-01')).toBe(true);
   });
 
   it('a client booking of an extra is a request; Donald is alerted; contract occupancy is unchanged', async () => {
@@ -68,7 +88,10 @@ describe('extra properties (demo)', () => {
   it('clash rules: dates booked elsewhere and a waiting request both refuse a new request', async () => {
     await repo.reset();
     await as('client');
-    await expect(repo.saveStay(ask('x-pod1', 2, 5))).rejects.toThrow(/booked elsewhere/); // sample block d3–d7
+    const b = S.db.blocks!.find(x => x.roomId === 'x-monadh' && x.from > addDays(T, 1))!;
+    await expect(
+      repo.saveStay({ ...ask('x-monadh', 0, 1), arrival: b.from, departure: addDays(b.from, 1) }),
+    ).rejects.toThrow(/booked elsewhere/);
     const a = freeSpan('x-pod2', 3);
     await repo.saveStay(ask('x-pod2', a, a + 3));
     await expect(repo.saveStay(ask('x-pod2', a + 1, a + 2))).rejects.toThrow(/request waiting/);
@@ -123,28 +146,31 @@ describe('extra properties (demo)', () => {
   it('syncing flags a block that lands on a confirmed booking as a possible double booking', async () => {
     await repo.reset();
     await as('manager');
-    const s = await repo.saveStay(ask('x-pod2', 40, 44)); // free in the sample feed
+    const b = S.db.blocks!.find(x => x.roomId === 'x-monadh')!;
+    const a = freeSpan('x-monadh', 2);
+    const s = await repo.saveStay(ask('x-monadh', a, a + 2));
     expect((await repo.syncFeeds()).conflicts).toBe(0);
-    // as if the d1–d9 booking were made on Booking.com after ours: not yet in our blocks when ours was saved
-    S.db.blocks = S.db.blocks!.filter(b => b.roomId !== 'x-pod2');
+    // as if that booking had been taken on SuperControl after ours was saved
+    S.db.blocks = S.db.blocks!.filter(x => x.roomId !== 'x-monadh');
     Object.assign(
       S.db.stays.find(x => x.id === s.id)!,
-      { arrival: addDays(T, 2), departure: addDays(T, 4) },
+      { arrival: b.from, departure: addDays(b.from, 1) },
     );
     expect((await repo.syncFeeds()).conflicts).toBe(1);
-    expect(S.db.activity[0].text).toMatch(/^⚠ Uig is now booked elsewhere/);
+    expect(S.db.activity[0].text).toMatch(/^⚠ Monadh is now booked elsewhere/);
   });
 
-  it('calendar links: only Donald can add one; a bad link is refused; removing it removes its blocks', async () => {
+  it('calendar not linked yet: reading calendars gives those units no blocks and no error', async () => {
     await repo.reset();
-    await as('client');
-    await expect(repo.addFeed({ roomId: 'x-pod1', label: 'Airbnb', url: 'https://x/a.ics' })).rejects.toThrow();
     await as('manager');
-    await expect(repo.addFeed({ roomId: 'x-pod1', label: 'Airbnb', url: 'not a link' })).rejects.toThrow(/https/);
-    await repo.addFeed({ roomId: 'x-pod1', label: 'Airbnb', url: 'https://www.airbnb.co.uk/calendar/ical/1.ics?s=x' });
-    expect(S.db.feeds!.filter(f => f.roomId === 'x-pod1')).toHaveLength(2);
-    await repo.removeFeed('f-x-pod1');
-    expect(S.db.blocks!.some(b => b.roomId === 'x-pod1')).toBe(false);
+    await repo.syncFeeds();
+    for (const id of ['x-pod1', 'x-pod2', 'x-cottage']) {
+      const f = S.db.feeds!.find(x => x.roomId === id)!;
+      expect([f.linked, f.error, f.lastSync]).toEqual([false, null, null]);
+      expect(S.db.blocks!.some(x => x.roomId === id)).toBe(false);
+      expect(dayState(S.db, id, addDays(T, 3))).not.toBe('elsewhere');
+    }
+    expect(S.db.feeds!.find(x => x.roomId === 'x-monadh')!.lastSync).toBeTruthy();
   });
 
   it('upgrades an older demo store (v1) with the new details without losing stays', async () => {
@@ -162,5 +188,22 @@ describe('extra properties (demo)', () => {
     expect(n.properties.find(p => p.id === 'p-es')!.checkout).toBe('11:00');
     expect(n.stays.length).toBe(S.db.stays.length);
     expect(n.blocks!.length).toBeGreaterThan(0);
+  });
+
+  it('upgrades a v2 demo store: the old Lodge and its requests go, old pasted links are replaced', async () => {
+    await repo.reset();
+    const { upgrade } = await import('./local/store');
+    const old = structuredClone(S.db);
+    old.v = 2;
+    old.rooms.push({ id: 'x-lodge', propertyId: 'p-lodge', unitId: 'un-lodge', name: 'Whole lodge', bath: 'ensuite' });
+    old.stays.push({ ...S.db.stays[0], id: 'lodge-req', roomId: 'x-lodge' });
+    (old as unknown as { feeds: unknown[] }).feeds = [
+      { id: 'f-x-pod1', roomId: 'x-pod1', label: 'Airbnb (sample)', url: 'https://x/a.ics' },
+    ];
+    const n = upgrade(old);
+    expect(n.v).toBe(3);
+    expect(n.rooms.some(r => r.id === 'x-lodge')).toBe(false);
+    expect(n.stays.some(x => x.id === 'lodge-req')).toBe(false);
+    expect(n.feeds!.every(f => typeof f.linked === 'boolean' && !('url' in f))).toBe(true);
   });
 });

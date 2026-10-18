@@ -20,7 +20,7 @@ insert into properties (id,name,short_name,contracted,address,blurb,photo_url,fe
   on conflict (id) do update set name=excluded.name, short_name=excluded.short_name, address=excluded.address, blurb=excluded.blurb, photo_url=excluded.photo_url, features=excluded.features, beds_label=excluded.beds_label, brand=excluded.brand, details=excluded.details;
 insert into properties (id,name,short_name,contracted,address,blurb,photo_url,features,beds_label,brand,checkout_time,checkin_time,sort,details) values ('p-cottage','Abhainn Cottage','Abhainn Cottage',false,'Breasclete, Isle of Lewis HS2 9ED','Completely renovated three-bedroom cottage with a garden and decking overlooking the river. Bedroom 1 has an en-suite spa bathroom (spa bath, rain shower and infrared sauna), Bedroom 2 has an en-suite shower room, and the third room has a sofa bed and a desk and is reached through another room. Fully equipped kitchen and dining room, and a lounge with an open peat fire.','img/cottage-exterior.webp',array['2 ensuite bedrooms','Third room with desk','Full kitchen','Open fire','Wi-Fi','Garden & decking']::text[],'3 bedrooms',null,'10:00','15:00',5,'{"area":"Breasclete, Isle of Lewis","photos":[{"src":"img/cottage-exterior.webp","alt":"Abhainn Cottage from the garden"},{"src":"img/cottage-lounge.webp","alt":"Lounge with open fire"},{"src":"img/cottage-kitchen.webp","alt":"Kitchen and dining room"},{"src":"img/cottage-bed1.webp","alt":"Bedroom 1"},{"src":"img/cottage-spa.webp","alt":"Spa bathroom"},{"src":"img/cottage-bed2.webp","alt":"Bedroom 2"},{"src":"img/cottage-room3.webp","alt":"Third room with sofa bed and desk"}],"sleeps":"6","website":"https://luxuryhebrideancottage.co.uk/self_catering.php","bookingUrl":"https://booking-directly.com/widgets/Zi8g2tHyjcHeV1rY7shfws1inCMurecf736nZuRt2Q5ApN9GLY9lBQDGnSivz/properties/17285/unit-selection","credit":"Photos and details: luxuryhebrideancottage.co.uk","todo":["Check-in and check-out times"]}'::jsonb)
   on conflict (id) do update set name=excluded.name, short_name=excluded.short_name, address=excluded.address, blurb=excluded.blurb, photo_url=excluded.photo_url, features=excluded.features, beds_label=excluded.beds_label, brand=excluded.brand, details=excluded.details;
-insert into properties (id,name,short_name,contracted,address,blurb,photo_url,features,beds_label,brand,checkout_time,checkin_time,sort,details) values ('p-monadh','Monadh','Monadh',false,'Whitefalls, Breasclete, Isle of Lewis HS2 9ED','Monadh is a self-catering lodge at Whitefalls Spa Lodges in Breasclete on the Isle of Lewis. It has an open-plan living and dining area, a fully equipped kitchen, and a private indoor spa suite with a RiverBath whirlpool bath, infrared sauna and monsoon shower.','img/whitefalls-exterior.webp',array['Private spa suite','Full kitchen','Washer/dryer','Wi-Fi','Parking']::text[],null,'Whitefalls Spa Lodges','10:00','16:00',6,'{"area":"Breasclete, Isle of Lewis","photos":[{"src":"img/whitefalls-exterior.webp","alt":"The Whitefalls lodges"},{"src":"img/whitefalls-lounge.webp","alt":"Living room with big windows"},{"src":"img/whitefalls-kitchen.webp","alt":"Open-plan kitchen and dining area"},{"src":"img/whitefalls-bedroom.webp","alt":"Bedroom"},{"src":"img/whitefalls-spa.webp","alt":"Private spa suite"}],"sleeps":"up to 4","website":"https://www.whitefalls.co.uk/luxury-selfcatering-hebrides/","bookingUrl":"https://secure.supercontrol.co.uk/availability/availability_search.asp?ownerID=859&siteID=10573","credit":"Photos: whitefalls.co.uk (the lodges are the same design; photos may show either)"}'::jsonb)
+insert into properties (id,name,short_name,contracted,address,blurb,photo_url,features,beds_label,brand,checkout_time,checkin_time,sort,details) values ('p-monadh','Monadh','Monadh',false,'Whitefalls, Breasclete, Isle of Lewis HS2 9ED','Monadh is a self-catering lodge at Whitefalls Spa Lodges in Breasclete on the Isle of Lewis. It has an open-plan living and dining area, a fully equipped kitchen, and a private indoor spa suite with a RiverBath whirlpool bath, infrared sauna and monsoon shower.','img/whitefalls-exterior.webp',array['Private spa suite','Full kitchen','Washer/dryer','Wi-Fi','Parking']::text[],null,'Whitefalls Spa Lodges','10:00','16:00',6,'{"area":"Breasclete, Isle of Lewis","photos":[{"src":"img/whitefalls-exterior.webp","alt":"Monadh from outside"},{"src":"img/whitefalls-lounge.webp","alt":"Living room with big windows"},{"src":"img/whitefalls-kitchen.webp","alt":"Open-plan kitchen and dining area"},{"src":"img/whitefalls-bedroom.webp","alt":"Bedroom"},{"src":"img/whitefalls-spa.webp","alt":"Private spa suite"}],"sleeps":"up to 4","website":"https://www.whitefalls.co.uk/luxury-selfcatering-hebrides/","bookingUrl":"https://secure.supercontrol.co.uk/availability/availability_search.asp?ownerID=859&siteID=10573","credit":"Photos: whitefalls.co.uk"}'::jsonb)
   on conflict (id) do update set name=excluded.name, short_name=excluded.short_name, address=excluded.address, blurb=excluded.blurb, photo_url=excluded.photo_url, features=excluded.features, beds_label=excluded.beds_label, brand=excluded.brand, details=excluded.details;
 insert into units (id,property_id,name,sort) values ('un-lr-up','p-lr','Upstairs · Rooms 1–5',1) on conflict (id) do update set name=excluded.name;
 insert into units (id,property_id,name,sort) values ('un-lr-down','p-lr','Downstairs · Rooms 6–9',2) on conflict (id) do update set name=excluded.name;
@@ -82,16 +82,25 @@ delete from units where id = 'un-lodge' and not exists (select 1 from rooms wher
 delete from properties where id = 'p-lodge' and not exists (select 1 from rooms where property_id = 'p-lodge');
 
 -- ---------- iCal tables ----------
--- Calendar links Donald pastes in (Airbnb / Booking.com / freetobook …). Manager only: the URLs are secrets.
+-- One row per extra unit whose calendar Roomboard reads. The feed URL is a secret and is NOT stored here: each row
+-- names an Edge Function secret (env_key, e.g. ICAL_MONADH) that ical-sync reads at run time. No secret set yet =
+-- "Calendar not linked yet" (linked = false), never an error. Manager can read the status; only the sync writes.
 create table if not exists ical_feeds (
   id uuid primary key default gen_random_uuid(),
-  room_id text not null references rooms on delete cascade,
-  label text not null,
-  url text not null check (url ~* '^(https?|webcal)://'),
+  room_id text not null unique references rooms on delete cascade,
+  label text not null,                      -- where the dates come from, for Donald (e.g. 'SuperControl')
+  env_key text not null unique check (env_key ~ '^ICAL_[A-Z0-9_]+$'),
+  linked boolean not null default false,
   last_synced_at timestamptz,
   last_error text,
   created_at timestamptz not null default now()
 );
+insert into ical_feeds (room_id, label, env_key) values
+  ('x-pod1', 'Harris calendar', 'ICAL_HARRIS'),
+  ('x-pod2', 'Uig calendar', 'ICAL_UIG'),
+  ('x-cottage', 'Abhainn Cottage calendar', 'ICAL_ABHAINN'),
+  ('x-monadh', 'SuperControl', 'ICAL_MONADH')
+  on conflict (room_id) do nothing;
 -- Dates taken on another site: dates only, never guest details. Written by ical-sync (service role).
 create table if not exists ical_blocks (
   id uuid primary key default gen_random_uuid(),
@@ -114,7 +123,7 @@ insert into ical_exports (room_id) select r.id from rooms r join properties p on
 alter table ical_feeds enable row level security;
 alter table ical_blocks enable row level security;
 alter table ical_exports enable row level security;
-create policy "feeds manager" on ical_feeds for all using (my_role() = 'manager') with check (my_role() = 'manager');
+create policy "feeds manager reads" on ical_feeds for select using (my_role() = 'manager');  -- writes: ical-sync only
 create policy "blocks read" on ical_blocks for select using (auth.uid() is not null);
 create policy "exports manager" on ical_exports for select using (my_role() = 'manager');
 
@@ -243,6 +252,7 @@ end $$;
 
 -- ---------- ical-sync writes here (service role only) ----------
 -- Replaces one feed's blocks; logs + alerts Donald once per new clash with a Roomboard booking. Returns new clashes.
+-- p_ranges null + p_error null = no secret set for this feed: not linked, so it blocks nothing.
 create or replace function replace_ical_blocks(p_feed uuid, p_ranges jsonb, p_error text default null) returns int
 language plpgsql security definer set search_path = public as $$
 declare f ical_feeds; r jsonb; n int := 0; s record;
@@ -250,14 +260,19 @@ begin
   select * into f from ical_feeds where id = p_feed;
   if not found then return 0; end if;
   if p_error is not null then
-    update ical_feeds set last_error = left(p_error, 300), last_synced_at = now() where id = p_feed;  -- keep the old blocks
+    update ical_feeds set linked = true, last_error = left(p_error, 300), last_synced_at = now() where id = p_feed;  -- keep the old blocks
+    return 0;
+  end if;
+  if p_ranges is null then
+    delete from ical_blocks where feed_id = p_feed;
+    update ical_feeds set linked = false, last_error = null, last_synced_at = null where id = p_feed;
     return 0;
   end if;
   delete from ical_blocks where feed_id = p_feed;
   for r in select * from jsonb_array_elements(coalesce(p_ranges, '[]')) loop
     insert into ical_blocks (feed_id, room_id, start_date, end_date) values (p_feed, f.room_id, (r->>'from')::date, (r->>'to')::date);
   end loop;
-  update ical_feeds set last_error = null, last_synced_at = now() where id = p_feed;
+  update ical_feeds set linked = true, last_error = null, last_synced_at = now() where id = p_feed;
   for s in select st.id, st.arrival, st.departure, k.start_date, k.end_date from stays st join ical_blocks k
       on k.feed_id = p_feed and rb_overlaps(k.start_date, k.end_date, st.arrival, st.departure)
       where st.room_id = f.room_id and coalesce(st.departure, 'infinity') > london_today() loop
@@ -278,10 +293,17 @@ do $$ begin
   end if;
 end $$;
 
--- ---------- every 30 minutes: read the calendar links (needs pg_cron + pg_net, see 0005) ----------
+-- ---------- every 3 hours: read the calendar links (needs pg_cron + pg_net, see 0005) ----------
+-- The project URL and service-role key come from Supabase Vault at run time (one-time setup in docs/ACCEPTANCE.md:
+-- vault secrets 'project_url' and 'service_role_key'), so nothing secret is written into this migration.
 do $$ begin
   if exists (select 1 from pg_extension where extname = 'pg_cron') then
-    perform cron.schedule('ical-sync', '*/30 * * * *',
-      $c$ select net.http_post('https://<project-ref>.functions.supabase.co/ical-sync', '{}'::jsonb, headers := jsonb_build_object('Authorization','Bearer <service-role-key>')) $c$);
+    perform cron.schedule('ical-sync', '17 */3 * * *', $c$
+      select net.http_post(
+        (select decrypted_secret from vault.decrypted_secrets where name = 'project_url') || '/functions/v1/ical-sync',
+        '{}'::jsonb,
+        headers := jsonb_build_object('Content-Type', 'application/json', 'Authorization',
+          'Bearer ' || (select decrypted_secret from vault.decrypted_secrets where name = 'service_role_key')))
+    $c$);
   end if;
 end $$;

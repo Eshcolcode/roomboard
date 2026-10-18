@@ -2,21 +2,22 @@
 // extra properties show availability and are booked straight away, whole ("Extra · invoiced separately").
 // Donald sets the one indicative rate here (Sheena sees the prices only).
 // Unknown items are marked "details to come", never invented. #available, #available/<propertyId>.
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import { Lightbox } from './Lightbox';
 import { data, useDB, me, bathText, thumb } from '../data';
 import type { Photo, Property } from '../data';
 import { fmt, londonToday } from '../dates';
 import { nextFree, unitOf } from '../data/extras';
-import { priceLine, rate, PRICE_NOTE } from '../data/pricing';
+import { gbp, priceLine, rate, PRICE_NOTE } from '../data/pricing';
 import { UnitAvailability } from './Availability';
 import type { PanelInit } from './StayPanel';
 import { toast } from './overlays';
 import './props.css';
 
-export function Properties({ sub }: { sub?: string; onOpen?: (p: PanelInit) => void }) {
+export function Properties({ sub, start }: { sub?: string; start?: string; onOpen?: (p: PanelInit) => void }) {
   const db = useDB();
   const p = sub ? db.properties.find(x => x.id === sub) : undefined;
-  if (p) return <PropertyPage p={p} />;
+  if (p) return <PropertyPage p={p} start={start && /^\d{4}-\d\d-\d\d$/.test(start) ? start : undefined} />;
   const T = londonToday();
   const contract = db.properties.filter(x => x.contracted);
   const extras = db.properties.filter(x => !x.contracted);
@@ -131,6 +132,11 @@ function PropCard({
   );
 }
 
+const chargeText = (p: Property) =>
+  p.charged && p.bedrooms && p.charged < p.bedrooms
+    ? `Booked as a whole property: ${p.charged} of its ${p.bedrooms} rooms are charged (the sofa-bed/desk room is not), even if only one is used.`
+    : 'Booked as a whole property: every bedroom is charged, even if only one is used.';
+
 /** Donald only: the one indicative rate used for every price in the app. Sheena sees the prices, not this. */
 function RateSetting() {
   const db = useDB();
@@ -167,30 +173,131 @@ function RateSetting() {
       <button className="btn primary" disabled={busy || !v || Number(v) === rate(db)} onClick={save}>
         Save
       </button>
+      <RateHistory />
     </section>
+  );
+}
+
+/** Donald only: every change of the rate, newest first: who, when, old → new. */
+function RateHistory() {
+  const db = useDB();
+  const list = db.rateHistory ?? [];
+  const who = (id: string | null) => db.users.find(u => u.id === id)?.name ?? 'Someone';
+  const when = (t: string) =>
+    new Date(t).toLocaleString('en-GB', {
+      timeZone: 'Europe/London',
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  return (
+    <details className="pp-hist">
+      <summary>Rate history ({list.length})</summary>
+      {list.length ? (
+        <table>
+          <thead>
+            <tr>
+              <th>When (UK time)</th>
+              <th>Who</th>
+              <th>Change</th>
+            </tr>
+          </thead>
+          <tbody>
+            {list.map(h => (
+              <tr key={h.ts + h.to}>
+                <td>{when(h.ts)}</td>
+                <td>{who(h.userId)}</td>
+                <td>
+                  {h.from == null ? '—' : gbp(h.from)} → <b>{gbp(h.to)}</b>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : (
+        <p className="empty-state">Not changed yet: £350 per room per week since the start.</p>
+      )}
+    </details>
   );
 }
 
 function Gallery({ photos, name }: { photos: Photo[]; name: string }) {
   const [i, setI] = useState(0);
-  const cur = photos[Math.min(i, photos.length - 1)];
+  const [big, setBig] = useState(false);
+  const k = Math.min(i, photos.length - 1);
+  const cur = photos[k];
+  const down = useRef<number | null>(null);
+  const swiped = useRef(false);
+  const go = (d: number) => setI((k + d + photos.length) % photos.length);
   return (
     <div className="pp-gal">
-      <img className="pp-main" src={cur.src} alt={cur.alt} />
+      <div
+        className="pp-stage"
+        onPointerDown={e => (down.current = e.clientX)}
+        onPointerUp={e => {
+          const dx = down.current == null ? 0 : e.clientX - down.current;
+          down.current = null;
+          swiped.current = Math.abs(dx) > 40;
+          if (swiped.current && photos.length > 1) go(dx < 0 ? 1 : -1);
+        }}
+      >
+        <button
+          className="pp-mainbtn"
+          aria-label={`Enlarge photo ${k + 1} of ${photos.length}: ${cur.alt}`}
+          onClick={() => !swiped.current && setBig(true)}
+        >
+          <img className="pp-main" src={cur.src} alt={cur.alt} draggable={false} />
+          <span className="pp-count">
+            {k + 1} / {photos.length} · tap to enlarge
+          </span>
+        </button>
+        {photos.length > 1 && (
+          <>
+            <button className="pp-arrow prev" aria-label="Previous photo" onClick={() => go(-1)}>
+              ‹
+            </button>
+            <button className="pp-arrow next" aria-label="Next photo" onClick={() => go(1)}>
+              ›
+            </button>
+          </>
+        )}
+      </div>
       {photos.length > 1 && (
         <div className="pp-thumbs" role="group" aria-label={`${name} photos`}>
-          {photos.map((ph, k) => (
-            <button key={ph.src} className={k === i ? 'on' : ''} aria-pressed={k === i} onClick={() => setI(k)}>
+          {photos.map((ph, n) => (
+            <button key={ph.src + n} className={n === k ? 'on' : ''} aria-pressed={n === k} onClick={() => setI(n)}>
               <img src={thumb(ph.src)} alt={ph.alt} loading="lazy" />
             </button>
           ))}
         </div>
       )}
+      {big && <Lightbox photos={photos} start={k} title={name} onClose={() => setBig(false)} />}
     </div>
   );
 }
 
-function PropertyPage({ p }: { p: Property }) {
+/** A room card's photos: one cover (same size on every card), tap to open all of them full screen. */
+function RoomPhotos({ photos, name }: { photos?: Photo[]; name: string }) {
+  const [big, setBig] = useState(false);
+  if (!photos?.length) return <span className="pp-nophoto pp-cover">Photo to come</span>;
+  return (
+    <>
+      <button
+        className="pp-coverbtn"
+        onClick={() => setBig(true)}
+        aria-label={`${name}: view ${photos.length} photo${photos.length === 1 ? '' : 's'}`}
+      >
+        <img className="pp-cover" src={thumb(photos[0].src)} alt={photos[0].alt} loading="lazy" />
+        {photos.length > 1 && <span className="pp-more">+{photos.length - 1}</span>}
+      </button>
+      {big && <Lightbox photos={photos} title={name} onClose={() => setBig(false)} />}
+    </>
+  );
+}
+
+function PropertyPage({ p, start }: { p: Property; start?: string }) {
   const db = useDB();
   const u = me();
   const units = db.units.filter(x => x.propertyId === p.id);
@@ -225,10 +332,8 @@ function PropertyPage({ p }: { p: Property }) {
       <div className="price-box" data-price={p.id}>
         <b>{priceLine(db, p)}</b>
         <small>
-          {p.contracted
-            ? 'Each room is priced on its own.'
-            : 'Booked as a whole property: every bedroom is charged, even if only one is used.'}{' '}
-          Pro rata: the weekly price ÷ 7 per night. {PRICE_NOTE}
+          {p.contracted ? 'Each room is priced on its own.' : chargeText(p)} Pro rata: the weekly price ÷ 7 per night.{' '}
+          {PRICE_NOTE}
         </small>
       </div>
       {facts.length > 0 && (
@@ -263,16 +368,12 @@ function PropertyPage({ p }: { p: Property }) {
                 .map(r => (
                   <article className="pp-room" key={r.id} id={'room-' + r.id}>
                     <div className="pp-rph">
-                      {r.photos?.length ? (
-                        r.photos.map(ph => <img key={ph.src} src={thumb(ph.src)} alt={ph.alt} loading="lazy" />)
-                      ) : (
-                        <span className="pp-nophoto sm">Photo to come</span>
-                      )}
+                      <RoomPhotos photos={r.photos} name={`${p.short} ${r.name}`} />
                     </div>
                     <div className="pp-rb">
                       <b>{r.name}</b>
                       <span className={'pp-bath b-' + r.bath}>{bathText(r)}</span>
-                      {(r.desc || r.note) && <small>{r.desc ?? r.note}</small>}
+                      {(r.desc || r.note) && (r.desc ?? r.note) !== bathText(r) && <small>{r.desc ?? r.note}</small>}
                     </div>
                   </article>
                 ))}
@@ -282,7 +383,7 @@ function PropertyPage({ p }: { p: Property }) {
       ) : (
         <section className="pp-unit" aria-label="Availability">
           <h2 className="pp-h2">Availability</h2>
-          <UnitAvailability p={p} />
+          <UnitAvailability p={p} start={start} />
         </section>
       )}
       {!p.contracted && u.role === 'manager' && <CalendarLinks p={p} />}

@@ -177,8 +177,10 @@ yet** to **Calendar linked**. To change a link, set the secret again; to unlink,
 - One rate for every property: **Indicative £350 per room per week**. Donald changes it on *Properties* (live:
   `app_settings.rate_per_room_week`, readable by everyone signed in, writable by the manager only; demo: this
   browser). Sheena sees prices but cannot change them.
-- Eshcol and Loch Roag are priced **per room**. Harris, Uig, Monadh and Abhainn Cottage are booked **whole**: every
-  bedroom is charged, even if one is used.
+- Eshcol and Loch Roag are priced **per room**. Harris, Uig, Monadh and Abhainn Cottage are booked **whole**: their
+  charged rooms are priced even if one is used (every bedroom, except Abhainn's sofa-bed/desk room: `charged: 2`).
+- Every rate change is kept with who, when, old and new (`app_settings_history`, Donald only; demo: this browser),
+  shown to Donald under *Rate history* on Properties.
 - Pro rata: **weekly ÷ 7 per night**, rounded to the nearest pound (at £350: £50 a room a night).
 - Always shown as indicative: invoiced separately, long-term deals possible.
 
@@ -189,7 +191,7 @@ yet** to **Calendar linked**. To change a link, set the secret again; to unlink,
 | Harris | 1 | HHC: 1 bedroom + sofa bed (sofa bed not charged) | £350 a week, whole |
 | Uig | 1 | HHC: 1 bedroom + sofa bed (sofa bed not charged) | £350 a week, whole |
 | Monadh | 2 | D brief, "The Lodge (2 ensuite)" = Monadh | £700 a week, whole |
-| Abhainn Cottage | 3 | D, "three-bedroom cottage" (AC: bedroom 3 is a sofa bed and desk room, reached through another; counted, Donald to say if not) | £1,050 a week, whole |
+| Abhainn Cottage | 3 bedrooms, **2 charged** | D, 18 Oct 2026: charge 2 rooms; the sofa-bed/desk room (bedroom 3, reached through another) is not charged | £700 a week, whole |
 
 ## Booking an extra property
 Sheena books directly (no request step): the booking is confirmed straight away and Donald gets a "New booking"

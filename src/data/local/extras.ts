@@ -21,6 +21,11 @@ export function setSettings(next: Partial<Settings>) {
   if (r !== undefined && (!Number.isFinite(r) || r <= 0 || r > 100000))
     throw new Error('Enter a weekly price in pounds, for example 350.');
   S.db.settings = { ...cur, ...next, ...(r !== undefined ? { ratePerRoomWeek: Math.round(r) } : {}) };
+  if (S.db.settings.ratePerRoomWeek !== cur.ratePerRoomWeek)
+    S.db.rateHistory = [
+      { ts: iso(), userId: S.db.currentUser, from: cur.ratePerRoomWeek, to: S.db.settings.ratePerRoomWeek },
+      ...(S.db.rateHistory ?? []),
+    ];
   log(`Indicative rate set to £${S.db.settings.ratePerRoomWeek} per room per week`, undefined, true);
   commit();
 }

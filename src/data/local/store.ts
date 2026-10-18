@@ -10,8 +10,9 @@ import { londonToday } from '../../dates';
  * v1 → v2: real details + extras. v2 → v3 (18 Oct 2026): Lodge merged into Monadh, Harris/Uig, Loch Roag photos,
  * calendar links become secret server settings (only Monadh linked). */
 export function upgrade(x: DB): DB {
-  if ((x.v ?? 1) >= 4) return x;
-  if ((x.v ?? 1) === 3) return toV4(x);
+  if ((x.v ?? 1) >= 5) return x;
+  if ((x.v ?? 1) === 4) return toV5(x);
+  if ((x.v ?? 1) === 3) return toV5(toV4(x));
   const old = new Map(x.properties.map(p => [p.id, p]));
   x.properties = structuredClone(PROPERTIES).map(p => ({
     ...p,
@@ -24,7 +25,7 @@ export function upgrade(x: DB): DB {
   x.stays = x.stays.filter(st => ids.has(st.roomId)); // e.g. requests on the old separate Lodge
   Object.assign(x, demoFeeds(londonToday()));
   x.v = 3;
-  return toV4(x);
+  return toV5(toV4(x));
 }
 /** v3 → v4 (18 Oct 2026): no more requests (extras are booked straight away), who booked each stay, Donald's
  * indicative rate, property order Eshcol, Loch Roag, Harris, Uig, Monadh, Abhainn Cottage, bedroom counts. */
@@ -46,6 +47,18 @@ function toV4(x: DB): DB {
   });
   x.settings = { ...DEFAULT_SETTINGS, ...(x.settings ?? {}) };
   x.v = 4;
+  return x;
+}
+/** v4 → v5 (18 Oct 2026): Abhainn Cottage charged as 2 rooms (fresh property details), rate history. */
+function toV5(x: DB): DB {
+  const old = new Map(x.properties.map(p => [p.id, p]));
+  x.properties = structuredClone(PROPERTIES).map(p => ({
+    ...p,
+    checkout: old.get(p.id)?.checkout ?? p.checkout,
+    checkin: old.get(p.id)?.checkin ?? p.checkin,
+  }));
+  x.rateHistory = x.rateHistory ?? [];
+  x.v = 5;
   return x;
 }
 

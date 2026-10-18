@@ -158,10 +158,12 @@ export const PROPERTIES: Property[] = [
     bookingUrl: 'https://secure.supercontrol.co.uk/availability/availability_search.asp?ownerID=859&siteID=10573',
     credit: 'Photos: whitefalls.co.uk',
   },
-  // Donald, 18 Oct 2026: the 3-bedroom cottage is Abhainn Cottage.
+  // Donald, 18 Oct 2026: the 3-bedroom cottage is Abhainn Cottage. Charged as 2 rooms (Donald, 18 Oct 2026):
+  // the sofa-bed/desk room is not charged.
   {
     id: 'p-cottage',
     bedrooms: 3,
+    charged: 2,
     name: 'Abhainn Cottage',
     short: 'Abhainn Cottage',
     contracted: false,

@@ -199,7 +199,7 @@ export function Board({ onOpen }: { onOpen: (p: PanelInit) => void }) {
                     </div>
                   </div>
                   <div className="xgrp-note">
-                    Indicative {gbp(rate(db))} per room per week · each is booked whole, all its bedrooms charged ·{' '}
+                    Indicative {gbp(rate(db))} per room per week · each is booked and priced as a whole property ·{' '}
                     {PRICE_NOTE}
                   </div>
                 </div>
@@ -369,10 +369,13 @@ function ExtraRow({
       <div
         className="track"
         style={{ width: days * W, backgroundSize: `${W}px 100%` }}
-        title="Click a free day to book this property"
+        title="Click a free day to book this property from that day"
         onClick={e => {
           if (!(e.target as HTMLElement).classList.contains('track')) return;
-          location.hash = 'available/' + pid;
+          const i = Math.floor((e.clientX - (e.currentTarget as HTMLElement).getBoundingClientRect().left) / W);
+          const d = addDays(start, i);
+          // a free day from today on starts a booking with that night (up to a week) already picked
+          location.hash = 'available/' + pid + (d >= T ? '/' + d : '');
         }}
       >
         {todayX >= 0 && todayX < days && <div className="todayline" style={{ left: todayX * W + W / 2 }} />}

@@ -164,20 +164,30 @@ describe('extra properties (demo)', () => {
       [1, 350],
       [1, 350],
       [2, 700],
-      [3, 1050],
+      [3, 700], // Donald, 18 Oct 2026: Abhainn charged as 2 rooms (sofa-bed/desk room not charged)
     ]);
-    expect(priceLine(S.db, P('Monadh'))).toBe(
-      'Indicative £350 per room per week · whole property, 2 bedrooms = £700 a week',
+    expect(priceLine(S.db, P('Abhainn Cottage'))).toBe(
+      'Indicative £350 per room per week · whole property, 2 rooms charged = £700 a week',
     );
-    expect(estimateLine(S.db, P('Abhainn Cottage'), 3)).toBe('Indicative £450 for 3 nights (£1,050 a week ÷ 7 × 3)');
+    expect(priceLine(S.db, P('Monadh'))).toBe(
+      'Indicative £350 per room per week · whole property, 2 rooms charged = £700 a week',
+    );
+    expect(estimateLine(S.db, P('Abhainn Cottage'), 3)).toBe('Indicative £300 for 3 nights (£700 a week ÷ 7 × 3)');
     await as('client');
     await expect(repo.setSettings({ ratePerRoomWeek: 1 })).rejects.toThrow(/Only Donald/);
     await as('manager');
     await expect(repo.setSettings({ ratePerRoomWeek: 0 })).rejects.toThrow(/weekly price/);
     await repo.setSettings({ ratePerRoomWeek: 420 });
     expect(priceLine(S.db, P('Eshcol'))).toBe('Indicative £420 per room per week');
-    expect(weekly(S.db, P('Abhainn Cottage'))).toBe(1260);
+    expect(weekly(S.db, P('Abhainn Cottage'))).toBe(840);
     expect(S.db.activity[0].managerOnly).toBe(true);
+    // rate history: who, when, old and new
+    await repo.setSettings({ ratePerRoomWeek: 380 });
+    expect(S.db.rateHistory!.map(h => [h.from, h.to, h.userId])).toEqual([
+      [420, 380, S.db.currentUser],
+      [350, 420, S.db.currentUser],
+    ]);
+    expect(S.db.rateHistory!.every(h => !!h.ts)).toBe(true);
   });
 
   it('syncing flags a block that lands on a confirmed booking as a possible double booking', async () => {
@@ -240,7 +250,7 @@ describe('extra properties (demo)', () => {
       { id: 'f-x-pod1', roomId: 'x-pod1', label: 'Airbnb (sample)', url: 'https://x/a.ics' },
     ];
     const n = upgrade(old);
-    expect(n.v).toBe(4);
+    expect(n.v).toBe(5);
     expect(n.rooms.some(r => r.id === 'x-lodge')).toBe(false);
     expect(n.stays.some(x => x.id === 'lodge-req')).toBe(false);
     expect(n.feeds!.every(f => typeof f.linked === 'boolean' && !('url' in f))).toBe(true);
@@ -260,7 +270,7 @@ describe('extra properties (demo)', () => {
     });
     old.stays.push({ ...S.db.stays[0], id: 'old-req', roomId: 'x-pod2', request: 'pending' } as never);
     const n = upgrade(old);
-    expect(n.v).toBe(4);
+    expect(n.v).toBe(5);
     expect(n.settings!.ratePerRoomWeek).toBe(350);
     expect(n.properties.map(p => p.short)).toEqual([
       'Eshcol',

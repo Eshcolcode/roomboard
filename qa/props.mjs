@@ -106,8 +106,8 @@ ok(
 );
 ok(
   (await p.locator('.avp-card .price-line:has-text("Indicative £350 per room per week")').count()) === 4 &&
-    (await p.locator('#av-p-cottage .price-line').innerText()).includes('3 bedrooms = £1,050 a week'),
-  'availability: indicative price on every extra (Abhainn whole property 3 × £350)',
+    (await p.locator('#av-p-cottage .price-line').innerText()).includes('2 rooms charged = £700 a week'),
+  'availability: indicative price on every extra (Abhainn whole property, 2 rooms charged = £700)',
 );
 const iPick = await pickFree(p, '[data-unit="x-pod1"]', 3);
 ok(
@@ -121,6 +121,10 @@ ok(
   'Sheena: pro-rata estimate before booking',
 );
 await p.fill('[data-unit="x-pod1"] .av-who input', 'Calum Test');
+{
+  const h = (await p.locator('[data-unit="x-pod1"] .av-who input').boundingBox()).height;
+  ok(h >= 44 && h <= 80, 'booking bar: the name box is a normal size (' + Math.round(h) + 'px)');
+}
 await p.locator('[data-unit="x-pod1"] .av-bar').scrollIntoViewIfNeeded();
 await shot(p, '2-book-phone');
 await p.click('[data-unit="x-pod1"] .av-go');
@@ -137,7 +141,13 @@ await settle(p);
 }
 let bk1 = (await db(p)).stays.find(s => s.roomId === 'x-pod1' && s.holdLabel === 'Calum Test');
 ok(bk1 && bk1.bookedBy === 'u-client' && !('request' in bk1), 'client booking of an extra is a confirmed booking');
-ok((await p.locator('[data-unit="x-pod1"] .av-d.s-taken').count()) >= 3, 'booked nights now show as taken');
+ok((await p.locator('[data-unit="x-pod1"] .av-d.s-mine').count()) === 3, 'Sheena: her booked nights show as "Yours"');
+ok(
+  (await p.locator('[data-unit="x-pod1"] .av-yours').innerText()).includes('Calum Test') &&
+    (await p.locator('[data-unit="x-pod1"] .av-d.s-mine').first().getAttribute('aria-label')).includes('yours'),
+  'Sheena: "Your bookings here" lists it',
+);
+ok(!(await p.locator('[data-unit="x-cottage"] .av-d.s-mine').count()), "Donald's guest is not shown as hers");
 ok(
   (await db(p)).alerts.some(a => a.toUserId === 'u-donald' && /New booking/.test(a.subject) && /£150/.test(a.body)),
   'Donald is alerted, with the indicative price',
@@ -221,7 +231,7 @@ ok(await p.locator('.pp-head h1:has-text("Uig")').isVisible(), 'property page fo
     'extra: "Check availability" opens the public booking page in a new tab',
   );
   ok(
-    (await p.locator('.price-box').innerText()).includes('whole property, 1 bedroom = £350 a week'),
+    (await p.locator('.price-box').innerText()).includes('whole property, 1 room charged = £350 a week'),
     'Uig: indicative whole-property price on the property page',
   );
 }
@@ -255,6 +265,33 @@ ok(
   'board: Donald sees "Booked elsewhere"',
 );
 await shot(p, '3c-board-donald');
+// a free day on an extras row starts a booking with that night (up to a week) already picked
+{
+  const x = await db(p);
+  const busy = d =>
+    x.stays.some(s => s.roomId === 'x-pod1' && s.arrival <= d && (s.departure ?? '9') > d) ||
+    x.blocks.some(b => b.roomId === 'x-pod1' && b.from <= d && b.to > d);
+  let k = 1;
+  while (busy(D(k))) k++;
+  const W = await p.evaluate(() => parseFloat(getComputedStyle(document.querySelector('.track')).backgroundSize));
+  const tl = await p.evaluate(() => parseFloat(document.querySelector('.todayline').style.left));
+  const todayIdx = Math.round((tl - W / 2) / W);
+  await p.locator('[data-extra="p-pod1"]').scrollIntoViewIfNeeded();
+  const tr = await p.locator('[data-extra="p-pod1"] .track').boundingBox();
+  await p.mouse.click(tr.x + (todayIdx + k) * W + W / 2, tr.y + tr.height / 2);
+  await settle(p);
+  ok(
+    (await p.evaluate(() => location.hash)) === '#available/p-pod1/' + D(k) &&
+      (await p.locator('[data-unit="x-pod1"] .av-d.sel').count()) >= 1 &&
+      (await p.locator('[data-unit="x-pod1"] .av-go').isVisible()),
+    'board: a free day on Harris opens a booking with that night picked (' + D(k) + ')',
+  );
+  ok(
+    /Indicative £\d+ for \d+ night/.test(await p.locator('[data-unit="x-pod1"] .av-est').innerText()),
+    'prefilled booking shows the estimate',
+  );
+  await shot(p, '3d-board-prefill');
+}
 await as(p, 'u-client');
 await p.goto(U + '#activity');
 await settle(p);
@@ -273,9 +310,19 @@ await settle(p);
 ok((await db(p)).settings.ratePerRoomWeek === 400, 'Donald: rate saved');
 ok(
   (await p.locator('[data-prop="p-es"] .pp-price').innerText()) === 'Indicative £400 per room per week' &&
-    (await p.locator('[data-prop="p-monadh"] .pp-price').innerText()).includes('2 bedrooms = £800 a week'),
+    (await p.locator('[data-prop="p-monadh"] .pp-price').innerText()).includes('2 rooms charged = £800 a week') &&
+    (await p.locator('[data-prop="p-cottage"] .pp-price').innerText()).includes('2 rooms charged = £800 a week'),
   'prices follow the rate everywhere',
 );
+await p.click('.pp-hist summary');
+await settle(p);
+{
+  const h = await p.locator('.pp-hist').innerText();
+  ok(
+    h.includes('Rate history (1)') && /£350\s*→\s*£400/.test(h) && h.includes('Donald'),
+    'Donald: rate history shows who, when, old → new',
+  );
+}
 await shot(p, '5b-rate');
 await as(p, 'u-client');
 ok(!(await p.locator('.pp-rate').count()), 'Sheena: cannot edit the rate');
@@ -293,7 +340,21 @@ ok(
   (await p.locator('.pp-bath.b-shared').count()) === 2 && (await p.locator('.pp-bath.b-private').count()) === 2,
   'Eshcol: rooms 8-9 shared, 1 and 5 private shower rooms',
 );
-ok((await p.locator('.pp-room img').count()) >= 10, 'Eshcol: room photos');
+ok((await p.locator('.pp-room img.pp-cover').count()) >= 10, 'Eshcol: a cover photo on every room card');
+// tap to enlarge, then move through the photos
+await p.click('.pp-mainbtn');
+await settle(p);
+ok(await p.locator('.lb').isVisible(), 'gallery: tap the photo to enlarge');
+const c1 = await p.locator('.lb-top').innerText();
+await p.keyboard.press('ArrowRight');
+ok(
+  (await p.locator('.lb-top').innerText()) !== c1 && /2 of/.test(await p.locator('.lb-top').innerText()),
+  'viewer: arrow key moves to the next photo',
+);
+await shot(p, '4b-lightbox');
+await p.keyboard.press('Escape');
+await settle(p);
+ok(!(await p.locator('.lb').count()), 'viewer: Esc closes');
 ok(!/Mairi/.test(await p.locator('body').innerText()), 'privacy: no cleaner name on the property page');
 ok(!(await p.locator('.pp-todo').count()), 'Eshcol: nothing left "to come" (address confirmed, bed sizes not needed)');
 await shot(p, '4-property-eshcol');
@@ -301,7 +362,27 @@ await p.goto(U + '#available/p-lr');
 await settle(p);
 ok(await p.locator('.pp-main').isVisible(), 'Loch Roag: photo gallery');
 ok(!(await p.locator('a.pp-book').count()), 'Loch Roag: no booking-page button on a contract house');
-ok((await p.locator('.pp-room img').count()) === 16, 'Loch Roag: 16 room photos (rooms 1-3, 5-9)');
+{
+  const x = await db(p);
+  const n = x.rooms.filter(r => r.propertyId === 'p-lr').reduce((t, r) => t + (r.photos?.length ?? 0), 0);
+  ok(
+    n === 16 && (await p.locator('.pp-room img.pp-cover').count()) === 8,
+    'Loch Roag: 16 room photos, one cover on rooms 1-3, 5-9',
+  );
+  const box = await p.locator('#room-lr-3 .pp-coverbtn').boundingBox();
+  await p.click('#room-lr-3 .pp-coverbtn');
+  await settle(p);
+  ok(/1 of 3/.test(await p.locator('.lb-top').innerText()), 'Loch Roag Room 3: tap the cover to see its 3 photos');
+  await p.click('.lb-nav.next');
+  ok(/2 of 3/.test(await p.locator('.lb-top').innerText()), 'viewer: next button');
+  await p.click('.lb-x');
+  await settle(p);
+  ok(!(await p.locator('.lb').count()) && box.height > 100, 'viewer: ✕ closes; covers are a good size');
+  const sizes = await p
+    .locator('.pp-room .pp-cover')
+    .evaluateAll(es => [...new Set(es.map(e => Math.round(e.getBoundingClientRect().height)))]);
+  ok(sizes.length === 1, 'Loch Roag: every room cover is the same size, placeholder included (' + sizes + ')');
+}
 ok(
   (await p.locator('#room-lr-4 .pp-nophoto').count()) === 1 && (await p.locator('#room-lr-4 img').count()) === 0,
   'Loch Roag: Room 4 shows "Photo to come"',
@@ -378,6 +459,54 @@ ok(!(await p.locator('.xsec').innerText()).includes('Direct guest'), "phone Room
 ok((await p.evaluate(() => document.documentElement.scrollWidth)) <= 392, 'phone Rooms: fits the width');
 await p.locator('.xsec').scrollIntoViewIfNeeded();
 await shot(p, '7-rooms-extras-phone');
+ok(
+  (await p.locator('.xcard .xd').first().boundingBox()).height >= 44,
+  'phone Rooms: night cells are big enough to tap',
+);
+{
+  const cell = p.locator('.xcard[data-extra="p-pod2"] a.xd.f').first();
+  const href = await cell.getAttribute('href');
+  await cell.click();
+  await settle(p);
+  ok(
+    (await p.evaluate(() => location.hash)) === href &&
+      (await p.locator('[data-unit="x-pod2"] .av-d.sel').count()) >= 1 &&
+      (await p.locator('[data-unit="x-pod2"] .av-go').isVisible()),
+    'phone: tapping a free night on Rooms starts a booking from that night',
+  );
+  await shot(p, '8-prefill-phone');
+}
+// phone: swipe the gallery and the viewer
+await p.goto(U + '#available/p-lr');
+await settle(p);
+{
+  await p.locator('.pp-stage').scrollIntoViewIfNeeded();
+  const bb = await p.locator('.pp-stage').boundingBox();
+  const y = bb.y + bb.height / 2;
+  await p.mouse.move(bb.x + bb.width - 90, y);
+  await p.mouse.down();
+  await p.mouse.move(bb.x + 90, y, { steps: 5 });
+  await p.mouse.up();
+  await settle(p);
+  ok(
+    /^2 \//.test(await p.locator('.pp-count').innerText()) && !(await p.locator('.lb').count()),
+    'phone: swipe moves the gallery (and does not open the viewer)',
+  );
+  await p.click('#room-lr-2 .pp-coverbtn');
+  await settle(p);
+  const vb = { w: 390, h: 844 };
+  await p.mouse.move(vb.w - 60, vb.h / 2);
+  await p.mouse.down();
+  await p.mouse.move(60, vb.h / 2, { steps: 5 });
+  await p.mouse.up();
+  await settle(p);
+  ok(
+    /2 of 2/.test(await p.locator('.lb-top').innerText()) && (await p.locator('.lb').isVisible()),
+    'phone viewer: swipe to the next photo, stays open',
+  );
+  await shot(p, '9-lightbox-phone');
+  await p.click('.lb-x');
+}
 
 console.log(errs.length ? 'Console errors:\n' + errs.join('\n') : 'No console errors');
 console.log(`\n${pass} passed, ${fail} failed`);

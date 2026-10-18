@@ -2,11 +2,11 @@
 // the first night and the check-out day, then "Book these dates". Used on the property page and on the
 // stand-alone #availability page. A booking is confirmed straight away (whole property, indicative price shown);
 // Donald is told, and invoicing happens separately.
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { data, useDB, me, thumb } from '../data';
 import type { Property } from '../data';
 import { addDays, diffDays, fmt, londonToday } from '../dates';
-import { dayState, rangeFree, unitOf } from '../data/extras';
+import { dayState, ownOn, prefill, rangeFree, unitOf } from '../data/extras';
 import { estimateLine, priceLine, PRICE_NOTE } from '../data/pricing';
 import type { DayState } from '../data/extras';
 import './props.css';
@@ -30,7 +30,9 @@ function Month({
   to,
   onPick,
   T,
+  meId,
 }: {
+  meId: string | null;
   roomId: string;
   month: string;
   from: string | null;
@@ -56,6 +58,7 @@ function Month({
         ))}
         {days.map(d => {
           const st = dayState(db, roomId, d);
+          const own = meId && st === 'taken' ? ownOn(db, roomId, d, meId) : undefined;
           const past = d < T;
           const inSel = from && (d === from || (to && d > from && d < to));
           const isOut = to && d === to;
@@ -67,14 +70,14 @@ function Month({
               key={d}
               className={
                 'av-d s-' +
-                (past ? 'past' : st) +
+                (past ? 'past' : own ? 'mine' : st) +
                 (inSel ? ' sel' : '') +
                 (isOut ? ' out' : '') +
                 (d === T ? ' today' : '')
               }
               disabled={!usable}
               aria-pressed={!!inSel || !!isOut}
-              aria-label={`${fmt(d, { weekday: 'long', day: 'numeric', month: 'long' })}: ${past ? 'past' : STATE_TEXT[st]}${isOut ? ', check-out' : ''}`}
+              aria-label={`${fmt(d, { weekday: 'long', day: 'numeric', month: 'long' })}: ${past ? 'past' : own ? 'yours' : STATE_TEXT[st]}${isOut ? ', check-out' : ''}`}
               onClick={() => onPick(d)}
             >
               {+d.slice(8)}
@@ -87,21 +90,30 @@ function Month({
 }
 
 /** Three months for one extra unit, with date picking and the booking button. */
-export function UnitAvailability({ p, months = 3 }: { p: Property; months?: number }) {
+export function UnitAvailability({ p, months = 3, start }: { p: Property; months?: number; start?: string }) {
   const db = useDB();
   const u = me();
   const T = londonToday();
   const room = unitOf(db, p.id);
-  const [from, setFrom] = useState<string | null>(null);
-  const [to, setTo] = useState<string | null>(null);
+  // a day tapped on the board or the Rooms card arrives here as `start`: prefill that night and up to a week
+  const [init] = useState(() => (room && start && start >= T ? prefill(db, room.id, start) : null));
+  const [from, setFrom] = useState<string | null>(init?.from ?? null);
+  const [to, setTo] = useState<string | null>(init?.to ?? null);
+  const barRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (init) barRef.current?.scrollIntoView({ block: 'center' });
+  }, [init]);
   const [who, setWho] = useState('');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const list = useMemo(() => {
-    const out = [first(T)];
+    // show the month of a prefilled day even when it is further out
+    const out = [
+      init && init.from.slice(0, 7) > nextMonth(nextMonth(first(T))).slice(0, 7) ? first(init.from) : first(T),
+    ];
     while (out.length < months) out.push(nextMonth(out[out.length - 1]));
     return out;
-  }, [T, months]);
+  }, [T, months, init]);
   if (!room) return null;
   const pick = (d: string) => {
     setMsg(null);
@@ -112,6 +124,12 @@ export function UnitAvailability({ p, months = 3 }: { p: Property; months?: numb
     }
   };
   const nights = from && to ? diffDays(from, to) : 0;
+  const yours =
+    u.role === 'client'
+      ? db.stays
+          .filter(s => s.roomId === room.id && s.bookedBy === u.id && (s.departure ?? '9') > T)
+          .sort((a, b) => a.arrival.localeCompare(b.arrival))
+      : [];
   const canAsk = u.role === 'client' || u.role === 'manager';
   const send = async () => {
     if (!from || !to) return;
@@ -149,13 +167,34 @@ export function UnitAvailability({ p, months = 3 }: { p: Property; months?: numb
       <div className="av-key" aria-hidden>
         <span className="k free">Free</span>
         <span className="k taken">Taken</span>
+        {u.role === 'client' && <span className="k mine">Yours</span>}
       </div>
       <div className="av-months">
         {list.map(m => (
-          <Month key={m} roomId={room.id} month={m} from={from} to={to} onPick={pick} T={T} />
+          <Month
+            key={m}
+            roomId={room.id}
+            month={m}
+            from={from}
+            to={to}
+            onPick={pick}
+            T={T}
+            meId={u.role === 'client' ? u.id : null}
+          />
         ))}
       </div>
-      <div className="av-bar" aria-live="polite">
+      {yours.length > 0 && (
+        <div className="av-yours" aria-label={`Your bookings at ${p.name}`}>
+          <b>Your bookings here</b>
+          {yours.map(s => (
+            <span key={s.id}>
+              {fmt(s.arrival)} → {s.departure ? fmt(s.departure) : 'open'} · {s.holdLabel || 'Name to follow'} ·{' '}
+              {estimateLine(db, p, s.departure ? diffDays(s.arrival, s.departure) : null)}
+            </span>
+          ))}
+        </div>
+      )}
+      <div className="av-bar" aria-live="polite" ref={barRef}>
         {!from ? (
           <p className="av-hint">Tap the first night, then the check-out day.</p>
         ) : !to ? (

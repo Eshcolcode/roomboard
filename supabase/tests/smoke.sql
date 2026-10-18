@@ -121,7 +121,7 @@ delete from stays where hold_label='Ewan';
 select 'T30 Sheena can cancel her own extra booking' t, count(*) = 0 ok from stays where hold_label='Ewan';
 select 'T31 double-booking log is Donald-only and names no booking site' t, bool_and(manager_only) and not bool_or(text like '%Airbnb%') ok from activity where text like '⚠ Possible double booking%';
 -- RLS as an ordinary signed-in role: settings, activity, others' extra bookings
-grant select, update on app_settings to rb_rls_probe; grant select on activity, stays to rb_rls_probe;
+grant select, update on app_settings to rb_rls_probe; grant select on app_settings_history to rb_rls_probe; grant select on activity, stays to rb_rls_probe;
 set role rb_rls_probe;
 set request.uid = '00000000-0000-0000-0000-000000000001'; -- Sheena
 select 'T34 Sheena reads the rate' t, (value #>> '{}')::int = 350 ok from app_settings where key = 'rate_per_room_week';
@@ -133,8 +133,12 @@ select 'T37a Sheena reads her own extra booking' t, count(*) = 1 ok from stays w
 set request.uid = '00000000-0000-0000-0000-000000000002'; -- Donald
 update app_settings set value = '400' where key = 'rate_per_room_week';
 select 'T38 Donald changes the rate' t, (value #>> '{}')::int = 400 ok from app_settings where key = 'rate_per_room_week';
+select 'T38a rate history: who, old and new, Donald can read it' t, count(*) = 1 ok from app_settings_history
+  where old_value = '350' and new_value = '400' and changed_by = '00000000-0000-0000-0000-000000000002';
+set request.uid = '00000000-0000-0000-0000-000000000001';
+select 'T38b Sheena cannot read the rate history' t, count(*) = 0 ok from app_settings_history;
 reset role;
-select 'T39 prices follow the rate (Abhainn 3 bedrooms x £400, 7 nights = £1,200)' t, indicative_price('x-cottage','2027-06-01','2027-06-08') like 'Indicative £1,200 for 7 nights%' ok;
+select 'T39 prices follow the rate (Abhainn 2 rooms charged x £400, 7 nights = £800)' t, indicative_price('x-cottage','2027-06-01','2027-06-08') like 'Indicative £800 for 7 nights%' ok;
 set request.uid = '00000000-0000-0000-0000-000000000001';
 select 'T32 extra_taken gives Sheena dates without names' t, count(*) = 1 ok from extra_taken() where room_id = 'x-cottage' and start_date = '2027-05-01';
 select 'T33 export tokens for every extra unit' t, count(*) = 4 ok from ical_exports;

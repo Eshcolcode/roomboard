@@ -1,6 +1,6 @@
 // Extra properties (Harris and Uig pods, Abhainn Cottage, Monadh): availability per day, the iCal export of one unit,
 // and clashes between calendar blocks and bookings. Pure helpers over a DB snapshot.
-import { addDays, overlaps } from '../dates';
+import { addDays, diffDays, overlaps } from '../dates';
 import type { Block, DB, Stay } from './core';
 import { exportICS, mergeRanges } from './ical';
 
@@ -78,4 +78,16 @@ export function segments(
     out.push({ from: b.from, to: b.to, kind: client || b.feedId === 'taken' ? 'taken' : 'elsewhere' });
   }
   return out.sort((a, b) => a.from.localeCompare(b.from));
+}
+
+/** Sheena's own booking on this night, if any (shown as "Yours"; Donald's other guests stay just "taken"). */
+export const ownOn = (db: DB, roomId: string, d: string, userId: string) =>
+  live(db, roomId).find(s => s.bookedBy === userId && overlaps(s.arrival, s.departure, d, addDays(d, 1)));
+
+/** A prefilled booking from a tapped day: that night to the longest free run, up to `nights` (default a week). */
+export function prefill(db: DB, roomId: string, d: string, nights = 7): { from: string; to: string } | null {
+  if (!rangeFree(db, roomId, d, addDays(d, 1))) return null;
+  let to = addDays(d, 1);
+  while (diffDays(d, to) < nights && rangeFree(db, roomId, to, addDays(to, 1))) to = addDays(to, 1);
+  return { from: d, to };
 }

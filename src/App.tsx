@@ -107,7 +107,7 @@ function Shell({ wide }: { wide: boolean }) {
   }, [u.id]);
 
   const print = hash.startsWith('print-') ? (hash.slice(6) as 'today' | 'cleaning') : null;
-  const [tab, sub] = hash.split('/');
+  const [tab, sub, third] = hash.split('/');
   const asked = (tab === 'board' && !wide ? 'rooms' : tab) as Tab;
   const cur: Tab = allowed.includes(asked) ? asked : home;
   const go = (t: Tab) => {
@@ -247,7 +247,7 @@ function Shell({ wide }: { wide: boolean }) {
         {cur === 'today' && <TodayList onOpen={open} />}
         {cur === 'changeovers' && <Changeovers />}
         {cur === 'workers' && <Workers onOpen={open} />}
-        {cur === 'available' && <Properties key={sub ?? ''} sub={sub} onOpen={open} />}
+        {cur === 'available' && <Properties key={hash} sub={sub} start={third} onOpen={open} />}
         {cur === 'activity' && <ActivityView />}
         {cur === 'crew' && <Crew />}
       </main>

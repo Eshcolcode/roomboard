@@ -4,7 +4,8 @@ import { estimate, estimateLine, priceLine, roomsCharged, weekly } from './prici
 import type { DB, Property } from './core';
 
 const db = (r?: number) => ({ settings: r ? { ratePerRoomWeek: r } : undefined }) as unknown as DB;
-const prop = (contracted: boolean, bedrooms?: number) => ({ contracted, bedrooms }) as Property;
+const prop = (contracted: boolean, bedrooms?: number, charged?: number) =>
+  ({ contracted, bedrooms, charged }) as Property;
 
 describe('pricing', () => {
   it('defaults to £350 per room per week when nothing is set', () => {
@@ -15,6 +16,7 @@ describe('pricing', () => {
     expect(roomsCharged(prop(false, 3))).toBe(3);
     expect(roomsCharged(prop(false))).toBe(1); // unknown bedroom count: one room, never invented
     expect(weekly(db(), prop(false, 3))).toBe(1050);
+    expect(weekly(db(), prop(false, 3, 2))).toBe(700); // Abhainn: 3 bedrooms, 2 charged
   });
   it('pro rata per night = weekly ÷ 7, rounded to the nearest pound', () => {
     expect(estimate(db(), prop(true), 1)).toBe(50);

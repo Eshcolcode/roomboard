@@ -37,7 +37,8 @@ export interface Property {
   mapUrl?: string;
   website?: string;
   bookingUrl?: string; // public booking / check-availability page (not an iCal feed)
-  bedrooms?: number; // extras: rooms charged when the whole property is booked (docs/PROPERTY-DATA.md)
+  bedrooms?: number; // extras: bedrooms (shown)
+  charged?: number; // extras: rooms charged when booked whole, if not every bedroom (Abhainn: 2 of 3)
   credit?: string; // where the photos/facts came from (shown small)
   todo?: string[]; // details still to come from Donald (shown subtly, never faked)
 }
@@ -178,6 +179,13 @@ export interface Settings {
   ratePerRoomWeek: number; // indicative £ per room per week, all properties
 }
 export const DEFAULT_SETTINGS: Settings = { ratePerRoomWeek: 350 };
+/** One change of the indicative rate: who, when, old and new (Donald only). */
+export interface RateChange {
+  ts: string;
+  userId: string | null;
+  from: number | null;
+  to: number;
+}
 
 export interface DB {
   v: number;
@@ -194,7 +202,8 @@ export interface DB {
   series?: Series[]; // crew rotations (optional: older demo stores have none)
   feeds?: Feed[]; // iCal import links per extra unit
   blocks?: Block[]; // dates booked elsewhere (from those links): no guest details are kept
-  settings?: Settings; // Donald's settings (indicative rate); everyone reads, only the manager writes
+  settings?: Settings;
+  rateHistory?: RateChange[]; // newest first; Donald only (live: app_settings_history, RLS) // Donald's settings (indicative rate); everyone reads, only the manager writes
   currentUser: string;
   authRequired?: boolean;
 }

@@ -22,7 +22,7 @@ import type { PanelInit } from './StayPanel';
 import { confirmDialog, toast } from './overlays';
 import { copySummary } from './summary';
 import { Icon } from './icons';
-import { dayState, nextFree, segments, unitOf } from '../data/extras';
+import { dayState, nextFree, ownOn, segments, unitOf } from '../data/extras';
 import { priceLine, PRICE_NOTE } from '../data/pricing';
 
 /** "Leaves Fri 23 Oct (planned)" / "Until further notice" / "Departure TBC" — never "departs Until further notice". */
@@ -247,22 +247,35 @@ function ExtrasSection({ onOpen }: { onOpen: (p: PanelInit) => void }) {
                   <b>{!tonight ? 'Free' : tonight.stay ? stayLabel(tonight.stay) : 'Taken'}</b>
                 </div>
               </div>
-              <div className="x14" aria-label="Next 14 nights" role="img">
-                {next14.map(d => (
-                  <i
-                    key={d}
-                    className={dayState(db, r.id, d) === 'free' ? 'f' : 't'}
-                    title={`${fmt(d)}: ${dayState(db, r.id, d) === 'free' ? 'free' : 'taken'}`}
-                  />
-                ))}
+              <div className="x14" role="group" aria-label={`${p.name}: next 14 nights, tap a free night to book`}>
+                {next14.map(d => {
+                  const free = dayState(db, r.id, d) === 'free';
+                  const own = !free && u.role === 'client' && !!ownOn(db, r.id, d, u.id);
+                  const label = `${fmt(d, { weekday: 'long', day: 'numeric', month: 'long' })}: ${free ? 'free, book from this night' : own ? 'yours' : 'taken'}`;
+                  const inner = (
+                    <>
+                      <small>{fmt(d, { weekday: 'short' }).slice(0, 2)}</small>
+                      {+d.slice(8)}
+                    </>
+                  );
+                  return free ? (
+                    <a key={d} className="xd f" href={`#available/${p.id}/${d}`} aria-label={label} title={label}>
+                      {inner}
+                    </a>
+                  ) : (
+                    <span key={d} className={'xd ' + (own ? 'm' : 't')} aria-label={label} title={label}>
+                      {inner}
+                    </span>
+                  );
+                })}
               </div>
               <p className="xline">
                 {nf === T ? '' : nf ? `Next free ${fmt(nf)} · ` : 'Fully booked for now · '}
                 {priceLine(db, p)}
               </p>
               <div className="xbtns">
-                <a className="btn primary" href={'#available/' + p.id}>
-                  Book
+                <a className="btn primary" href={'#available/' + p.id + (nf ? '/' + nf : '')}>
+                  {nf && nf !== T ? `Book from ${fmt(nf)}` : 'Book'}
                 </a>
                 {mineNext?.stay && (
                   <button className="btn ghost" onClick={() => onOpen({ stay: mineNext.stay! })}>

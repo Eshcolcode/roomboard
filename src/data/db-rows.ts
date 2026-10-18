@@ -93,6 +93,13 @@ export interface ActivityRow {
   property_id: N<string>;
   manager_only?: boolean;
 }
+export interface SettingsHistoryRow {
+  changed_at: string;
+  changed_by: N<string>;
+  old_value: unknown;
+  new_value: unknown;
+  key: string;
+}
 export interface SettingsRow {
   key: string;
   value: unknown;

@@ -10,7 +10,7 @@ const js = o => `${q(JSON.stringify(o))}::jsonb`;
 const pick = (o, ks) => Object.fromEntries(ks.filter(k => o[k] !== undefined).map(k => [k, o[k]]));
 const lines = [];
 PROPERTIES.forEach((p, i) => {
-  const d = pick(p, ['area', 'photos', 'sleeps', 'bedrooms', 'mapUrl', 'website', 'bookingUrl', 'credit', 'todo']);
+  const d = pick(p, ['area', 'photos', 'sleeps', 'bedrooms', 'charged', 'mapUrl', 'website', 'bookingUrl', 'credit', 'todo']);
   lines.push(
     `insert into properties (id,name,short_name,contracted,address,blurb,photo_url,features,beds_label,brand,checkout_time,checkin_time,sort,details) values (${[
       q(p.id), q(p.name), q(p.short), p.contracted, q(p.address), q(p.blurb), q(p.photo), arr(p.features), q(p.beds), q(p.brand),

@@ -140,8 +140,9 @@ export function seed(): DB {
     },
   ];
   return {
-    v: 4,
+    v: 5,
     settings: { ...DEFAULT_SETTINGS },
+    rateHistory: [],
     users,
     properties,
     units,

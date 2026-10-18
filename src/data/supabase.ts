@@ -122,7 +122,7 @@ async function refresh() {
     return;
   }
   const q = (t: string, order = 'id') => sb.from(t).select('*').order(order);
-  const [pr, pp, un, rm, wk, st, co, ac, al, en, se, fd, bl, tk, cf] = await Promise.all([
+  const [pr, pp, un, rm, wk, st, co, ac, al, en, se, fd, bl, tk, cf, rh] = await Promise.all([
     q('profiles'),
     q('properties', 'sort'),
     q('units', 'sort'),
@@ -139,6 +139,7 @@ async function refresh() {
     // Sheena cannot read other guests' stays in the extras (0008 RLS): she gets their dates only
     sb.rpc('extra_taken'),
     sb.from('app_settings').select('*'), // everyone reads; only the manager can change (0008)
+    sb.from('app_settings_history').select('*').order('changed_at', { ascending: false }).limit(50), // manager only
   ]);
   publish({
     v: 1,
@@ -199,6 +200,14 @@ async function refresh() {
       ...(r.manager_only ? { managerOnly: true } : {}),
     })),
     settings: settingsFrom(rows<R.SettingsRow>(cf.data)),
+    rateHistory: rows<R.SettingsHistoryRow>(rh.data)
+      .filter(r => r.key === 'rate_per_room_week')
+      .map(r => ({
+        ts: r.changed_at,
+        userId: r.changed_by,
+        from: r.old_value == null ? null : Number(r.old_value),
+        to: Number(r.new_value),
+      })),
     alerts: rows<R.AlertRow>(al.data).map(r => ({
       id: r.id,
       ts: r.created_at,

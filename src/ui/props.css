@@ -936,8 +936,49 @@
   grid-template-rows: auto 1fr auto auto;
   align-items: center;
   justify-items: center;
-  touch-action: pan-y;
+  touch-action: none; /* pinch, pan and swipe are handled here */
   user-select: none;
+  overflow: hidden;
+}
+.lb-stage {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.lb-img {
+  transform-origin: center center;
+  transition: transform 0.12s ease-out;
+  cursor: zoom-in;
+}
+.lb.zoomed .lb-img {
+  cursor: grab;
+  transition: none;
+}
+.lb-zoom {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.lb-zoom button {
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  border: 0;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font-size: 20px;
+  cursor: pointer;
+}
+.lb-zoom button:disabled {
+  opacity: 0.35;
+}
+.lb-pct {
+  min-width: 44px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
 }
 .lb-top {
   width: 100%;
@@ -1015,5 +1056,194 @@
     transform: none;
     width: 46px;
     height: 46px;
+  }
+}
+
+/* booking bar: set dates / open-ended, length stepper */
+.av-mode {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+  justify-self: start;
+}
+.av-mode button {
+  min-height: 40px;
+  padding: 0 14px;
+  border: 0;
+  background: #fff;
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--mute);
+  cursor: pointer;
+}
+.av-mode button.on {
+  background: var(--navy, #0f172a);
+  color: #fff;
+}
+.av-range {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.av-step {
+  display: inline-flex;
+  gap: 6px;
+}
+.av-step button {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: #fff;
+  font-size: 22px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.av-step button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* book-in-place sheet (board, Rooms) */
+.xs-back {
+  position: fixed;
+  inset: 0;
+  z-index: 150;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  justify-content: flex-end;
+}
+.xs {
+  width: min(560px, 100vw);
+  height: 100%;
+  background: var(--bg, #f1f5f9);
+  display: flex;
+  flex-direction: column;
+  box-shadow: -12px 0 32px rgba(15, 23, 42, 0.25);
+}
+.xs-head {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 14px 16px;
+  background: var(--navy, #0f172a);
+  color: #fff;
+}
+.xs-head img {
+  width: 52px;
+  height: 52px;
+  border-radius: 10px;
+  object-fit: cover;
+}
+.xs-head div {
+  flex: 1;
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.xs-head b {
+  font-size: 18px;
+}
+.xs-head small {
+  font-size: 12.5px;
+  color: #a7f3d0;
+}
+.xs-head .xtag {
+  justify-self: start;
+}
+.xs-x {
+  width: 44px;
+  height: 44px;
+  flex: none;
+  border-radius: 999px;
+  border: 0;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  font-size: 18px;
+  cursor: pointer;
+}
+.xs-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px 16px 18px;
+
+  overscroll-behavior: contain;
+}
+.xs .av-months {
+  grid-template-columns: 1fr;
+}
+.xs .av-bar {
+  bottom: 0;
+}
+@media (max-width: 700px) {
+  .xs-back {
+    align-items: flex-end;
+  }
+  .xs {
+    height: auto;
+    max-height: 94vh;
+    border-radius: 18px 18px 0 0;
+    overflow: hidden;
+  }
+}
+
+.x-end {
+  display: grid;
+  gap: 8px;
+  margin: 10px 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+}
+.x-endrow {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.x-endrow > :first-child {
+  flex: 1;
+  min-width: 150px;
+}
+/* keep the booking bar compact inside the sheet so the calendar stays in view on a phone */
+.xs .av-est small {
+  display: none;
+}
+.xs .av-range {
+  flex-wrap: nowrap;
+}
+@media (max-width: 700px) {
+  .xs .av-bar {
+    padding: 10px 12px;
+  }
+  .xs .av-sum b {
+    font-size: 17px;
+  }
+  .xs .av-who {
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    gap: 8px;
+  }
+  .xs .av-who small {
+    display: none;
+  }
+  .xs .av-who input {
+    min-height: 46px;
+  }
+  .xs .av-est {
+    margin: 6px 0 8px;
+  }
+  .xs .av-small {
+    font-size: 13px;
+  }
+}
+/* no bottom tab bar on wide screens: the booking bar sits at the very bottom so it never rides up over the months */
+@media (min-width: 821px) {
+  .av-bar {
+    bottom: 8px;
   }
 }

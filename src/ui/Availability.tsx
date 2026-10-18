@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { data, useDB, me, thumb } from '../data';
 import type { Property } from '../data';
 import { addDays, diffDays, fmt, londonToday } from '../dates';
-import { dayState, ownOn, prefill, rangeFree, unitOf } from '../data/extras';
+import { dayState, openBlocker, ownOn, prefill, rangeFree, unitOf } from '../data/extras';
 import { estimateLine, priceLine, PRICE_NOTE } from '../data/pricing';
 import type { DayState } from '../data/extras';
 import './props.css';
@@ -31,8 +31,10 @@ function Month({
   onPick,
   T,
   meId,
+  open = false,
 }: {
   meId: string | null;
+  open?: boolean;
   roomId: string;
   month: string;
   from: string | null;
@@ -60,14 +62,15 @@ function Month({
           const st = dayState(db, roomId, d);
           const own = meId && st === 'taken' ? ownOn(db, roomId, d, meId) : undefined;
           const past = d < T;
-          const inSel = from && (d === from || (to && d > from && d < to));
+          const inSel = from && (d === from || (open ? d > from : to && d > from && d < to));
           const isOut = to && d === to;
           // a taken night can still be the check-out day of a stay that ends there
-          const canOut = !!from && !to && d > from && rangeFree(db, roomId, from, d);
+          const canOut = !open && !!from && !to && d > from && rangeFree(db, roomId, from, d);
           const usable = !past && (st === 'free' || canOut);
           return (
             <button
               key={d}
+              data-d={d}
               className={
                 'av-d s-' +
                 (past ? 'past' : own ? 'mine' : st) +
@@ -90,7 +93,17 @@ function Month({
 }
 
 /** Three months for one extra unit, with date picking and the booking button. */
-export function UnitAvailability({ p, months = 3, start }: { p: Property; months?: number; start?: string }) {
+export function UnitAvailability({
+  p,
+  months = 3,
+  start,
+  onBooked,
+}: {
+  p: Property;
+  months?: number;
+  start?: string;
+  onBooked?: () => void;
+}) {
   const db = useDB();
   const u = me();
   const T = londonToday();
@@ -99,9 +112,21 @@ export function UnitAvailability({ p, months = 3, start }: { p: Property; months
   const [init] = useState(() => (room && start && start >= T ? prefill(db, room.id, start) : null));
   const [from, setFrom] = useState<string | null>(init?.from ?? null);
   const [to, setTo] = useState<string | null>(init?.to ?? null);
+  const [open, setOpen] = useState(false); // open-ended: until further notice, end date set later
   const barRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (init) barRef.current?.scrollIntoView({ block: 'center' });
+    // bring the prefilled first night into view, clear of the sticky booking bar
+    const bar = barRef.current;
+    const day = bar?.parentElement?.querySelector('.av-d.sel');
+    if (!init || !bar || !day) return;
+    const box = bar.closest('.xs-body');
+    const top = box ? box.getBoundingClientRect().top : 0;
+    const bottom =
+      (box ? box.getBoundingClientRect().bottom : innerHeight) - (parseFloat(getComputedStyle(bar).bottom) || 0);
+    const r = day.getBoundingClientRect();
+    // lowest the day may sit is just above the stuck bar; never push it above the top
+    const delta = Math.min(r.bottom - (bottom - bar.offsetHeight - 16), r.top - top - 8);
+    if (delta > 0) (box ?? document.scrollingElement)?.scrollBy({ top: delta, behavior: 'instant' });
   }, [init]);
   const [who, setWho] = useState('');
   const [busy, setBusy] = useState(false);
@@ -117,13 +142,15 @@ export function UnitAvailability({ p, months = 3, start }: { p: Property; months
   if (!room) return null;
   const pick = (d: string) => {
     setMsg(null);
-    if (from && !to && d > from && rangeFree(db, room.id, from, d)) setTo(d);
+    if (!open && from && !to && d > from && rangeFree(db, room.id, from, d)) setTo(d);
     else {
       setFrom(d);
       setTo(null);
     }
   };
   const nights = from && to ? diffDays(from, to) : 0;
+  const blocker = open && from ? openBlocker(db, room.id, from) : null;
+  const canLonger = !!from && !!to && rangeFree(db, room.id, to, addDays(to, 1));
   const yours =
     u.role === 'client'
       ? db.stays
@@ -131,8 +158,9 @@ export function UnitAvailability({ p, months = 3, start }: { p: Property; months
           .sort((a, b) => a.arrival.localeCompare(b.arrival))
       : [];
   const canAsk = u.role === 'client' || u.role === 'manager';
+  const ready = !!from && (open ? !blocker : !!to);
   const send = async () => {
-    if (!from || !to) return;
+    if (!from || !ready) return;
     setBusy(true);
     try {
       await data.saveStay({
@@ -140,21 +168,23 @@ export function UnitAvailability({ p, months = 3, start }: { p: Property; months
         workerId: null,
         holdLabel: who.trim() || 'Name to follow',
         arrival: from,
-        departure: to,
-        depStatus: 'planned',
+        departure: open ? null : to,
+        depStatus: open ? 'ufn' : 'planned',
         away: null,
         notes: '',
       });
       setMsg({
         ok: true,
         text:
-          `Booked and confirmed: ${p.name} (whole property), ${fmt(from)} → ${fmt(to)}. ` +
-          `${estimateLine(db, p, diffDays(from, to))}. ` +
+          `Booked and confirmed: ${p.name} (whole property), ${fmt(from)} → ${open ? 'until further notice' : fmt(to!)}. ` +
+          `${estimateLine(db, p, open ? null : diffDays(from, to!))}. ` +
+          (open ? 'Set the end date later from the booking. ' : '') +
           (u.role === 'client' ? 'Donald has been notified. ' : '') +
           'Invoiced separately; long-term deals possible.',
       });
       setFrom(null);
       setTo(null);
+      setOpen(false);
       setWho('');
     } catch (e) {
       setMsg({ ok: false, text: (e as Error).message });
@@ -176,7 +206,8 @@ export function UnitAvailability({ p, months = 3, start }: { p: Property; months
             roomId={room.id}
             month={m}
             from={from}
-            to={to}
+            to={open ? null : to}
+            open={open}
             onPick={pick}
             T={T}
             meId={u.role === 'client' ? u.id : null}
@@ -188,7 +219,8 @@ export function UnitAvailability({ p, months = 3, start }: { p: Property; months
           <b>Your bookings here</b>
           {yours.map(s => (
             <span key={s.id}>
-              {fmt(s.arrival)} → {s.departure ? fmt(s.departure) : 'open'} · {s.holdLabel || 'Name to follow'} ·{' '}
+              {fmt(s.arrival)} → {s.departure ? fmt(s.departure) : 'until further notice'} ·{' '}
+              {s.holdLabel || 'Name to follow'} ·{' '}
               {estimateLine(db, p, s.departure ? diffDays(s.arrival, s.departure) : null)}
             </span>
           ))}
@@ -197,30 +229,78 @@ export function UnitAvailability({ p, months = 3, start }: { p: Property; months
       <div className="av-bar" aria-live="polite" ref={barRef}>
         {!from ? (
           <p className="av-hint">Tap the first night, then the check-out day.</p>
-        ) : !to ? (
-          <p className="av-hint">
-            Arriving <b>{fmt(from)}</b> · now tap the check-out day
-          </p>
         ) : (
           <>
-            <p className="av-sum">
-              <b>
-                {fmt(from)} → {fmt(to)}
-              </b>{' '}
-              · {nights} night{nights === 1 ? '' : 's'}
-            </p>
-            {canAsk && (
+            <div className="av-mode" role="group" aria-label="How long">
+              <button
+                className={!open ? 'on' : ''}
+                aria-pressed={!open}
+                onClick={() => {
+                  setOpen(false);
+                  setMsg(null);
+                  if (!to) setTo(prefill(db, room.id, from)?.to ?? null);
+                }}
+              >
+                Set dates
+              </button>
+              <button
+                className={open ? 'on' : ''}
+                aria-pressed={open}
+                onClick={() => {
+                  setOpen(true);
+                  setMsg(null);
+                }}
+              >
+                Open-ended
+              </button>
+            </div>
+            {open ? (
+              <p className="av-sum">
+                <b>From {fmt(from)}</b> · until further notice
+              </p>
+            ) : !to ? (
+              <p className="av-hint">
+                Arriving <b>{fmt(from)}</b> · now tap the check-out day
+              </p>
+            ) : (
+              <div className="av-range">
+                <p className="av-sum">
+                  <b>
+                    {fmt(from)} → {fmt(to)}
+                  </b>{' '}
+                  · {nights} night{nights === 1 ? '' : 's'}
+                </p>
+                <div className="av-step" role="group" aria-label="Change the length">
+                  <button aria-label="One night fewer" disabled={nights <= 1} onClick={() => setTo(addDays(to, -1))}>
+                    −
+                  </button>
+                  <button aria-label="One night more" disabled={!canLonger} onClick={() => setTo(addDays(to, 1))}>
+                    +
+                  </button>
+                </div>
+              </div>
+            )}
+            {open && blocker && (
+              <p className="av-msg bad" role="alert">
+                Open-ended needs every night from {fmt(from)} free, but {p.name} is taken from {fmt(blocker)}. Pick a
+                later first night, or set dates.
+              </p>
+            )}
+            {canAsk && ready && (
               <>
                 <label className="av-who">
                   Who is staying? <small>(optional)</small>
                   <input value={who} onChange={e => setWho(e.target.value)} placeholder="Name to follow" />
                 </label>
                 <p className="av-est" data-est={p.id}>
-                  <b>{estimateLine(db, p, nights)}</b>
-                  <small>Whole property · {PRICE_NOTE}</small>
+                  <b>{estimateLine(db, p, open ? null : nights)}</b>
+                  <small>
+                    Whole property · {open ? 'charged weekly until an end date is set · ' : ''}
+                    {PRICE_NOTE}
+                  </small>
                 </p>
                 <button className="s-btn big av-go" disabled={busy} onClick={send}>
-                  Book these dates
+                  {open ? 'Book open-ended' : 'Book these dates'}
                 </button>
                 <p className="av-small">Confirmed straight away · Donald is notified · invoiced separately</p>
               </>
@@ -231,6 +311,11 @@ export function UnitAvailability({ p, months = 3, start }: { p: Property; months
           <p className={'av-msg ' + (msg.ok ? 'ok' : 'bad')} role={msg.ok ? 'status' : 'alert'}>
             {msg.text}
           </p>
+        )}
+        {msg?.ok && onBooked && (
+          <button className="s-btn big ghost av-done" onClick={onBooked}>
+            Done
+          </button>
         )}
       </div>
     </div>

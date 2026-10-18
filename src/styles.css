@@ -2155,6 +2155,16 @@ button:focus-visible {
   padding: 24px 28px;
   color: #000;
 }
+/* on a phone screen the wide sheets scroll inside themselves rather than pushing the page sideways */
+@media screen and (max-width: 700px) {
+  .sheet-page {
+    padding: 18px 14px;
+  }
+  .sheet-page table {
+    display: block;
+    overflow-x: auto;
+  }
+}
 .sheet-page h1 {
   font-size: 20px;
   margin: 0;

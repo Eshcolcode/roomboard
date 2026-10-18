@@ -6,6 +6,8 @@ import type { Stay } from '../data';
 import { estimateLine, priceLine, PRICE_NOTE } from '../data/pricing';
 import { diffDays, fmt } from '../dates';
 import { Box, Note } from './parts';
+import { DateField } from '../ui/DateField';
+import { addDays } from '../dates';
 import type { Notify } from './Book';
 
 export function ExtraCard({ stay, onHome, notify }: { stay: Stay; onHome: () => void; notify: Notify }) {
@@ -18,6 +20,20 @@ export function ExtraCard({ stay, onHome, notify }: { stay: Stay; onHome: () => 
   const p = db.properties.find(x => x.id === room.propertyId)!;
   const nights = stay.departure ? diffDays(stay.arrival, stay.departure) : null;
   const mine = u.role === 'manager' || stay.bookedBy === u.id;
+  const [end, setEnd] = useState(stay.departure ?? '');
+  const saveEnd = async (dep: string | null) => {
+    setBusy(true);
+    setProblem('');
+    try {
+      await data.saveStay({ ...stay, away: stay.away ?? null, departure: dep, depStatus: dep ? 'planned' : 'ufn' });
+      notify(dep ? `End date set · ${p.name} · ${fmt(dep)}` : `${p.name} · open-ended again`, 1);
+      onHome();
+    } catch (e) {
+      setProblem((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
   const cancel = async () => {
     setBusy(true);
     setProblem('');
@@ -59,7 +75,7 @@ export function ExtraCard({ stay, onHome, notify }: { stay: Stay; onHome: () => 
           <small>Booked · confirmed</small>
           <b>{p.name}</b>
           <span>
-            {fmt(stay.arrival)} → {stay.departure ? fmt(stay.departure) : 'open'}
+            {fmt(stay.arrival)} → {stay.departure ? fmt(stay.departure) : 'until further notice'}
             {nights ? ` · ${nights} night${nights === 1 ? '' : 's'}` : ''}
           </span>
           <span>{stayLabel(stay)}</span>
@@ -71,6 +87,34 @@ export function ExtraCard({ stay, onHome, notify }: { stay: Stay; onHome: () => 
           {priceLine(db, p)}. {PRICE_NOTE}
         </small>
       </div>
+      {mine && (
+        <div className="x-end" data-end={stay.id}>
+          <label htmlFor={'end-' + stay.id}>
+            <b>{stay.departure ? 'End date (check-out)' : 'Open-ended · set an end date when you know it'}</b>
+          </label>
+          <div className="x-endrow">
+            <DateField
+              id={'end-' + stay.id}
+              value={end}
+              min={addDays(stay.arrival, 1)}
+              onChange={setEnd}
+              label="End date"
+            />
+            <button
+              className="s-btn"
+              disabled={busy || !end || end <= stay.arrival || end === stay.departure}
+              onClick={() => saveEnd(end)}
+            >
+              Save end date
+            </button>
+          </div>
+          {stay.departure && (
+            <button className="s-link" disabled={busy} onClick={() => saveEnd(null)}>
+              Make it open-ended (until further notice)
+            </button>
+          )}
+        </div>
+      )}
       {mine ? (
         <button className="s-btn big ghost" onClick={() => setAsk(true)}>
           Cancel booking

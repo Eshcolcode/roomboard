@@ -24,6 +24,7 @@ import { copySummary } from './summary';
 import { Icon } from './icons';
 import { dayState, nextFree, ownOn, segments, unitOf } from '../data/extras';
 import { priceLine, PRICE_NOTE } from '../data/pricing';
+import { ExtraSheet } from './ExtraSheet';
 
 /** "Leaves Fri 23 Oct (planned)" / "Until further notice" / "Departure TBC" — never "departs Until further notice". */
 export function leaving(s: Stay) {
@@ -208,6 +209,7 @@ function ExtrasSection({ onOpen }: { onOpen: (p: PanelInit) => void }) {
   const u = me();
   const T = londonToday();
   const extras = db.properties.filter(p => !p.contracted);
+  const [sheet, setSheet] = useState<{ pid: string; date?: string } | null>(null);
   if (!extras.length || u.role === 'cleaner') return null;
   const next14 = Array.from({ length: 14 }, (_, i) => addDays(T, i));
   return (
@@ -259,9 +261,15 @@ function ExtrasSection({ onOpen }: { onOpen: (p: PanelInit) => void }) {
                     </>
                   );
                   return free ? (
-                    <a key={d} className="xd f" href={`#available/${p.id}/${d}`} aria-label={label} title={label}>
+                    <button
+                      key={d}
+                      className="xd f"
+                      aria-label={label}
+                      title={label}
+                      onClick={() => setSheet({ pid: p.id, date: d })}
+                    >
                       {inner}
-                    </a>
+                    </button>
                   ) : (
                     <span key={d} className={'xd ' + (own ? 'm' : 't')} aria-label={label} title={label}>
                       {inner}
@@ -274,9 +282,9 @@ function ExtrasSection({ onOpen }: { onOpen: (p: PanelInit) => void }) {
                 {priceLine(db, p)}
               </p>
               <div className="xbtns">
-                <a className="btn primary" href={'#available/' + p.id + (nf ? '/' + nf : '')}>
+                <button className="btn primary" onClick={() => setSheet({ pid: p.id, date: nf ?? undefined })}>
                   {nf && nf !== T ? `Book from ${fmt(nf)}` : 'Book'}
-                </a>
+                </button>
                 {mineNext?.stay && (
                   <button className="btn ghost" onClick={() => onOpen({ stay: mineNext.stay! })}>
                     {mineNext.stay.arrival <= T ? 'Current booking' : `Booking ${fmt(mineNext.stay.arrival)}`}
@@ -287,6 +295,7 @@ function ExtrasSection({ onOpen }: { onOpen: (p: PanelInit) => void }) {
           );
         })}
       </div>
+      {sheet && <ExtraSheet pid={sheet.pid} date={sheet.date} onClose={() => setSheet(null)} />}
     </section>
   );
 }

@@ -199,6 +199,15 @@ alert with the indicative price. Dates already taken (a booking calendar or anot
 without saying who has them. Sheena sees and changes only her own extra bookings; Donald's other guests show to her
 as **Taken**, and his bookings there do not appear in her activity or alerts (`activity.manager_only`, 0008).
 
+- **Where:** from a free day on the desktop board, a free night or **Book** on the phone Rooms card (both open a booking
+  sheet in place, no page change), or from the property / availability page.
+- **Open-ended (until further notice):** a first night and no end date (`departure` null, `dep_status` 'ufn'). It
+  needs every later night free (`openBlocker` in `src/data/extras.ts`; the 0008 trigger refuses it in the database
+  too). Price: "Indicative £W per week, until further notice" (`indicative_price(room, from, null)`). It blocks every
+  later night in the app; the iCal export (`unitIcs` / `ical-export`) sends it as a block from its first night (or
+  today) to a rolling year ahead, because other calendars cannot hold an open event. The end date is set later on the
+  booking card (Donald, or Sheena for her own booking); the nights after it become free again.
+
 ## How the iCal sync works (ready to deploy, not deployed)
 - Calendar links are **secrets**. They are stored only as Supabase Edge Function secrets (`ICAL_*`). They are not in
   the repo, not in the database and never shown in the app. Error messages never include them.

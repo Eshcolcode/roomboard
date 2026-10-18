@@ -17,7 +17,7 @@ A static React app for room occupancy across Loch Roag and Eshcol.
 - `npm run test:sql`: local Postgres. Applies the migrations and runs the smoke test, then the same `rules/cases.json` through the SQL rule functions.
 - `npm run build && npx vite preview --port 4173`, then `npm run test:e2e`: Playwright end-to-end (desktop, phone, every role, axe).
 - `QA_URL=https://roomboard.pages.dev/ node qa/report.mjs` runs all three and writes `docs/TEST-REPORT.md`, including the commit and the deployed asset hash.
-- `node qa/flow.mjs` (Simple mode walk-through) and `node qa/board.mjs` (Quick card on the board, phone + desktop, widths 360–1440, privacy) take `QA_URL` too. `qa/qa.mjs` pins Classic. `node qa/props.mjs`: properties, requests (confirm/decline), availability page, privacy.
+- `node qa/flow.mjs` (Simple mode walk-through) and `node qa/board.mjs` (Quick card on the board, phone + desktop, widths 360–1440, privacy) take `QA_URL` too. `qa/qa.mjs` pins Classic. `node qa/props.mjs`: properties, extra bookings (in-place sheet from the board and phone Rooms, open-ended with the end date set later), prices and rate history, photo viewer (swipe, wheel/click/pinch/double-tap zoom), availability page, privacy. `node qa/layout.mjs`: layout sanity on every route at 1440 and 390 for each role plus the overlays (no sideways scroll, nothing off screen, nothing screen-tall, no console errors; screens in `SHOTS/layout`); it self-tests that it catches a screen-tall input.
 - `node qa/screens.mjs` regenerates `screens/`; `node qa/look3.mjs` regenerates the v2 screenshots (`OUT=screens`).
 
 ## Rolling back

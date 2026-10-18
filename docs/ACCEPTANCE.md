@@ -91,16 +91,19 @@ Run the demo (`npm run build && npx vite preview`, or open the uploaded site), t
 
 ## Extra properties and prices (18 Oct 2026)
 - [ ] Order everywhere (board, Rooms, availability, Properties): Eshcol, Loch Roag, Harris, Uig, Monadh, Abhainn Cottage.
-- [ ] Desktop board: an *Extra properties* group with one row each; Sheena sees her own bookings as bars and everything else as **Taken**; Donald sees names and **Booked elsewhere**. Clicking a free day opens that property to book. Phone: the same four on Rooms with tonight, the next 14 nights and **Book**.
+- [ ] Desktop board: an *Extra properties* group with one row each; Sheena sees her own bookings as bars and everything else as **Taken**; Donald sees names and **Booked elsewhere**. Clicking a free day opens a booking sheet on the board itself. Phone: the same four on Rooms with tonight, the next 14 nights and **Book**.
 - [ ] Sheena books an extra directly: **Book these dates** shows the indicative estimate first; the booking is confirmed straight away, Donald gets a "New booking" alert; no confirm/decline step anywhere.
 - [ ] Taken dates (calendar or another booking) cannot be booked; the message names nobody.
 - [ ] Every property shows **Indicative £350 per room per week**; extras say whole property with the rooms charged (Monadh 2 = £700, Abhainn 2 of 3 = £700, Harris and Uig 1 = £350); "long-term deals possible".
 - [ ] Donald changes the rate on Properties and every price follows; Sheena has no rate setting (and the database refuses her update).
 - [ ] Sheena's activity shows none of Donald's own extra guests and no booking-site names.
-- [ ] A free day on an extras row (desktop board) or a free night on the phone Rooms card opens that property with the night (up to a week) already picked and the estimate shown.
+- [ ] A free day on an extras row (desktop board) or a free night / **Book** on the phone Rooms card opens a booking sheet **in place** (side panel on desktop, bottom sheet on phone): the night (up to a week) already picked and in view, − / + to change the length, the estimate, **Book these dates**, then **Done**; the page never changes. Esc or ✕ closes it.
+- [ ] **Open-ended** (until further notice): choose a first night, tap *Open-ended*: every later night is shown as part of the booking, the price reads "Indicative £W per week, until further notice". Refused (with the clashing date, no names) if any later night is taken. Once booked, every later night is taken on the board, Rooms and availability; the iCal export blocks a rolling year ahead. The booking card (*Current booking* / the bar) has **End date → Save end date**, and *Make it open-ended* to undo; after an end date the later nights are free again.
 - [ ] Sheena's own extra bookings show as **Yours** on the availability calendars, with a "Your bookings here" list; Donald's guests stay "Taken".
 - [ ] *Rate history* (Donald only): who, when (UK time), old → new for every change.
-- [ ] Photos: tap the gallery or a room cover to enlarge; swipe or ← → to move; Esc / ✕ closes. Room cards are all the same size, "Photo to come" included.
+- [ ] Photos: tap the gallery or a room cover to enlarge; swipe or ← → to move; Esc / ✕ closes. Zoom: pinch or double-tap on a phone, mouse wheel, a click on the photo, + / − buttons or keys on desktop (up to 400%); drag to look around while zoomed (kept in bounds); swipe only changes photo at 100%. Room cards are all the same size, "Photo to come" included.
+
+- [ ] `node qa/layout.mjs` passes: every route at 1440 and 390 for Donald, Sheena and the cleaner, plus the booking sheet, photo viewer and quick cards: no sideways scroll, nothing off the screen, no control or text block taller than half the screen, no image taller than the screen, no console errors.
 
 ## Roles
 - [ ] The cleaner sees only Today and Cleaning, with first names, and can tick Guest has left / Start clean / Mark ready.

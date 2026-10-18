@@ -22,9 +22,9 @@ Deno.serve(async req => {
       .eq('room_id', ex.room_id)
       .or(`departure.is.null,departure.gt.${addDays(today, -30)}`),
   ]);
-  // same rule as the app (src/data/extras.ts unitIcs): open-ended stays block a year
+  // same rule as the app (src/data/extras.ts unitIcs): an open-ended stay blocks a rolling year from today
   const ranges = mergeRanges(
-    (stays ?? []).map(s => ({ from: s.arrival, to: s.departure ?? addDays(s.arrival, 365) })),
+    (stays ?? []).map(s => ({ from: s.arrival, to: s.departure ?? addDays(s.arrival > today ? s.arrival : today, 365) })),
   ).map(r => ({ ...r, id: `${ex.room_id}-${r.from}` }));
   const name = (room as { properties?: { name?: string } } | null)?.properties?.name ?? 'Roomboard';
   const body = exportICS({ name: `${name} · Roomboard`, host: 'roomboard.pages.dev', ranges, now: new Date() });

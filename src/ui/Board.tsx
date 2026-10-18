@@ -8,6 +8,7 @@ import { DateField } from './DateField';
 import { BrushIcon, Icon } from './icons';
 import type { PanelInit } from './StayPanel';
 import { segments, unitOf } from '../data/extras';
+import { ExtraSheet } from './ExtraSheet';
 import { gbp, priceLine, rate, PRICE_NOTE } from '../data/pricing';
 import { useDrag, startDrag, wasDrag, problem, describe, candidate } from './drag';
 
@@ -20,6 +21,7 @@ export function Board({ onOpen }: { onOpen: (p: PanelInit) => void }) {
   const [start, setStart] = useState(addDays(T, -3));
   const [days, setDays] = useState(21);
   const [filter, setFilter] = useState('all');
+  const [sheet, setSheet] = useState<{ pid: string; date?: string } | null>(null);
   const W = days > 21 ? 38 : 56;
   const end = addDays(start, days);
   const dates = Array.from({ length: days }, (_, i) => addDays(start, i));
@@ -204,7 +206,17 @@ export function Board({ onOpen }: { onOpen: (p: PanelInit) => void }) {
                   </div>
                 </div>
                 {extras.map(p => (
-                  <ExtraRow key={p.id} pid={p.id} start={start} end={end} days={days} W={W} x={x} onOpen={onOpen} />
+                  <ExtraRow
+                    key={p.id}
+                    pid={p.id}
+                    start={start}
+                    end={end}
+                    days={days}
+                    W={W}
+                    x={x}
+                    onOpen={onOpen}
+                    onBook={d => setSheet({ pid: p.id, date: d })}
+                  />
                 ))}
               </div>
             )}
@@ -254,6 +266,7 @@ export function Board({ onOpen }: { onOpen: (p: PanelInit) => void }) {
           </span>
         </div>
       </div>
+      {sheet && <ExtraSheet pid={sheet.pid} date={sheet.date} onClose={() => setSheet(null)} />}
     </div>
   );
 }
@@ -340,7 +353,9 @@ function ExtraRow({
   W,
   x,
   onOpen,
+  onBook,
 }: {
+  onBook: (date?: string) => void;
   pid: string;
   start: string;
   end: string;
@@ -374,8 +389,8 @@ function ExtraRow({
           if (!(e.target as HTMLElement).classList.contains('track')) return;
           const i = Math.floor((e.clientX - (e.currentTarget as HTMLElement).getBoundingClientRect().left) / W);
           const d = addDays(start, i);
-          // a free day from today on starts a booking with that night (up to a week) already picked
-          location.hash = 'available/' + pid + (d >= T ? '/' + d : '');
+          // a free day from today on starts a booking in place, with that night (up to a week) already picked
+          onBook(d >= T ? d : undefined);
         }}
       >
         {todayX >= 0 && todayX < days && <div className="todayline" style={{ left: todayX * W + W / 2 }} />}

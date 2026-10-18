@@ -1,6 +1,6 @@
 // Extra properties (Harris and Uig pods, Abhainn Cottage, Monadh): availability per day, the iCal export of one unit,
 // and clashes between calendar blocks and bookings. Pure helpers over a DB snapshot.
-import { addDays, diffDays, overlaps } from '../dates';
+import { addDays, diffDays, londonToday, overlaps } from '../dates';
 import type { Block, DB, Stay } from './core';
 import { exportICS, mergeRanges } from './ical';
 
@@ -33,8 +33,13 @@ export function nextFree(db: DB, roomId: string, from: string): string | null {
 export function unitIcs(db: DB, roomId: string, now?: Date): string {
   const r = db.rooms.find(x => x.id === roomId)!;
   const p = db.properties.find(x => x.id === r.propertyId)!;
+  const today = londonToday();
+  // an open-ended stay (until further notice) blocks a rolling year from today, refreshed on every read
   const ranges = mergeRanges(
-    live(db, roomId).map(s => ({ from: s.arrival, to: s.departure ?? addDays(s.arrival, 365) })),
+    live(db, roomId).map(s => ({
+      from: s.arrival,
+      to: s.departure ?? addDays(s.arrival > today ? s.arrival : today, 365),
+    })),
   ).map(x => ({ ...x, id: `${roomId}-${x.from}` }));
   return exportICS({ name: `${p.name} · Roomboard`, host: 'roomboard.pages.dev', ranges, now });
 }
@@ -90,4 +95,13 @@ export function prefill(db: DB, roomId: string, d: string, nights = 7): { from: 
   let to = addDays(d, 1);
   while (diffDays(d, to) < nights && rangeFree(db, roomId, to, addDays(to, 1))) to = addDays(to, 1);
   return { from: d, to };
+}
+
+/** Open-ended from `from`: every night onward must be free. The first night that is not, or null when it can be. */
+export function openBlocker(db: DB, roomId: string, from: string): string | null {
+  let first: string | null = null;
+  const take = (d: string) => (first = first && first < d ? first : d);
+  for (const s of live(db, roomId)) if ((s.departure ?? '9999') > from) take(s.arrival > from ? s.arrival : from);
+  for (const b of db.blocks ?? []) if (b.roomId === roomId && b.to > from) take(b.from > from ? b.from : from);
+  return first;
 }

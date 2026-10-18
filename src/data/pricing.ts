@@ -27,7 +27,7 @@ export function priceLine(db: DB, p: Property): string {
 /** "Indicative £150 for 3 nights (£350 a week ÷ 7 × 3)" or, open-ended, the weekly price. */
 export function estimateLine(db: DB, p: Property, nights: number | null): string {
   const w = weekly(db, p);
-  if (!nights) return `Indicative ${gbp(w)} per week${p.contracted ? ' per room' : ''}`;
+  if (!nights) return `Indicative ${gbp(w)} per week${p.contracted ? ' per room' : ''}, until further notice`;
   return `Indicative ${gbp(estimate(db, p, nights))} for ${nights} night${nights === 1 ? '' : 's'} (${gbp(w)} a week ÷ 7 × ${nights})`;
 }
 export const PRICE_NOTE = 'Indicative only: invoiced separately. Long-term deals possible.';

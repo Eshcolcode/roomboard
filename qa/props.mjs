@@ -280,17 +280,49 @@ await shot(p, '3c-board-donald');
   const tr = await p.locator('[data-extra="p-pod1"] .track').boundingBox();
   await p.mouse.click(tr.x + (todayIdx + k) * W + W / 2, tr.y + tr.height / 2);
   await settle(p);
+  const sh = p.locator('[data-sheet="p-pod1"]');
   ok(
-    (await p.evaluate(() => location.hash)) === '#available/p-pod1/' + D(k) &&
-      (await p.locator('[data-unit="x-pod1"] .av-d.sel').count()) >= 1 &&
-      (await p.locator('[data-unit="x-pod1"] .av-go').isVisible()),
-    'board: a free day on Harris opens a booking with that night picked (' + D(k) + ')',
+    (await p.evaluate(() => location.hash)) === '#board' &&
+      (await sh.isVisible()) &&
+      (await sh.locator('.av-d.sel').count()) >= 1 &&
+      (await sh.locator('.av-go').isVisible()),
+    'board: a free day on Harris opens a booking sheet in place, that night picked (' + D(k) + ')',
   );
   ok(
-    /Indicative £\d+ for \d+ night/.test(await p.locator('[data-unit="x-pod1"] .av-est').innerText()),
-    'prefilled booking shows the estimate',
+    /Indicative £\d+ for \d+ night/.test(await sh.locator('.av-est').innerText()),
+    'in-place sheet shows the estimate',
   );
-  await shot(p, '3d-board-prefill');
+  await shot(p, '3d-board-sheet');
+  // adjust the range with the stepper
+  const nOf = async () => +(/(\d+) night/.exec(await sh.locator('.av-sum').innerText()) ?? [0, 0])[1];
+  const n0 = await nOf();
+  await sh.locator('button[aria-label="One night fewer"]').click();
+  ok((await nOf()) === n0 - 1, 'in-place sheet: − shortens the stay by a night (' + n0 + ' → ' + (n0 - 1) + ')');
+  await sh.locator('button[aria-label="One night more"]').click();
+  ok((await nOf()) === n0, 'in-place sheet: + lengthens it again');
+  await sh.locator('.av-who input').fill('Board Sheet Test');
+  await sh.locator('.av-go').click();
+  await settle(p);
+  const made = (await db(p)).stays.find(s => s.holdLabel === 'Board Sheet Test' || s.name === 'Board Sheet Test');
+  ok(
+    !!made && made.roomId === 'x-pod1' && made.arrival === D(k) && (await p.evaluate(() => location.hash)) === '#board',
+    'in-place sheet: "Book these dates" books Harris without leaving the board',
+  );
+  await sh.locator('.av-done').click();
+  await settle(p);
+  ok(
+    !(await p.locator('.xs').count()) &&
+      (await p.locator('[data-extra="p-pod1"] [data-stay="' + made?.id + '"]').count()) === 1,
+    'in-place sheet: Done closes it and the new booking is on the board',
+  );
+  // Esc closes too
+  const tr2 = await p.locator('[data-extra="p-pod2"] .track').boundingBox();
+  await p.mouse.click(Math.min(tr2.x + tr2.width, 1440) - 30, tr2.y + tr2.height / 2);
+  await settle(p);
+  const opened = await p.locator('.xs').count();
+  await p.keyboard.press('Escape');
+  await settle(p);
+  ok(opened === 1 && !(await p.locator('.xs').count()), 'in-place sheet: Esc closes it');
 }
 await as(p, 'u-client');
 await p.goto(U + '#activity');
@@ -452,7 +484,8 @@ ok(
   'phone Rooms: the 4 extras, in order',
 );
 ok(
-  (await p.locator('.xcard .x14').count()) === 4 && (await p.locator('.xcard a:has-text("Book")').count()) === 4,
+  (await p.locator('.xcard .x14').count()) === 4 &&
+    (await p.locator('.xcard .xbtns :is(a,button):has-text("Book")').count()) === 4,
   'phone Rooms: next 14 nights and a Book button on each',
 );
 ok(!(await p.locator('.xsec').innerText()).includes('Direct guest'), "phone Rooms: no names of Donald's guests");
@@ -464,17 +497,37 @@ ok(
   'phone Rooms: night cells are big enough to tap',
 );
 {
-  const cell = p.locator('.xcard[data-extra="p-pod2"] a.xd.f').first();
-  const href = await cell.getAttribute('href');
+  const cell = p.locator('.xcard[data-extra="p-pod2"] button.xd.f').first();
+  const h0 = await p.evaluate(() => location.hash);
   await cell.click();
   await settle(p);
+  const sh = p.locator('[data-sheet="p-pod2"]');
+  const bx = await sh.boundingBox();
   ok(
-    (await p.evaluate(() => location.hash)) === href &&
-      (await p.locator('[data-unit="x-pod2"] .av-d.sel').count()) >= 1 &&
-      (await p.locator('[data-unit="x-pod2"] .av-go').isVisible()),
-    'phone: tapping a free night on Rooms starts a booking from that night',
+    (await p.evaluate(() => location.hash)) === h0 &&
+      (await sh.isVisible()) &&
+      (await sh.locator('.av-d.sel').count()) >= 1 &&
+      (await sh.locator('.av-go').isVisible()) &&
+      bx.width <= 391,
+    'phone: tapping a free night on Rooms opens a booking sheet in place, that night picked',
   );
-  await shot(p, '8-prefill-phone');
+  // the first picked night is in view above the booking bar
+  const sel = await sh.locator('.av-d.sel').first().boundingBox();
+  const bar = await sh.locator('.av-bar').boundingBox();
+  ok(
+    sel.y + sel.height <= bar.y + 1 && sel.y >= bx.y,
+    'phone sheet: the picked night is visible above the booking bar',
+  );
+  await shot(p, '8-sheet-phone');
+  await sh.locator('.av-go').click();
+  await settle(p);
+  ok(
+    (await sh.locator('.av-msg.ok').isVisible()) && (await p.evaluate(() => location.hash)) === h0,
+    'phone sheet: booked in place',
+  );
+  await sh.locator('.av-done').click();
+  await settle(p);
+  ok(!(await p.locator('.xs').count()), 'phone sheet: Done closes it');
 }
 // phone: swipe the gallery and the viewer
 await p.goto(U + '#available/p-lr');
@@ -506,6 +559,182 @@ await settle(p);
   );
   await shot(p, '9-lightbox-phone');
   await p.click('.lb-x');
+}
+
+// ---------- open-ended (until further notice) booking of an extra, end date set later ----------
+p = await pg(1440, 950, 'available/p-pod2', { user: 'u-client' });
+{
+  const x = await db(p);
+  const ss = x.stays.filter(s => s.roomId === 'x-pod2');
+  const bs = (x.blocks ?? []).filter(b => b.roomId === 'x-pod2');
+  let first = D(3);
+  for (const s of ss) if ((s.departure ?? '9999') > first) first = s.departure ?? '9999';
+  for (const b of bs) if (b.to > first) first = b.to;
+  const u = '[data-unit="x-pod2"]';
+  await p.locator(`${u} .av-d[data-d="${first}"]`).click();
+  await p.locator(`${u} .av-mode button:has-text("Open-ended")`).click();
+  await settle(p);
+  ok(
+    /per week, until further notice/.test(await p.locator(`${u} .av-est`).innerText()) &&
+      /until further notice/.test(await p.locator(`${u} .av-sum`).innerText()),
+    'open-ended: weekly indicative price, "until further notice" (from ' + first + ')',
+  );
+  ok((await p.locator(`${u} .av-d.sel`).count()) > 20, 'open-ended: every later night is shown as part of the booking');
+  await shot(p, '10-open-ended');
+  await p.locator(`${u} .av-go:has-text("Book open-ended")`).click();
+  await settle(p);
+  const st = (await db(p)).stays.find(s => s.roomId === 'x-pod2' && s.arrival === first);
+  ok(
+    !!st && st.departure === null && st.depStatus === 'ufn' && st.bookedBy === 'u-client',
+    'open-ended: saved with no end date, booked by Sheena',
+  );
+  ok(
+    (await p.locator(`${u} .av-d[data-d="${D(55)}"]`).getAttribute('class')).includes('s-mine') &&
+      (await p.locator(`${u} .av-yours`).innerText()).includes('until further notice'),
+    'open-ended: availability blocks every night going forward (shown as "Yours")',
+  );
+  // the Rooms card / board show it, and Donald's iCal export blocks it
+  await p.goto(U + '#board');
+  await settle(p);
+  ok((await p.locator(`[data-extra="p-pod2"] [data-stay="${st?.id}"]`).count()) === 1, 'open-ended: on the board');
+  // set the end date later from the booking card
+  await p.goto(U + '#rooms');
+  await settle(p);
+  await p.locator('.xcard[data-extra="p-pod2"] .xbtns .btn.ghost').click();
+  await settle(p);
+  const endIn = p.locator(`[data-end="${st?.id}"] input[id^="end-"]`);
+  ok(await endIn.isVisible(), 'open-ended: the booking card offers "set an end date"');
+  const endD = new Date(Date.parse(first + 'T00:00Z') + 21 * 864e5).toISOString().slice(0, 10);
+  await endIn.fill(endD.split('-').reverse().join('/'));
+  await p.locator(`[data-end="${st?.id}"] button:has-text("Save end date")`).click();
+  await settle(p);
+  const st2 = (await db(p)).stays.find(s => s.id === st?.id);
+  ok(st2 && st2.departure === endD && st2.depStatus === 'planned', 'open-ended: end date set later (' + endD + ')');
+  await p.goto(U + '#available/p-pod2');
+  await settle(p);
+  ok(
+    !(await p.locator(`${u} .av-d[data-d="${D(55)}"]`).getAttribute('class')).includes('s-mine'),
+    'open-ended: nights after the new end date are free again',
+  );
+}
+// open-ended is refused where a later night is taken (Monadh has calendar blocks)
+p = await pg(1440, 950, 'available/p-monadh', { user: 'u-client' });
+{
+  const x = await db(p);
+  const bs = (x.blocks ?? []).filter(b => b.roomId === 'x-monadh').sort((a, b) => (a.from < b.from ? -1 : 1));
+  const later = bs.find(b => b.from > D(4));
+  const free = await p
+    .locator('[data-unit="x-monadh"] .av-d.s-free:not([disabled])')
+    .evaluateAll((els, lim) => els.map(e => e.dataset.d).filter(d => d < lim), later?.from ?? '0');
+  await p.locator(`[data-unit="x-monadh"] .av-d[data-d="${free[0]}"]`).click();
+  await p.locator('[data-unit="x-monadh"] .av-mode button:has-text("Open-ended")').click();
+  await settle(p);
+  const t = await p.locator('[data-unit="x-monadh"] .av-bar').innerText();
+  ok(
+    !!later && /Open-ended needs every night/.test(t) && !(await p.locator('[data-unit="x-monadh"] .av-go').count()),
+    'open-ended: refused when a later night is already taken, with the date it clashes',
+  );
+  ok(!/SuperControl/.test(t), 'open-ended clash message names no booking site');
+}
+
+// ---------- photo viewer zoom ----------
+p = await pg(1440, 950, 'available/p-lr');
+{
+  await p.locator('.pp-mainbtn').click();
+  await settle(p);
+  const pct = async () => parseInt(await p.locator('.lb-pct').innerText());
+  const ib = await p.locator('.lb-img').boundingBox();
+  const cx = ib.x + ib.width / 2,
+    cy = ib.y + ib.height / 2;
+  await p.mouse.move(cx, cy);
+  await p.mouse.wheel(0, -200);
+  await settle(p);
+  const w1 = await pct();
+  ok(w1 > 100, 'viewer: mouse wheel zooms in (' + w1 + '%)');
+  for (let k = 0; k < 6 && (await p.locator('button[aria-label="Zoom out"]').isEnabled()); k++)
+    await p.locator('button[aria-label="Zoom out"]').click();
+  await settle(p);
+  ok((await pct()) === 100, 'viewer: zoom-out button back to 100%');
+  await p.mouse.click(cx + 80, cy - 40);
+  await settle(p);
+  ok((await pct()) === 250, 'viewer: click on the photo zooms to 250%');
+  await shot(p, '11-zoom-desk');
+  // drag to pan while zoomed: the photo moves but never comes past the screen middle
+  await p.mouse.move(cx, cy);
+  await p.mouse.down();
+  await p.mouse.move(cx + 3000, cy, { steps: 6 });
+  await p.mouse.up();
+  await settle(p);
+  const pb = await p.locator('.lb-img').boundingBox();
+  ok(
+    pb.x <= 720 && (await p.locator('.lb').isVisible()) && (await pct()) === 250,
+    'viewer: drag pans the zoomed photo, kept in bounds',
+  );
+  await p.mouse.click(cx, cy);
+  await settle(p);
+  ok((await pct()) === 100 && (await p.locator('.lb').isVisible()), 'viewer: click again resets, viewer stays open');
+  await p.keyboard.press('+');
+  ok((await pct()) === 150, 'viewer: + key zooms');
+  await p.keyboard.press('Escape');
+}
+p = await pg(390, 844, 'available/p-lr', { user: 'u-client' });
+{
+  await p.locator('.pp-mainbtn').click();
+  await settle(p);
+  const pct = async () => parseInt(await p.locator('.lb-pct').innerText());
+  const touch = (type, id, x, y) =>
+    p.locator('.lb-img').dispatchEvent(type, {
+      pointerId: id,
+      pointerType: 'touch',
+      isPrimary: id === 1,
+      clientX: x,
+      clientY: y,
+      bubbles: true,
+    });
+  const ib = await p.locator('.lb-img').boundingBox();
+  const cx = ib.x + ib.width / 2,
+    cy = ib.y + ib.height / 2;
+  // pinch: two fingers spread from 100px apart to 260px apart
+  await touch('pointerdown', 1, cx - 50, cy);
+  await touch('pointerdown', 2, cx + 50, cy);
+  for (const k of [1, 2, 3, 4]) {
+    await touch('pointermove', 1, cx - 50 - 20 * k, cy);
+    await touch('pointermove', 2, cx + 50 + 20 * k, cy);
+  }
+  await touch('pointerup', 2, cx + 130, cy);
+  await touch('pointerup', 1, cx - 130, cy);
+  await settle(p);
+  const z1 = await pct();
+  ok(z1 >= 220 && z1 <= 300, 'phone viewer: pinch zooms (' + z1 + '%)');
+  await shot(p, '12-pinch-phone');
+  // pinch back in
+  await touch('pointerdown', 1, cx - 130, cy);
+  await touch('pointerdown', 2, cx + 130, cy);
+  await touch('pointermove', 1, cx - 20, cy);
+  await touch('pointermove', 2, cx + 20, cy);
+  await touch('pointerup', 2, cx + 20, cy);
+  await touch('pointerup', 1, cx - 20, cy);
+  await settle(p);
+  ok((await pct()) === 100, 'phone viewer: pinch in goes back to 100%');
+  // double-tap toggles 250%
+  for (const _ of [1, 2]) {
+    await touch('pointerdown', 1, cx, cy);
+    await touch('pointerup', 1, cx, cy);
+  }
+  await settle(p);
+  ok((await pct()) === 250, 'phone viewer: double-tap zooms in');
+  for (const _ of [1, 2]) {
+    await touch('pointerdown', 1, cx, cy);
+    await touch('pointerup', 1, cx, cy);
+  }
+  await settle(p);
+  ok((await pct()) === 100 && (await p.locator('.lb').isVisible()), 'phone viewer: double-tap again resets');
+  // at 100% a swipe still changes photo
+  await touch('pointerdown', 1, cx + 120, cy);
+  await touch('pointermove', 1, cx - 120, cy);
+  await touch('pointerup', 1, cx - 120, cy);
+  await settle(p);
+  ok(/2 of/.test(await p.locator('.lb-top').innerText()), 'phone viewer: swipe still changes photo when not zoomed');
 }
 
 console.log(errs.length ? 'Console errors:\n' + errs.join('\n') : 'No console errors');

@@ -42,11 +42,13 @@ create trigger app_settings_log before update on app_settings for each row execu
 -- Indicative price of a booking: weekly ÷ 7 per night. Extras are whole-property: their charged rooms (details.charged,
 -- else every bedroom; Abhainn Cottage 2 of 3) are priced.
 create or replace function indicative_price(r text, a date, d date) returns text language sql stable security definer set search_path = public as $$
-  select 'Indicative £' || to_char(round(w / 7.0 * (d - a)), 'FM999,999') || ' for ' || (d - a) || ' night' || case when d - a = 1 then '' else 's' end
-         || ' (£' || to_char(w, 'FM999,999') || ' a week ÷ 7 × ' || (d - a) || ')'
+  select case when d is null
+    then 'Indicative £' || to_char(w, 'FM999,999') || ' per week, until further notice'
+    else 'Indicative £' || to_char(round(w / 7.0 * (d - a)), 'FM999,999') || ' for ' || (d - a) || ' night' || case when d - a = 1 then '' else 's' end
+         || ' (£' || to_char(w, 'FM999,999') || ' a week ÷ 7 × ' || (d - a) || ')' end
   from (select (select (value #>> '{}')::numeric from app_settings where key = 'rate_per_room_week')
                * case when p.contracted then 1 else coalesce((p.details->>'charged')::int, (p.details->>'bedrooms')::int, 1) end as w
-        from rooms rm join properties p on p.id = rm.property_id where rm.id = r) x where d is not null $$;
+        from rooms rm join properties p on p.id = rm.property_id where rm.id = r) x $$;
 
 -- ---------- property, unit and room details (whole units for the extras) ----------
 insert into properties (id,name,short_name,contracted,address,blurb,photo_url,features,beds_label,brand,checkout_time,checkin_time,sort,details) values ('p-es','Eshcol Worker Accommodation','Eshcol',true,'Formerly Eshcol Guest House, 21 Breasclete, Isle of Lewis HS2 9ED','A newly renovated 10-bedroom property for worker stays: private rooms, modern shower rooms, useful shared spaces and a separate downstairs flat with its own kitchen.','img/eshcol-exterior.webp',array['Parking','High-speed Wi-Fi','Laundry','Shared kitchen','Lounge','Games room','Outdoor deck','Flat with its own kitchen']::text[],null,null,'10:00','15:00',1,'{"area":"Breasclete, Isle of Lewis","photos":[{"src":"img/eshcol-exterior.webp","alt":"Eshcol from outside, with the landscape around it"},{"src":"img/eshcol-kitchen.webp","alt":"Shared kitchen and dining area"},{"src":"img/eshcol-lounge.webp","alt":"Lounge"},{"src":"img/eshcol-games.webp","alt":"Games room with pool table"},{"src":"img/eshcol-deck.webp","alt":"Outdoor deck seating"},{"src":"img/eshcol-flat-kitchen.webp","alt":"Downstairs flat kitchen"},{"src":"img/eshcol-entrance.webp","alt":"Entrance"}],"mapUrl":"https://maps.app.goo.gl/mvJ8TRz1fuh4FGsX9","credit":"Photos and room details: Donald''s Eshcol share page (July 2026)"}'::jsonb)
@@ -231,7 +233,7 @@ begin
   if extra and tg_op = 'INSERT' then
     subj := 'New booking · ' || room_label(new.room_id);
     msg := 'Booked ' || room_label(new.room_id) || ' (whole property) for ' || stay_label(new) || ' · ' || to_char(new.arrival, 'Dy DD Mon') || ' → '
-      || coalesce(to_char(new.departure, 'Dy DD Mon'), 'open') || ' · ' || coalesce(indicative_price(new.room_id, new.arrival, new.departure), 'indicative weekly rate')
+      || coalesce(to_char(new.departure, 'Dy DD Mon'), 'until further notice') || ' · ' || coalesce(indicative_price(new.room_id, new.arrival, new.departure), 'indicative weekly rate')
       || ' · extra, invoiced separately';
   elsif tg_op = 'INSERT' then
     msg := (case when new.worker_id is null then 'Held ' else 'Booked ' end) || room_label(new.room_id) || ' for ' || stay_label(new) || ' from ' || to_char(new.arrival, 'Dy DD Mon');

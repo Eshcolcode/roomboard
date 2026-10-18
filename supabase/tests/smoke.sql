@@ -142,3 +142,15 @@ select 'T39 prices follow the rate (Abhainn 2 rooms charged x £400, 7 nights = 
 set request.uid = '00000000-0000-0000-0000-000000000001';
 select 'T32 extra_taken gives Sheena dates without names' t, count(*) = 1 ok from extra_taken() where room_id = 'x-cottage' and start_date = '2027-05-01';
 select 'T33 export tokens for every extra unit' t, count(*) = 4 ok from ical_exports;
+-- open-ended (until further notice) extra bookings
+set request.uid = '00000000-0000-0000-0000-000000000001'; -- Sheena
+insert into stays(room_id,hold_label,arrival,departure,dep_status) values ('x-pod2','Long stay','2027-07-01',null,'ufn');
+select 'T40 Sheena books an extra open-ended (until further notice)' t, count(*) = 1 ok from stays where hold_label='Long stay' and departure is null;
+do $$ begin insert into stays(room_id,hold_label,arrival,departure) values ('x-pod2','Later','2027-09-01','2027-09-03'); raise notice 'FAIL open-ended booking did not block later dates'; exception when others then raise notice 'PASS open-ended booking blocks every later night: %', sqlerrm; end $$;
+do $$ begin insert into stays(room_id,hold_label,arrival,departure,dep_status) values ('x-pod1','Open clash','2027-03-20',null,'ufn'); raise notice 'FAIL open-ended over a later calendar block allowed'; exception when others then raise notice 'PASS open-ended refused when a later night is booked elsewhere: %', sqlerrm; end $$;
+select 'T41 open-ended price is weekly, until further notice' t, indicative_price('x-pod2','2027-07-01',null) = 'Indicative £400 per week, until further notice' ok;
+select 'T42 Donald alerted it is open-ended' t, count(*) = 1 ok from alert_outbox where subject like 'New booking%' and body like '%Uig%until further notice%';
+update stays set departure = '2027-07-15', dep_status = 'planned' where hold_label='Long stay';
+select 'T43 Sheena sets the end date later' t, departure = '2027-07-15' ok from stays where hold_label='Long stay';
+insert into stays(room_id,hold_label,arrival,departure) values ('x-pod2','Later','2027-09-01','2027-09-03');
+select 'T44 after the end date the nights are free again' t, count(*) = 1 ok from stays where hold_label='Later';

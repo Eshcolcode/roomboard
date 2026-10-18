@@ -25,7 +25,7 @@ describe('pricing', () => {
     expect(estimateLine(db(), prop(true), 1)).toBe('Indicative £50 for 1 night (£350 a week ÷ 7 × 1)');
   });
   it('open-ended stays show the weekly price', () => {
-    expect(estimateLine(db(), prop(true), null)).toBe('Indicative £350 per week per room');
-    expect(estimateLine(db(), prop(false, 2), null)).toBe('Indicative £700 per week');
+    expect(estimateLine(db(), prop(true), null)).toBe('Indicative £350 per week per room, until further notice');
+    expect(estimateLine(db(), prop(false, 2), null)).toBe('Indicative £700 per week, until further notice');
   });
 });

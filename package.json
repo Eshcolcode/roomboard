@@ -12,7 +12,9 @@
     "test:e2e": "node qa/qa.mjs",
     "format": "prettier --write \"src/**/*.{ts,tsx}\" \"qa/*.mjs\"",
     "lint": "eslint . && prettier --check src",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:layout": "node qa/layout.mjs",
+    "test:e2e:all": "node qa/qa.mjs && node qa/flow.mjs && node qa/board.mjs && node qa/props.mjs && node qa/layout.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.118.0",

@@ -10,7 +10,7 @@ const mem = new Map<string, string>();
 const { localRepo: repo } = await import('./local');
 const { S, occupancy } = await import('./core');
 const { addDays, londonToday } = await import('../dates');
-const { dayState, rangeFree, unitIcs, segments } = await import('./extras');
+const { dayState, rangeFree, unitIcs, segments, openBlocker } = await import('./extras');
 const { estimateLine, priceLine, weekly } = await import('./pricing');
 const { parseICS } = await import('./ical');
 const T = londonToday();
@@ -220,6 +220,59 @@ describe('extra properties (demo)', () => {
       expect(dayState(S.db, id, addDays(T, 3))).not.toBe('elsewhere');
     }
     expect(S.db.feeds!.find(x => x.roomId === 'x-monadh')!.lastSync).toBeTruthy();
+  });
+
+  it('open-ended (until further notice): blocks every later night, weekly price, export a rolling year, end date later', async () => {
+    await repo.reset();
+    await as('client');
+    // from the day after the last thing booked on Uig
+    let a = 3;
+    while (openBlocker(S.db, 'x-pod2', addDays(T, a))) a++;
+    expect(openBlocker(S.db, 'x-pod2', addDays(T, a))).toBeNull();
+    const s = await repo.saveStay({ ...ask('x-pod2', a, a + 1, 'Long stay'), departure: null, depStatus: 'ufn' });
+    expect([s.departure, s.depStatus, s.bookedBy]).toEqual([null, 'ufn', S.db.currentUser]);
+    for (const k of [0, 30, 200]) expect(dayState(S.db, 'x-pod2', addDays(T, a + k))).toBe('taken');
+    expect(openBlocker(S.db, 'x-pod2', addDays(T, a))).toBe(addDays(T, a)); // now its own first night
+    // nobody can book on top of it, however far out
+    await as('manager');
+    await expect(repo.saveStay(ask('x-pod2', a + 90, a + 92))).rejects.toThrow(/taken|Clash/i);
+    // Donald is told it is open-ended, with the weekly price
+    const al = S.db.alerts.find(x => x.subject.startsWith('New booking') && x.body.includes('until further notice'));
+    expect(al?.body).toMatch(/Indicative £350 per week, until further notice/);
+    expect(
+      estimateLine(
+        S.db,
+        S.db.properties.find(p => p.id === 'p-pod2')!,
+        null,
+      ),
+    ).toBe('Indicative £350 per week, until further notice');
+    // the export blocks a rolling year ahead (other calendars cannot hold an "open" event)
+    const ev = parseICS(unitIcs(S.db, 'x-pod2')).find(e => e.from === addDays(T, a))!;
+    expect(ev.to).toBe(addDays(addDays(T, a), 365));
+    expect(unitIcs(S.db, 'x-pod2')).not.toMatch(/Long stay/);
+    // Sheena sets the end date later; the nights after it are free again
+    await as('client');
+    const cur = S.db.stays.find(x => x.id === s.id)!;
+    await repo.saveStay({ ...cur, away: null, departure: addDays(T, a + 14), depStatus: 'planned' });
+    expect(dayState(S.db, 'x-pod2', addDays(T, a + 13))).toBe('taken');
+    expect(dayState(S.db, 'x-pod2', addDays(T, a + 14))).toBe('free');
+    expect(parseICS(unitIcs(S.db, 'x-pod2')).find(e => e.from === addDays(T, a))!.to).toBe(addDays(T, a + 14));
+  });
+
+  it('open-ended is refused when any later night is taken, without saying by whom', async () => {
+    await repo.reset();
+    await as('client');
+    const b = S.db.blocks!.filter(x => x.roomId === 'x-monadh' && x.from > addDays(T, 3))[0];
+    // the first non-free night from day 2 is the first calendar block still to come
+    const d2 = addDays(T, 2);
+    const first = S.db.blocks!.find(x => x.roomId === 'x-monadh' && x.to > d2)!;
+    expect(openBlocker(S.db, 'x-monadh', d2)).toBe(first.from > d2 ? first.from : d2);
+    const err = await repo
+      .saveStay({ ...ask('x-monadh', 2, 3), departure: null, depStatus: 'ufn' })
+      .catch((e: Error) => e.message);
+    expect(b).toBeTruthy();
+    expect(err).toMatch(/booked elsewhere|taken/);
+    expect(err).not.toMatch(/SuperControl/);
   });
 
   it('upgrades an older demo store (v1) with the new details without losing stays', async () => {

@@ -8,7 +8,7 @@ import { data, useDB, me, bathText, thumb } from '../data';
 import type { Photo, Property } from '../data';
 import { fmt, londonToday } from '../dates';
 import { nextFree, unitOf } from '../data/extras';
-import { gbp, priceLine, rate, PRICE_NOTE } from '../data/pricing';
+import { CONTRACT_LINE, gbp, priceLine, priced, rate, PRICE_NOTE } from '../data/pricing';
 import { UnitAvailability } from './Availability';
 import type { PanelInit } from './StayPanel';
 import { toast } from './overlays';
@@ -27,18 +27,16 @@ export function Properties({ sub, start }: { sub?: string; start?: string; onOpe
         <h1>Properties</h1>
         <p>All in Breasclete, Isle of Lewis</p>
       </div>
-      <p className="pp-price-note">
-        <b>Indicative {'£' + rate(db).toLocaleString('en-GB')} per room per week</b> · {PRICE_NOTE}
-      </p>
-      {me().role === 'manager' && <RateSetting />}
-      <h2 className="pp-h2">Contract houses</h2>
+      <h2 className="pp-h2">
+        Contract houses <small>{CONTRACT_LINE} · fixed weekly rate however many rooms are used</small>
+      </h2>
       <div className="pp-cards">
         {contract.map(x => (
           <PropCard
             key={x.id}
             p={x}
             line={`${db.rooms.filter(r => r.propertyId === x.id).length} bedrooms · booked per room`}
-            price={priceLine(db, x)}
+            price={priceLine(db, x) ?? CONTRACT_LINE}
           />
         ))}
       </div>
@@ -46,6 +44,10 @@ export function Properties({ sub, start }: { sub?: string; start?: string; onOpe
         Extra properties{' '}
         <small>Booked as a whole property · invoiced separately · outside the contract allocation</small>
       </h2>
+      <p className="pp-price-note">
+        <b>Indicative {'£' + rate(db).toLocaleString('en-GB')} per room per week</b> · {PRICE_NOTE}
+      </p>
+      {me().role === 'manager' && <RateSetting />}
       <div className="pp-cards">
         {extras.map(x => {
           const r = unitOf(db, x.id);
@@ -56,7 +58,7 @@ export function Properties({ sub, start }: { sub?: string; start?: string; onOpe
               p={x}
               extra
               line={[x.beds, x.sleeps && `Sleeps ${x.sleeps}`].filter(Boolean).join(' · ') || 'Details to come'}
-              price={priceLine(db, x)}
+              price={priceLine(db, x) ?? CONTRACT_LINE}
               status={nf ? (nf === T ? 'Free tonight' : `Free from ${fmt(nf)}`) : 'Fully booked for now'}
             />
           );
@@ -158,7 +160,9 @@ function RateSetting() {
       <label>
         <span>
           <b>Indicative rate</b>
-          <small>Per room per week, used for every property. Only you can change it.</small>
+          <small>
+            Per room per week, for the extra properties (contract houses never show a price). Only you can change it.
+          </small>
         </span>
         <span className="pp-rate-in">
           £
@@ -329,13 +333,20 @@ function PropertyPage({ p, start }: { p: Property; start?: string }) {
         </p>
       </div>
       <p className="pp-blurb">{p.blurb}</p>
-      <div className="price-box" data-price={p.id}>
-        <b>{priceLine(db, p)}</b>
-        <small>
-          {p.contracted ? 'Each room is priced on its own.' : chargeText(p)} Pro rata: the weekly price ÷ 7 per night.{' '}
-          {PRICE_NOTE}
-        </small>
-      </div>
+      {priced(p) ? (
+        <div className="price-box" data-price={p.id}>
+          <b>{priceLine(db, p)}</b>
+          <small>
+            {chargeText(p)} Pro rata: the weekly price ÷ 7 per night. {PRICE_NOTE}
+          </small>
+        </div>
+      ) : (
+        // on the block contract: no price, ever
+        <div className="price-box contract" data-price="contract">
+          <b>{CONTRACT_LINE}</b>
+          <small>On the block contract: a fixed weekly rate, however many rooms are used.</small>
+        </div>
+      )}
       {facts.length > 0 && (
         <dl className="pp-facts">
           {facts.map(([k, v]) => (

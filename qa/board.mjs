@@ -66,6 +66,11 @@ await p.keyboard.press('Escape'); await settle(p);
   ok(await p.locator('.q-panel h2:has-text("Room held")').isVisible(), 'room step skipped: held straight away');
   const held = (await db(p)).stays.find(s => s.roomId === pick.room.id && s.arrival === D(pick.k));
   ok(held && held.departure === D(pick.k + 3), 'hold saved in the tapped room on the tapped day');
+  {
+    // Donald, 18 Oct 2026: Eshcol / Loch Roag are on the block contract, so the "Room held" sheet shows no money
+    const t = await p.locator('.q-panel').innerText();
+    ok(!/£|indicative|estimate/i.test(t) && t.includes('Included in your contract'), '"Room held" for a contract room: no price, "Included in your contract"');
+  }
   await shot(p, 'desktop-empty-cell-held');
   await p.keyboard.press('Escape'); await settle(p);
 }

@@ -341,10 +341,10 @@ await p.click('.pp-rate button:has-text("Save")');
 await settle(p);
 ok((await db(p)).settings.ratePerRoomWeek === 400, 'Donald: rate saved');
 ok(
-  (await p.locator('[data-prop="p-es"] .pp-price').innerText()) === 'Indicative £400 per room per week' &&
+  (await p.locator('[data-prop="p-es"] .pp-price').innerText()) === 'Included in your contract' &&
     (await p.locator('[data-prop="p-monadh"] .pp-price').innerText()).includes('2 rooms charged = £800 a week') &&
     (await p.locator('[data-prop="p-cottage"] .pp-price').innerText()).includes('2 rooms charged = £800 a week'),
-  'prices follow the rate everywhere',
+  'prices follow the rate on every extra; Eshcol stays "Included in your contract"',
 );
 await p.click('.pp-hist summary');
 await settle(p);
@@ -735,6 +735,114 @@ p = await pg(390, 844, 'available/p-lr', { user: 'u-client' });
   await touch('pointerup', 1, cx - 120, cy);
   await settle(p);
   ok(/2 of/.test(await p.locator('.lb-top').innerText()), 'phone viewer: swipe still changes photo when not zoomed');
+}
+
+// ---------- block contract (Eshcol, Loch Roag): no £ anywhere, any role, desktop and phone ----------
+{
+  // all visible text plus tooltips and labels inside the given scopes
+  // the extras (Harris, Uig, Monadh, Abhainn) are priced on purpose: they are left out of the look
+  const EXTRA =
+    '[data-extra], [data-extras], .xgroup, .xsec, .xcard, .xrow, .xs, .avp, [data-prop^="p-pod"], [data-prop="p-monadh"], [data-prop="p-cottage"], .pp-price-note, .pp-rate, .pp-hist';
+  const money = (p, sel) =>
+    p.evaluate(
+      ({ sel, EXTRA }) => {
+        const out = [];
+        const hidden = [...document.querySelectorAll(EXTRA)].map(e => [e, e.style.display]);
+        for (const [e] of hidden) e.style.display = 'none';
+        for (const el of document.querySelectorAll(sel)) {
+          if (el.closest(EXTRA)) continue;
+          out.push(...el.innerText.split('\n'));
+          for (const x of [el, ...el.querySelectorAll('*')])
+            if (!x.closest(EXTRA))
+              for (const a of ['title', 'aria-label', 'data-tip']) if (x.getAttribute(a)) out.push(x.getAttribute(a));
+        }
+        for (const [e, d] of hidden) e.style.display = d;
+        return {
+          n: document.querySelectorAll(sel).length,
+          hits: out.filter(t => /£|indicative|estimate/i.test(t)).slice(0, 3),
+        };
+      },
+      { sel, EXTRA },
+    );
+  const VIEWS = [
+    ['available/p-es', '.page'],
+    ['available/p-lr', '.page'],
+    ['available', '[data-prop="p-es"], [data-prop="p-lr"], .pp-h2:first-of-type'],
+    ['board', '.row[data-room^="es-"], .row[data-room^="lr-"]'],
+    ['rooms', '.rcard:not(.xcard)'],
+    ['today', '.page'],
+    ['changeovers', '.page'],
+    ['free', '.page'],
+    ['workers', '.page'],
+    ['crew', '.page'],
+    ['print-today', 'body'],
+    ['print-cleaning', 'body'],
+    ['simple', 'body'],
+  ];
+  for (const [w, h, sz] of [
+    [1440, 950, 'desktop'],
+    [390, 844, 'phone'],
+  ])
+    for (const user of ['u-donald', 'u-client', 'u-mairi']) {
+      const p = await pg(w, h, 'board', { user });
+      const who = { 'u-donald': 'Donald', 'u-client': 'Sheena', 'u-mairi': 'cleaner' }[user];
+      const bad = [];
+      let seen = 0;
+      for (const [hash, sel] of VIEWS) {
+        await p.goto(U + '#' + hash);
+        await settle(p);
+        const r = await money(p, sel);
+        seen += r.n;
+        if (r.hits.length) bad.push(`#${hash}: ${r.hits.join(' / ').slice(0, 120)}`);
+      }
+      // activity: lines about contract rooms
+      await p.goto(U + '#activity');
+      await settle(p);
+      const act = await p.locator('body').innerText();
+      const actBad = act.split('\n').filter(l => /Eshcol|Loch Roag/.test(l) && /£/.test(l));
+      if (actBad.length) bad.push('#activity: ' + actBad[0]);
+      // a contract booking's card (Quick on the board / Rooms) and the Classic panel
+      if (user !== 'u-mairi') {
+        for (const mode of ['quick', 'classic']) {
+          await p.evaluate(m => localStorage.setItem('rb-ui-mode', m), mode);
+          await p.goto(U + (w > 500 ? '#board' : '#rooms'));
+          await p.reload();
+          await settle(p);
+          if (w > 500) await p.locator('.row[data-room="es-3"] .bar, .row[data-room="lr-1"] .bar').first().click();
+          else {
+            await p.locator('.rcard[data-room="lr-1"] .qup').scrollIntoViewIfNeeded();
+            await p.locator('.rcard[data-room="lr-1"] .qup').click();
+          }
+          await settle(p);
+          const r = await money(p, '.q-panel, .panel');
+          seen += r.n;
+          if (!r.n) bad.push(`${mode}: no booking card opened`);
+          if (r.hits.length) bad.push(`${mode} booking card: ${r.hits.join(' / ')}`);
+          await p.keyboard.press('Escape');
+        }
+        await p.evaluate(() => localStorage.setItem('rb-ui-mode', 'quick'));
+      }
+      ok(
+        !bad.length && seen > (user === 'u-mairi' ? 4 : 10),
+        `${sz} ${who}: no £, price or estimate on any Eshcol / Loch Roag view (${seen} areas) ${bad.join(' | ')}`,
+      );
+      if (user === 'u-client') {
+        await p.goto(U + '#available/p-es');
+        await settle(p);
+        ok(
+          (await p.locator('[data-price="contract"]').innerText()).includes('Included in your contract') &&
+            !(await p.locator('.pp-rate').count()),
+          `${sz} Sheena: Eshcol says "Included in your contract", no money`,
+        );
+        await p.goto(U + '#available/p-monadh');
+        await settle(p);
+        ok(
+          /£700 a week/.test(await p.locator('[data-price="p-monadh"]').innerText()),
+          `${sz} Sheena: extras still priced (Monadh £700 a week)`,
+        );
+      }
+      await p.close();
+    }
 }
 
 console.log(errs.length ? 'Console errors:\n' + errs.join('\n') : 'No console errors');

@@ -375,7 +375,7 @@ function ExtraRow({
   const n = p.bedrooms ?? 1;
   return (
     <div className="row xrow" data-room={r.id} data-extra={pid}>
-      <div className="rl" title={priceLine(db, p)}>
+      <div className="rl" title={priceLine(db, p) ?? undefined}>
         <b>{p.name}</b>
         <span>
           Whole · {n} bedroom{n === 1 ? '' : 's'}

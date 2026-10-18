@@ -164,3 +164,13 @@ update stays set departure = '2027-08-11', dep_status = 'ufn' where hold_label='
 select 'T45a a date sent with an open status is kept, as a planned end date' t, departure = '2027-08-11' and dep_status = 'planned' ok from stays where hold_label='Open contract';
 insert into stays(room_id,hold_label,arrival,departure) values ('lr-5','After','2027-08-20','2027-08-22');
 select 'T46 nights after the new end date are free' t, count(*) = 1 ok from stays where hold_label='After';
+-- block contract (Eshcol, Loch Roag): never a price, anywhere; driven by properties.contracted
+reset role;
+select 'T47 no price for a contract room' t, indicative_price('es-1','2027-03-01','2027-03-04') is null and indicative_price('lr-5','2027-03-01',null) is null ok;
+select 'T48 no £ in any alert about a contract booking' t, count(*) = 0 ok from alert_outbox where (subject || body) like '%£%' and (subject || body) ~ '(Eshcol|Loch Roag)';
+select 'T49 no £ in any activity line about a contract booking' t, count(*) = 0 ok from activity where text like '%£%' and text ~ '(Eshcol|Loch Roag)';
+select 'T49a the contract alerts were checked (there are some)' t, count(*) > 0 ok from alert_outbox where (subject || body) ~ '(Eshcol|Loch Roag)';
+update properties set contracted = false where id = 'p-lr';
+select 'T50 switching the flag is all it takes: Loch Roag off the contract gets a price' t, indicative_price('lr-1','2027-03-01','2027-03-08') like 'Indicative £%' ok;
+update properties set contracted = true where id = 'p-lr';
+select 'T50a and back on the contract: no price again' t, indicative_price('lr-1','2027-03-01','2027-03-08') is null ok;

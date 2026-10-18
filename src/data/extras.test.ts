@@ -158,8 +158,10 @@ describe('extra properties (demo)', () => {
   it('indicative prices: £350 per room per week; extras whole-property; only Donald changes the rate', async () => {
     await repo.reset();
     const P = (name: string) => S.db.properties.find(p => p.short === name)!;
-    expect(priceLine(S.db, P('Eshcol'))).toBe('Indicative £350 per room per week');
-    expect(priceLine(S.db, P('Loch Roag'))).toBe('Indicative £350 per room per week');
+    // block contract: no price at all
+    expect(priceLine(S.db, P('Eshcol'))).toBeNull();
+    expect(priceLine(S.db, P('Loch Roag'))).toBeNull();
+    expect(S.db.properties.filter(p => p.contracted).map(p => p.short)).toEqual(['Eshcol', 'Loch Roag']);
     expect([P('Harris'), P('Uig'), P('Monadh'), P('Abhainn Cottage')].map(p => [p.bedrooms, weekly(S.db, p)])).toEqual([
       [1, 350],
       [1, 350],
@@ -178,7 +180,8 @@ describe('extra properties (demo)', () => {
     await as('manager');
     await expect(repo.setSettings({ ratePerRoomWeek: 0 })).rejects.toThrow(/weekly price/);
     await repo.setSettings({ ratePerRoomWeek: 420 });
-    expect(priceLine(S.db, P('Eshcol'))).toBe('Indicative £420 per room per week');
+    expect(priceLine(S.db, P('Harris'))).toMatch(/^Indicative £420 per room per week/);
+    expect(priceLine(S.db, P('Eshcol'))).toBeNull();
     expect(weekly(S.db, P('Abhainn Cottage'))).toBe(840);
     expect(S.db.activity[0].managerOnly).toBe(true);
     // rate history: who, when, old and new
@@ -188,6 +191,29 @@ describe('extra properties (demo)', () => {
       [350, 420, S.db.currentUser],
     ]);
     expect(S.db.rateHistory!.every(h => !!h.ts)).toBe(true);
+  });
+
+  it('block contract: booking, changing or cancelling an Eshcol or Loch Roag room puts no £ in alerts or activity', async () => {
+    await repo.reset();
+    for (const role of ['client', 'manager'] as const) {
+      await as(role);
+      const roomId = role === 'client' ? 'es-9' : 'lr-9';
+      let a = 2;
+      while (
+        S.db.stays.some(
+          x => x.roomId === roomId && x.arrival < addDays(T, a + 3) && (x.departure ?? '9') > addDays(T, a),
+        )
+      )
+        a++;
+      const s = await repo.saveStay(ask(roomId, a, a + 3, 'Contract test'));
+      await repo.saveStay({ ...S.db.stays.find(x => x.id === s.id)!, away: null, departure: addDays(T, a + 2) });
+      await repo.deleteStay(s.id);
+    }
+    const about = (t: string) => /Eshcol|Loch Roag/.test(t);
+    const alerts = S.db.alerts.map(x => x.subject + ' ' + x.body).filter(about);
+    const acts = S.db.activity.map(x => x.text).filter(about);
+    expect(alerts.length + acts.length).toBeGreaterThan(0);
+    expect([...alerts, ...acts].filter(t => t.includes('£'))).toEqual([]);
   });
 
   it('syncing flags a block that lands on a confirmed booking as a possible double booking', async () => {

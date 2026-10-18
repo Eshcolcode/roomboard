@@ -42,6 +42,10 @@ ok(await p.locator('h2:has-text("Which room")').isVisible(), 'step 4 room');
 await shot(p, 'book-4-room');
 await p.locator('.s-room').first().click(); await settle(p);
 ok(await p.locator('h2:has-text("Room held!")').isVisible(), 'Room held! confirmation');
+{
+  const t = await p.locator('body').innerText();
+  ok(!/£|indicative|estimate/i.test(t) && t.includes('Included in your contract'), 'Room held (contract room): no price, "Included in your contract"');
+}
 ok((await stays(p)).length === n0 + 1, 'hold really saved in demo data');
 await shot(p, 'room-held');
 await p.click('.s-extra:has-text("Phone number")'); await settle(p);

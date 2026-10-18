@@ -173,12 +173,34 @@ yet** to **Calendar linked**. To change a link, set the secret again; to unlink,
 | Abhainn Cottage (`x-cottage`) | `ICAL_ABHAINN` | waiting for the link |
 | Monadh (`x-monadh`) | `ICAL_MONADH` | link in hand (SuperControl), kept outside the repo; set it when the live database is set up |
 
-## Indicative prices (Donald, 18 Oct 2026)
-- One rate for every property: **Indicative £350 per room per week**. Donald changes it on *Properties* (live:
+## Block contract vs priced properties (Donald, 18 Oct 2026)
+- **Eshcol and Loch Roag are on the block contract**: a fixed weekly rate however many rooms are used. They **never
+  show a price or an estimate**, anywhere, for anyone: not on the booking confirmation ("Room held"), booking cards,
+  the Classic panel, property pages, the Properties list, room cards, alerts or activity. Where a price would sit they
+  say **"Included in your contract"** (no money).
+- Prices and estimates appear **only** for the out-of-contract extras: Harris, Uig, Monadh, Abhainn Cottage.
+- **One flag decides it**: the property's `contracted` value (true = on the block contract). Nothing is keyed on
+  names. The app (`priced()` / `priceLine` / `estimateLine` in `src/data/pricing.ts`) and the database
+  (`indicative_price()` returns null when `properties.contracted`) both read it. The same flag already decides what
+  counts towards the contract allocation and what is an "extra".
+
+### Switching a property onto (or off) the block contract
+No admin screen yet (Donald: not urgent). Change the one flag:
+1. **Demo / preview:** in `src/data/properties.ts`, set `contracted: true` on that property (false to take it off),
+   bump the demo store version in `src/data/local/store.ts` (`upgrade` refreshes properties), commit, push.
+2. **Live database:** `update properties set contracted = true where id = '<property id>';` (e.g. `'p-monadh'`),
+   run as the service role in the Supabase SQL editor. Prices disappear for it immediately; `false` brings them back.
+3. Note: `contracted` also moves the property between the contract board and the *Extra properties* group, the
+   contract counts, and who may book it (Sheena books contract rooms per room, extras whole). An extra going onto
+   the contract needs its rooms set up as contract rooms (one room per bedroom) rather than one whole unit; ask
+   Grok Bot to do that part.
+
+## Indicative prices for the extras (Donald, 18 Oct 2026)
+- One rate: **Indicative £350 per room per week**, used for the extras only. Donald changes it on *Properties* (live:
   `app_settings.rate_per_room_week`, readable by everyone signed in, writable by the manager only; demo: this
-  browser). Sheena sees prices but cannot change them.
-- Eshcol and Loch Roag are priced **per room**. Harris, Uig, Monadh and Abhainn Cottage are booked **whole**: their
-  charged rooms are priced even if one is used (every bedroom, except Abhainn's sofa-bed/desk room: `charged: 2`).
+  browser). Sheena sees the extras' prices but cannot change them.
+- Harris, Uig, Monadh and Abhainn Cottage are booked **whole**: their charged rooms are priced even if one is used
+  (every bedroom, except Abhainn's sofa-bed/desk room: `charged: 2`).
 - Every rate change is kept with who, when, old and new (`app_settings_history`, Donald only; demo: this browser),
   shown to Donald under *Rate history* on Properties.
 - Pro rata: **weekly ÷ 7 per night**, rounded to the nearest pound (at £350: £50 a room a night).
@@ -186,8 +208,8 @@ yet** to **Calendar linked**. To change a link, set the secret again; to unlink,
 
 | Property | Bedrooms assumed | Source | Indicative price at £350 |
 |---|---|---|---|
-| Eshcol | 10 rooms | D, rooms above | £350 per room per week |
-| Loch Roag | 9 rooms | D, rooms above | £350 per room per week |
+| Eshcol | 10 rooms | D, rooms above | none: block contract ("Included in your contract") |
+| Loch Roag | 9 rooms | D, rooms above | none: block contract ("Included in your contract") |
 | Harris | 1 | HHC: 1 bedroom + sofa bed (sofa bed not charged) | £350 a week, whole |
 | Uig | 1 | HHC: 1 bedroom + sofa bed (sofa bed not charged) | £350 a week, whole |
 | Monadh | 2 | D brief, "The Lodge (2 ensuite)" = Monadh | £700 a week, whole |

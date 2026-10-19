@@ -47,6 +47,9 @@ export const localRepo: Repo = {
     );
     log(
       `Updated default times for ${S.db.properties.find(x => x.id === id)!.name}: checkout ${p.checkout ?? ''} check-in ${p.checkin ?? ''}`,
+      undefined,
+      false,
+      'settings',
     );
     commit();
   },
@@ -55,6 +58,11 @@ export const localRepo: Repo = {
       S.db.users.find(u => u.id === id)!,
       p,
     );
+    commit();
+  },
+  async markRead(ids) {
+    const set = new Set(ids);
+    S.db.notices = (S.db.notices ?? []).map(n => (set.has(n.id) ? { ...n, read: true } : n));
     commit();
   },
   async upsertWorker(w) {

@@ -8,7 +8,7 @@
 // sofa-bed/desk room: 2 of 3), even if only one is used.
 // Pro rata: weekly price ÷ 7 per night, rounded to the nearest pound. Indicative only: invoiced separately, and
 // long-term deals are possible.
-import { DEFAULT_SETTINGS } from './core';
+import { DEFAULT_SETTINGS, S } from './core';
 import type { DB, Property } from './core';
 
 export const rate = (db: DB) => db.settings?.ratePerRoomWeek ?? DEFAULT_SETTINGS.ratePerRoomWeek;
@@ -23,8 +23,10 @@ export const estimate = (db: DB, p: Property, nights: number) => Math.round((wee
 
 /** Shown instead of a price for a property on the block contract. No money. */
 export const CONTRACT_LINE = 'Included in your contract';
-/** Does this property ever show a price? Only when it is not on the block contract. */
-export const priced = (p: Property) => !p.contracted;
+/** The housekeeper never sees a price, anywhere (19 Oct 2026). */
+export const noPrices = () => S.db?.users.find(u => u.id === S.db.currentUser)?.role === 'cleaner';
+/** Does this property ever show a price? Only when it is not on the block contract, and never to the housekeeper. */
+export const priced = (p: Property) => !p.contracted && !noPrices();
 
 /** Extras: "Indicative £350 per room per week · whole property, 2 rooms charged = £700 a week". Contract: null. */
 export function priceLine(db: DB, p: Property): string | null {

@@ -105,7 +105,7 @@ export function ExtraCard({ stay, onHome }: { stay: Stay; onHome: () => void }) 
           {priceLine(db, p)}. {PRICE_NOTE}
         </small>
       </div>
-      <Note tone="ok">Booked by Donald. To change it, ask him.</Note>
+      <Note tone="ok">Booked by Eshcol. To change it, ask Eshcol.</Note>
       <a className="s-link" href={'#available/' + p.id} onClick={onHome}>
         Property details and availability
       </a>

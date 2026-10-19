@@ -1,7 +1,7 @@
 // Simple mode: calm, phone-first front door. #simple, #simple/book, #simple/arrivals,
 // #simple/cleaning, #simple/stay/<id>. Uses the same data layer as the full app, so holds really save.
 import { useState } from 'react';
-import { data, useDB, me, stayLabel, readinessFor, roomLabel } from '../data';
+import { data, useDB, me, stayLabel, readinessFor, roomLabel, ROLE_LABEL } from '../data';
 import type { Stay } from '../data';
 import { addDays, fmt, londonToday } from '../dates';
 import { Book } from './Book';
@@ -36,13 +36,13 @@ export function Simple({ path }: { path: string }) {
         {data.mode === 'demo' && (
           <select
             className="s-who"
-            aria-label="Demo: switch person"
+            aria-label="Demo: switch login"
             value={u.id}
             onChange={e => data.setUser(e.target.value)}
           >
             {db.users.map(x => (
               <option key={x.id} value={x.id}>
-                {x.role === 'client' ? 'Sheena' : x.role === 'manager' ? x.name.split(' ')[0] : 'Cleaner'}
+                {ROLE_LABEL[x.role]}
               </option>
             ))}
           </select>
@@ -116,9 +116,7 @@ function Home({ go }: { go: (p: string) => void }) {
   return (
     <div className="s-home">
       <div className="s-hello">
-        <h1>
-          {hello}, {u.name.split(' ')[0]}
-        </h1>
+        <h1>{hello}</h1>
         <p>{fmt(T, { weekday: 'long', day: 'numeric', month: 'long' })}</p>
       </div>
       <div className="s-big3">

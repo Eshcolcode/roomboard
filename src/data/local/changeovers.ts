@@ -35,17 +35,19 @@ export function updateChangeover(id: string, patch: Partial<Changeover>) {
     log(
       `⚠ ${roomLabel(c.roomId)}: clean booked outside the usual window – ${patch.exception}`,
       roomOf(c.roomId).propertyId,
+      false,
+      'cleaning',
     );
   if (patch.status) c.invalidated = undefined;
   const rl = roomLabel(c.roomId);
   const pid = roomOf(c.roomId).propertyId;
   if (patch.vacated !== undefined && patch.status === undefined) {
-    log(`${rl}: ${c.vacated ? 'guest has left ✓' : '"guest has left" untick'}`, pid);
+    log(`${rl}: ${c.vacated ? 'guest has left ✓' : '"guest has left" untick'}`, pid, false, 'cleaning');
     commit();
     return;
   }
   const t = `${rl} clean → ${CO_LABEL[c.status]}${c.scheduledFor && c.status !== 'ready' ? ' · ' + fmt(c.scheduledFor) : ''}`;
-  log(t, pid);
+  log(t, pid, false, 'cleaning');
   if (c.status === 'ready')
     usersOf('client').forEach(u => queueFor(u, `${rl} is ready`, `${rl} is ready for the next arrival`));
   else if (c.status === 'scheduled')
@@ -56,7 +58,7 @@ export function dismissChangeover(id: string) {
   const c = S.db.changeovers.find(x => x.id === id);
   if (!c) return;
   S.db.changeovers = S.db.changeovers.filter(x => x.id !== id);
-  log(`Dismissed flagged changeover ${roomLabel(c.roomId)}`, roomOf(c.roomId).propertyId);
+  log(`Dismissed flagged changeover ${roomLabel(c.roomId)}`, roomOf(c.roomId).propertyId, false, 'cleaning');
   alertChangeover(c, `Clean cancelled · ${roomLabel(c.roomId)}`, 'No longer needed');
   commit();
 }

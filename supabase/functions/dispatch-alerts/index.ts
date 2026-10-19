@@ -1,4 +1,5 @@
 // Supabase Edge Function: sends queued alerts from alert_outbox with retry + exponential backoff.
+// Inactive until app_settings 'notifications_live' is true (0009_notifications.sql).
 // Secrets: RESEND_API_KEY, ALERT_FROM (e.g. "Roomboard <alerts@yourdomain>"), TWILIO_SID, TWILIO_TOKEN, TWILIO_FROM.
 import { createClient } from 'npm:@supabase/supabase-js@2';
 const sb = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
@@ -14,6 +15,10 @@ async function sms(to: string, text: string) {
   if (!r.ok) throw new Error(`twilio ${r.status} ${await r.text()}`);
 }
 Deno.serve(async () => {
+  // OFF until Donald switches it on (0009): app_settings 'notifications_live' = true. Until then nothing is sent and
+  // queued rows simply wait (the in-app red dot works regardless).
+  const { data: live } = await sb.rpc('notifications_live');
+  if (live !== true) return new Response(JSON.stringify({ sent: 0, live: false }), { headers: { 'Content-Type': 'application/json' } });
   // rows are claimed by status; the unique dedupe_key prevents duplicate queueing upstream
   const { data: rows } = await sb.from('alert_outbox').select('*').eq('status', 'queued').lte('next_attempt_at', new Date().toISOString()).limit(50);
   let sent = 0;

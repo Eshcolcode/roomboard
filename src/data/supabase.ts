@@ -2,7 +2,7 @@
 // outbox are written by database triggers, so this file only reads tables and performs the user's writes.
 import { createClient, type RealtimeChannel } from '@supabase/supabase-js';
 import { S, publish, ConflictError, DEFAULT_SETTINGS, normDep } from './core';
-import type { DB, Stay, Changeover, Worker, Series, Settings, StayInput } from './core';
+import type { ActKind, DB, Stay, Changeover, Worker, Series, Settings, StayInput } from './core';
 import { reshape } from './crew';
 import { londonToday } from '../dates';
 import type { Repo } from './repo';
@@ -22,6 +22,7 @@ const empty = (): DB => ({
   changeovers: [],
   activity: [],
   alerts: [],
+  notices: [],
   enquiries: [],
   currentUser: '',
 });
@@ -108,9 +109,28 @@ const mapCo = (r: R.ChangeoverRow): Changeover => ({
 });
 
 const rows = <T>(d: unknown): T[] => (d ?? []) as T[];
+/** activity.kind / entity (0009) → the app's kinds; untagged entries stay Eshcol-only in the app too */
+const KINDS: Record<string, ActKind> = {
+  stay: 'stay',
+  series: 'rota',
+  rota: 'rota',
+  worker: 'worker',
+  changeover: 'cleaning',
+  cleaning: 'cleaning',
+  enquiry: 'enquiry',
+  rate: 'rate',
+  ical: 'ical',
+  settings: 'settings',
+};
+const kindOf = (k: string | null | undefined): { kind?: ActKind } => (k && KINDS[k] ? { kind: KINDS[k] } : {});
 const settingsFrom = (rs: R.SettingsRow[]): Settings => {
   const v = Number(rs.find(r => r.key === 'rate_per_room_week')?.value);
-  return { ...DEFAULT_SETTINGS, ...(Number.isFinite(v) && v > 0 ? { ratePerRoomWeek: v } : {}) };
+  const hk = rs.find(r => r.key === 'housekeeper_alerts')?.value;
+  return {
+    ...DEFAULT_SETTINGS,
+    ...(Number.isFinite(v) && v > 0 ? { ratePerRoomWeek: v } : {}),
+    ...(hk === false || hk === 'false' ? { housekeeperAlerts: false } : {}),
+  };
 };
 
 async function refresh() {
@@ -122,7 +142,7 @@ async function refresh() {
     return;
   }
   const q = (t: string, order = 'id') => sb.from(t).select('*').order(order);
-  const [pr, pp, un, rm, wk, st, co, ac, al, en, se, fd, bl, tk, cf, rh] = await Promise.all([
+  const [pr, pp, un, rm, wk, st, co, ac, al, en, se, fd, bl, tk, cf, rh, nt] = await Promise.all([
     q('profiles'),
     q('properties', 'sort'),
     q('units', 'sort'),
@@ -140,6 +160,8 @@ async function refresh() {
     sb.rpc('extra_taken'),
     sb.from('app_settings').select('*'), // everyone reads; only the manager can change (0008)
     sb.from('app_settings_history').select('*').order('changed_at', { ascending: false }).limit(50), // manager only
+    // in-app alerts (0009): own rows only (RLS); an empty list until that migration is applied
+    sb.from('notifications').select('*').order('created_at', { ascending: false }).limit(100),
   ]);
   publish({
     v: 1,
@@ -152,6 +174,8 @@ async function refresh() {
       phone: r.phone ?? '',
       smsOptIn: r.sms_opt_in,
       pushEnabled: r.push_enabled,
+      emailImmediate: r.email_immediate ?? true,
+      minorDigest: r.minor_digest ?? false,
     })),
     properties: rows<R.PropertyRow>(pp.data).map(r => ({
       id: r.id,
@@ -198,6 +222,18 @@ async function refresh() {
       text: r.text,
       propertyId: r.property_id ?? undefined,
       ...(r.manager_only ? { managerOnly: true } : {}),
+      ...kindOf(r.kind ?? r.entity),
+      ...(r.tier ? { tier: r.tier } : {}),
+      ...(r.reasons?.length ? { reasons: r.reasons } : {}),
+    })),
+    notices: rows<R.NoticeRow>(nt.data).map(r => ({
+      id: String(r.id),
+      ts: r.created_at,
+      forUserId: r.recipient_id,
+      text: r.text,
+      reasons: r.reasons ?? [],
+      propertyId: r.property_id ?? undefined,
+      read: !!r.read_at,
     })),
     settings: settingsFrom(rows<R.SettingsRow>(cf.data)),
     rateHistory: rows<R.SettingsHistoryRow>(rh.data)
@@ -376,8 +412,23 @@ export const supabaseRepo: Repo = {
   },
   async setPrefs(id, p) {
     fail(
-      (await sb.from('profiles').update({ sms_opt_in: p.smsOptIn, push_enabled: p.pushEnabled }).eq('id', id)).error,
+      (
+        await sb
+          .from('profiles')
+          .update({
+            sms_opt_in: p.smsOptIn,
+            push_enabled: p.pushEnabled,
+            email_immediate: p.emailImmediate,
+            minor_digest: p.minorDigest,
+          })
+          .eq('id', id)
+      ).error,
     );
+    await refresh();
+  },
+  async markRead(ids) {
+    if (!ids.length) return;
+    fail((await sb.from('notifications').update({ read_at: new Date().toISOString() }).in('id', ids)).error);
     await refresh();
   },
   async upsertWorker(w) {
@@ -496,6 +547,8 @@ export const supabaseRepo: Repo = {
         throw new Error('Enter a weekly price in pounds, for example 350.');
       fail((await sb.from('app_settings').update({ value: r }).eq('key', 'rate_per_room_week')).error);
     }
+    if (s.housekeeperAlerts !== undefined)
+      fail((await sb.from('app_settings').upsert({ key: 'housekeeper_alerts', value: s.housekeeperAlerts })).error);
     await refresh();
   },
   async syncFeeds() {

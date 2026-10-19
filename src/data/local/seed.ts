@@ -123,6 +123,7 @@ export function seed(): DB {
       userId: 'u-client',
       text: `Confirmed departure tonight for Neil Mackenzie · Loch Roag Room 8`,
       propertyId: 'p-lr',
+      kind: 'stay',
     },
     {
       id: uid(),
@@ -130,6 +131,7 @@ export function seed(): DB {
       userId: 'u-client',
       text: `Held Loch Roag Room 8 from ${fmt(d(4))} · Name to follow`,
       propertyId: 'p-lr',
+      kind: 'stay',
     },
     {
       id: uid(),
@@ -137,10 +139,11 @@ export function seed(): DB {
       userId: 'u-donald',
       text: `Scheduled Room 8 changeover for ${fmt(d(1))}`,
       propertyId: 'p-lr',
+      kind: 'cleaning',
     },
   ];
   return {
-    v: 5,
+    v: 6,
     settings: { ...DEFAULT_SETTINGS },
     rateHistory: [],
     users,
@@ -152,6 +155,7 @@ export function seed(): DB {
     changeovers,
     activity,
     alerts: [],
+    notices: [],
     enquiries: [],
     ...demoFeeds(T),
     currentUser: 'u-donald',

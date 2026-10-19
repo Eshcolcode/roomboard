@@ -464,7 +464,7 @@ export function Change({
             await data.deleteStay(stay.id);
             notify(
               isX
-                ? `Cancelled · ${prop0.name}${me().role === 'client' ? ' · Donald is told' : ''}`
+                ? `Cancelled · ${prop0.name}${me().role === 'client' ? ' · Eshcol is told' : ''}`
                 : `Cancelled · ${room.name} is free`,
               1,
             );

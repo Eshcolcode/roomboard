@@ -143,8 +143,8 @@ describe('extra properties (demo)', () => {
     expect(forHim.find(g => g.stay)!.stay!.id).toBe(s.id);
     // and Sheena cannot change or cancel it
     await as('client');
-    await expect(repo.saveStay({ ...s, away: null, notes: 'x' })).rejects.toThrow(/made by Donald/);
-    await expect(repo.deleteStay(s.id)).rejects.toThrow(/made by Donald|Ask him/);
+    await expect(repo.saveStay({ ...s, away: null, notes: 'x' })).rejects.toThrow(/made by Eshcol/);
+    await expect(repo.deleteStay(s.id)).rejects.toThrow(/made by Eshcol|Ask Eshcol/);
   });
 
   it('calendar blocks: Donald sees "booked elsewhere", Sheena only "taken"', async () => {
@@ -176,7 +176,7 @@ describe('extra properties (demo)', () => {
     );
     expect(estimateLine(S.db, P('Abhainn Cottage'), 3)).toBe('Indicative £300 for 3 nights (£700 a week ÷ 7 × 3)');
     await as('client');
-    await expect(repo.setSettings({ ratePerRoomWeek: 1 })).rejects.toThrow(/Only Donald/);
+    await expect(repo.setSettings({ ratePerRoomWeek: 1 })).rejects.toThrow(/Only Eshcol/);
     await as('manager');
     await expect(repo.setSettings({ ratePerRoomWeek: 0 })).rejects.toThrow(/weekly price/);
     await repo.setSettings({ ratePerRoomWeek: 420 });
@@ -329,7 +329,7 @@ describe('extra properties (demo)', () => {
       { id: 'f-x-pod1', roomId: 'x-pod1', label: 'Airbnb (sample)', url: 'https://x/a.ics' },
     ];
     const n = upgrade(old);
-    expect(n.v).toBe(5);
+    expect(n.v).toBe(6);
     expect(n.rooms.some(r => r.id === 'x-lodge')).toBe(false);
     expect(n.stays.some(x => x.id === 'lodge-req')).toBe(false);
     expect(n.feeds!.every(f => typeof f.linked === 'boolean' && !('url' in f))).toBe(true);
@@ -349,7 +349,7 @@ describe('extra properties (demo)', () => {
     });
     old.stays.push({ ...S.db.stays[0], id: 'old-req', roomId: 'x-pod2', request: 'pending' } as never);
     const n = upgrade(old);
-    expect(n.v).toBe(5);
+    expect(n.v).toBe(6);
     expect(n.settings!.ratePerRoomWeek).toBe(350);
     expect(n.properties.map(p => p.short)).toEqual([
       'Eshcol',

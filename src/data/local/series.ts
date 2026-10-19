@@ -6,7 +6,7 @@ import type { Series, Stay, StayInput } from '../core';
 import { reshape } from '../crew';
 import { patternText } from '../rotation';
 import { snap, undoStack, commit, log } from './store';
-import { alertStayChange, handle } from './alerts';
+import { notifyStays, handle } from './alerts';
 
 function applyAll(create: StayInput[], update: StayInput[], remove: string[]) {
   const before = { stays: structuredClone(S.db.stays) };
@@ -32,6 +32,7 @@ function applyAll(create: StayInput[], update: StayInput[], remove: string[]) {
 
 export function createSeries(base: Omit<Series, 'id' | 'createdBy' | 'createdAt'>, inputs: StayInput[]): Series {
   const s: Series = { ...base, id: uid(), createdBy: S.db.currentUser, createdAt: iso() };
+  const before = structuredClone(S.db.stays);
   snap(`crew booking ${s.label}`);
   applyAll(
     inputs.map(i => ({ ...i, seriesId: s.id })),
@@ -48,9 +49,9 @@ export function createSeries(base: Omit<Series, 'id' | 'createdBy' | 'createdAt'
     }
   }
   const text = `Crew booked: ${s.label} · ${s.slots.length} people · ${patternText(s)} from ${fmt(s.start)} · ${inputs.length} stays at ${propOf(s.propertyId).name}`;
-  log(text, s.propertyId);
+  const a = log(text, s.propertyId, false, 'rota');
   handle(reconcile(S.db));
-  alertStayChange(`Crew booked · ${s.label}`, text);
+  notifyStays(before, a, `Crew booked · ${s.label}`);
   commit();
   return s;
 }
@@ -60,14 +61,16 @@ export function updateSeries(next: Series, what: string) {
   const cur = (S.db.series ?? []).find(x => x.id === next.id);
   if (!cur) throw new Error('That crew booking no longer exists.');
   const r = reshape(S.db, cur, next, londonToday());
+  const before = structuredClone(S.db.stays);
   snap(`${what} · ${cur.label}`);
   applyAll(r.create, r.update, r.remove);
   S.db.series = (S.db.series ?? []).map(x => (x.id === next.id ? next : x));
   const rooms = new Set([...r.create, ...r.update].map(x => roomLabel(x.roomId)));
   const text = `Crew ${cur.label}: ${what} (${r.create.length} added, ${r.update.length} changed, ${r.remove.length} removed${rooms.size ? ' · ' + [...rooms].slice(0, 4).join(', ') : ''})`;
-  log(text, cur.propertyId);
+  const a = log(text, cur.propertyId, false, 'rota');
   handle(reconcile(S.db));
-  alertStayChange(`Crew booking changed · ${cur.label}`, text);
+  // a rota tweak is minor; one that adds, cancels or moves dates is important (classified by what really changed)
+  notifyStays(before, a, `Crew booking changed · ${cur.label}`);
   commit();
   return r;
 }

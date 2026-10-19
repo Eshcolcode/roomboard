@@ -898,7 +898,7 @@ export function Book({
       {extraP && (
         <p className="s-muted" data-x-confirm>
           Booked and confirmed straight away · whole property
-          {me().role === 'client' ? ' · Donald has been notified' : ''} · invoiced separately
+          {me().role === 'client' ? ' · Eshcol has been notified' : ''} · invoiced separately
         </p>
       )}
       <span className="s-lbl">Add more now? All optional</span>

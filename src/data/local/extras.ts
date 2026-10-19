@@ -10,7 +10,7 @@ import { blockClashes, unitIcs } from '../extras';
 const unitName = (roomId: string) => propOf(roomOf(roomId).propertyId).name;
 const dates = (a: string, b: string | null) => `${fmt(a)} → ${b ? fmt(b) : 'open-ended'}`;
 function needManager() {
-  if (actorRole() !== 'manager') throw new Error('Only Donald can do that.');
+  if (actorRole() !== 'manager') throw new Error('Only Eshcol can do that.');
 }
 
 /** Donald's indicative rate (£ per room per week). Sheena cannot change it. */
@@ -26,7 +26,10 @@ export function setSettings(next: Partial<Settings>) {
       { ts: iso(), userId: S.db.currentUser, from: cur.ratePerRoomWeek, to: S.db.settings.ratePerRoomWeek },
       ...(S.db.rateHistory ?? []),
     ];
-  log(`Indicative rate set to £${S.db.settings.ratePerRoomWeek} per room per week`, undefined, true);
+  if (r !== undefined)
+    log(`Indicative rate set to £${S.db.settings.ratePerRoomWeek} per room per week`, undefined, true, 'rate');
+  if (next.housekeeperAlerts !== undefined && next.housekeeperAlerts !== cur.housekeeperAlerts)
+    log(`Housekeeper alerts ${next.housekeeperAlerts ? 'on' : 'off'}`, undefined, true, 'settings');
   commit();
 }
 
@@ -47,7 +50,7 @@ export function syncFeeds(): { conflicts: number } {
   const fresh = blockClashes(S.db).filter(c => !before.has(c.stay.id + c.block.from));
   for (const c of fresh) {
     const t = `${unitName(c.stay.roomId)} is now booked elsewhere ${dates(c.block.from, c.block.to)}, overlapping ${stayLabel(c.stay)} (${dates(c.stay.arrival, c.stay.departure)}). Check for a double booking.`;
-    log('⚠ ' + t, roomOf(c.stay.roomId).propertyId, true); // Donald only
+    log('⚠ ' + t, roomOf(c.stay.roomId).propertyId, true, 'ical'); // Donald only
     usersOf('manager').forEach(u => queueFor(u, `⚠ Possible double booking · ${unitName(c.stay.roomId)}`, t));
   }
   commit();

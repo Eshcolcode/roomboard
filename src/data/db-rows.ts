@@ -1,5 +1,5 @@
 // Row shapes of the Supabase tables (snake_case, as stored). Kept in step with supabase/migrations/*.sql.
-import type { Role, Bath, CoStatus, Alert, Enquiry } from './core';
+import type { Role, Bath, CoStatus, Alert, Enquiry, Tier } from './core';
 type N<T> = T | null;
 export interface StayRow {
   id: string;
@@ -44,6 +44,8 @@ export interface ProfileRow {
   phone: N<string>;
   sms_opt_in: boolean;
   push_enabled: boolean;
+  email_immediate?: boolean; // 0009
+  minor_digest?: boolean; // 0009
 }
 export interface PropertyRow {
   id: string;
@@ -92,6 +94,20 @@ export interface ActivityRow {
   text: string;
   property_id: N<string>;
   manager_only?: boolean;
+  entity?: N<string>;
+  kind?: N<string>; // 0009 (stay, series, worker, changeover, …)
+  tier?: N<Tier>; // 0009
+  reasons?: N<string[]>; // 0009
+}
+/** notifications (0009): in-app alerts, one row per recipient */
+export interface NoticeRow {
+  id: number | string;
+  created_at: string;
+  recipient_id: string;
+  text: string;
+  reasons: N<string[]>;
+  property_id: N<string>;
+  read_at: N<string>;
 }
 export interface SettingsHistoryRow {
   changed_at: string;

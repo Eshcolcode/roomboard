@@ -14,7 +14,8 @@
     "lint": "eslint . && prettier --check src",
     "typecheck": "tsc --noEmit",
     "test:layout": "node qa/layout.mjs",
-    "test:e2e:all": "node qa/qa.mjs && node qa/flow.mjs && node qa/board.mjs && node qa/props.mjs && node qa/find.mjs && node qa/layout.mjs"
+    "test:views": "node qa/views.mjs",
+    "test:e2e:all": "node qa/qa.mjs && node qa/flow.mjs && node qa/board.mjs && node qa/props.mjs && node qa/find.mjs && node qa/views.mjs && node qa/layout.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.118.0",

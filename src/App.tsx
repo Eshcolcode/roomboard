@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { data, useDB, me } from './data';
+import { data, useDB, me, ROLE_LABEL } from './data';
 import type { Role, Stay } from './data';
 import { addDays, londonToday } from './dates';
 import { useWide } from './ui/hooks';
@@ -18,6 +18,7 @@ import { Properties } from './ui/Properties';
 import { AvailabilityPage } from './ui/Availability';
 import { ActivityView } from './ui/Activity';
 import { Search } from './ui/Search';
+import { Bell } from './ui/Alerts';
 import { Welcome } from './ui/Welcome';
 import { PrintView } from './ui/Print';
 import { Login } from './ui/Login';
@@ -178,6 +179,7 @@ function Shell({ wide }: { wide: boolean }) {
         <div className="sp" />
         {canEdit && wide && <ModeSwitch />}
         {canEdit && <Search onOpen={open} />}
+        <Bell />
         {data.mode === 'demo' ? (
           <div className="demo-wrap">
             <button className="live demo-pill" aria-expanded={demoOpen} onClick={() => setDemoOpen(!demoOpen)}>
@@ -226,20 +228,22 @@ function Shell({ wide }: { wide: boolean }) {
         {data.mode === 'demo' ? (
           <select
             className="who"
-            aria-label="Demo: switch person"
+            aria-label="Demo: switch login"
             value={u.id}
             onChange={e => data.setUser(e.target.value)}
           >
-            {db.users.map(x => (
-              <option key={x.id} value={x.id}>
-                {x.role === 'cleaner' && u.role === 'client'
-                  ? 'Housekeeping view'
-                  : `${x.name.split(' ')[0]} · ${x.role === 'client' ? 'RJ McLeod' : x.role === 'manager' ? 'Provider' : 'Cleaner'}`}
-              </option>
-            ))}
+            {/* labelled by role, never by a person's name; one option per login */}
+            {(['client', 'manager', 'cleaner'] as Role[]).map(r => {
+              const x = db.users.find(y => y.role === r);
+              return x ? (
+                <option key={x.id} value={x.id}>
+                  {ROLE_LABEL[r]}
+                </option>
+              ) : null;
+            })}
           </select>
         ) : (
-          <span className="who">{u.name}</span>
+          <span className="who">{ROLE_LABEL[u.role]}</span>
         )}
       </header>
 

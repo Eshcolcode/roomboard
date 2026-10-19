@@ -12,6 +12,10 @@ export interface User {
   phone: string;
   smsOptIn?: boolean;
   pushEnabled?: boolean;
+  /** email me straight away about important changes (default on) */
+  emailImmediate?: boolean;
+  /** one 6pm summary email of the minor changes, if any (default off) */
+  minorDigest?: boolean;
 }
 /** A photo in public/img (full size) with a 480px copy in public/img/t. */
 export interface Photo {
@@ -113,6 +117,24 @@ export interface Activity {
   text: string;
   propertyId?: string;
   managerOnly?: boolean; // e.g. Donald's own extra-property bookings and calendar clashes: Sheena never sees them
+  /** what the entry is about; RJ McLeod only ever sees 'stay', 'rota' and 'worker' entries (see notify.ts) */
+  kind?: ActKind;
+  /** stay changes only: important (alert + email) or minor (log only) */
+  tier?: Tier;
+  /** why it is important, e.g. ["leaving date changed"] */
+  reasons?: string[];
+}
+export type Tier = 'immediate' | 'minor';
+export type ActKind = 'stay' | 'rota' | 'worker' | 'cleaning' | 'rate' | 'ical' | 'settings' | 'enquiry';
+/** An in-app alert (the red dot): important changes only. Email copies go to the outbox. */
+export interface Notice {
+  id: string;
+  ts: string;
+  forUserId: string;
+  text: string;
+  reasons: string[];
+  propertyId?: string;
+  read: boolean;
 }
 export interface Alert {
   id: string;
@@ -177,6 +199,8 @@ export const slotKey = (s: { seriesId?: string | null; slot?: number | null }) =
 /** Admin settings kept in the database (app_settings, 0008). */
 export interface Settings {
   ratePerRoomWeek: number; // indicative £ per room per week, all properties
+  /** housekeeper is alerted when an important change touches the next 7 days (default on) */
+  housekeeperAlerts?: boolean;
 }
 export const DEFAULT_SETTINGS: Settings = { ratePerRoomWeek: 350 };
 /** One change of the indicative rate: who, when, old and new (Donald only). */
@@ -203,6 +227,7 @@ export interface DB {
   feeds?: Feed[]; // iCal import links per extra unit
   blocks?: Block[]; // dates booked elsewhere (from those links): no guest details are kept
   settings?: Settings;
+  notices?: Notice[]; // in-app alerts (red dot), newest first
   rateHistory?: RateChange[]; // newest first; Donald only (live: app_settings_history, RLS) // Donald's settings (indicative rate); everyone reads, only the manager writes
   currentUser: string;
   authRequired?: boolean;
@@ -226,6 +251,8 @@ export const useDB = () =>
   );
 export const getDB = () => S.db;
 export const me = () => S.db.users.find(u => u.id === S.db.currentUser) ?? S.db.users[0];
+/** The three logins are labelled by role, never by a person's name (19 Oct 2026). */
+export const ROLE_LABEL: Record<Role, string> = { client: 'RJ McLeod', manager: 'Eshcol', cleaner: 'Housekeeper' };
 export const uid = () => Math.random().toString(36).slice(2, 10);
 export const iso = () => new Date().toISOString();
 // ---------------- helpers ----------------

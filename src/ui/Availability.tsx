@@ -3,7 +3,7 @@
 // stand-alone #availability page. A booking is confirmed straight away (whole property, indicative price shown);
 // Donald is told, and invoicing happens separately.
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { data, useDB, me, stayLabel, thumb } from '../data';
+import { data, useDB, me, stayLabel, thumb, ROLE_LABEL } from '../data';
 import type { Property } from '../data';
 import { addDays, diffDays, fmt, londonToday } from '../dates';
 import { dayState, openBlocker, ownOn, prefill, rangeFree, unitOf } from '../data/extras';
@@ -185,7 +185,7 @@ export function UnitAvailability({
           `Booked and confirmed: ${p.name} (whole property), ${fmt(from)} → ${open ? 'until further notice' : fmt(to!)}. ` +
           `${estimateLine(db, p, open ? null : diffDays(from, to!))}. ` +
           (open ? 'Set the end date later from the booking. ' : '') +
-          (u.role === 'client' ? 'Donald has been notified. ' : '') +
+          (u.role === 'client' ? 'Eshcol has been notified. ' : '') +
           'Invoiced separately; long-term deals possible.',
       });
       setFrom(null);
@@ -312,7 +312,7 @@ export function UnitAvailability({
                 <p className="av-small">
                   {onNext
                     ? 'Next: who is staying (name can follow) · confirmed straight away · invoiced separately'
-                    : 'Confirmed straight away · Donald is notified · invoiced separately'}
+                    : 'Confirmed straight away · Eshcol is notified · invoiced separately'}
                 </p>
               </>
             )}
@@ -337,6 +337,7 @@ export function UnitAvailability({
 export function AvailabilityPage({ only }: { only?: string }) {
   const db = useDB();
   const extras = db.properties.filter(p => !p.contracted && (!only || p.id === only));
+  const hk = me().role === 'cleaner'; // housekeeper: dates only, no prices or invoicing
   return (
     <div className="avp">
       <header className="avp-top">
@@ -353,13 +354,13 @@ export function AvailabilityPage({ only }: { only?: string }) {
         {data.mode === 'demo' && (
           <select
             className="s-who"
-            aria-label="Demo: switch person"
+            aria-label="Demo: switch login"
             value={me().id}
             onChange={e => data.setUser(e.target.value)}
           >
             {db.users.map(x => (
               <option key={x.id} value={x.id}>
-                {x.role === 'client' ? 'Sheena' : x.role === 'manager' ? 'Donald' : 'Cleaner'}
+                {ROLE_LABEL[x.role]}
               </option>
             ))}
           </select>
@@ -368,8 +369,16 @@ export function AvailabilityPage({ only }: { only?: string }) {
       <main className="avp-main">
         <h1>Extra properties</h1>
         <p className="avp-lead">
-          Breasclete, Isle of Lewis · next 3 months. <b>Extra · invoiced separately</b>, outside the contract
-          allocation. Each is booked as a whole property. {PRICE_NOTE}
+          Breasclete, Isle of Lewis · next 3 months.
+          {hk ? (
+            ' Which dates are free or taken.'
+          ) : (
+            <>
+              {' '}
+              <b>Extra · invoiced separately</b>, outside the contract allocation. Each is booked as a whole property.{' '}
+              {PRICE_NOTE}
+            </>
+          )}
         </p>
         {only && (
           <p>
@@ -387,11 +396,13 @@ export function AvailabilityPage({ only }: { only?: string }) {
               <div>
                 <h2>{p.name}</h2>
                 <p>{[p.beds, p.sleeps && `Sleeps ${p.sleeps}`].filter(Boolean).join(' · ') || 'Details to come'}</p>
-                <span className="xtag">Extra · invoiced separately</span>
-                <span className="price-line">{priceLine(db, p)}</span>
-                <a className="avp-more" href={'#available/' + p.id}>
-                  Details and photos ›
-                </a>
+                {!hk && <span className="xtag">Extra · invoiced separately</span>}
+                {!hk && <span className="price-line">{priceLine(db, p)}</span>}
+                {!hk && (
+                  <a className="avp-more" href={'#available/' + p.id}>
+                    Details and photos ›
+                  </a>
+                )}
               </div>
             </div>
             <UnitAvailability p={p} />

@@ -1,4 +1,4 @@
-// Regression (18 Oct 2026, Donald on the preview): setting a leaving date on an open-ended stay did nothing,
+// Regression (18 Oct 2026, Eshcol on the preview): setting a leaving date on an open-ended stay did nothing,
 // because the stay kept its open status ('ufn') and the save dropped the date. One rule now, both backends.
 import { describe, expect, it, vi } from 'vitest';
 const mem = new Map<string, string>();

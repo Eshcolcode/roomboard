@@ -76,7 +76,7 @@ describe('extra properties (demo)', () => {
     expect(later.every(b => b.to > '2027-03-01')).toBe(true);
   });
 
-  it('Sheena books an extra straight away (no request): confirmed, Donald is alerted with the indicative price', async () => {
+  it('RJ McLeod books an extra straight away (no request): confirmed, Eshcol is alerted with the indicative price', async () => {
     await repo.reset();
     await as('client');
     const before = occupancy(T).allocated;
@@ -93,11 +93,11 @@ describe('extra properties (demo)', () => {
     expect(al[0].body).toMatch(/Indicative £200 for 4 nights \(£350 a week ÷ 7 × 4\)/);
     expect(al[0].body).toMatch(/invoiced separately/);
     expect(occupancy(T).allocated).toBe(before); // extras never count against the contract
-    // her booking is in the export feed straight away, with no names
+    // their booking is in the export feed straight away, with no names
     const ics = unitIcs(S.db, 'x-pod1');
     expect(parseICS(ics)).toEqual([expect.objectContaining({ from: addDays(T, a), to: addDays(T, a + 4) })]);
-    expect(ics).not.toMatch(/Calum|Sheena/);
-    // and she can change or cancel her own booking
+    expect(ics).not.toMatch(/Calum|RJ McLeod/);
+    // and they can change or cancel their own booking
     const cur = S.db.stays.find(x => x.id === s.id)!;
     await repo.saveStay({ ...cur, away: null, departure: addDays(T, a + 3) });
     await repo.deleteStay(s.id);
@@ -111,7 +111,7 @@ describe('extra properties (demo)', () => {
     await expect(
       repo.saveStay({ ...ask('x-monadh', 0, 1), arrival: b.from, departure: addDays(b.from, 1) }),
     ).rejects.toThrow(/booked elsewhere/);
-    // Donald's direct guest in Abhainn Cottage (seeded): Sheena is told the dates are taken, not by whom
+    // Eshcol's direct guest in Abhainn Cottage (seeded): RJ McLeod is told the dates are taken, not by whom
     const g = S.db.stays.find(x => x.roomId === 'x-cottage')!;
     const err = await repo
       .saveStay({ ...ask('x-cottage', 0, 1), arrival: g.arrival, departure: addDays(g.arrival, 2) })
@@ -123,7 +123,7 @@ describe('extra properties (demo)', () => {
     await expect(repo.saveStay(ask('x-pod2', a + 1, a + 2))).rejects.toThrow(/taken|Clash/i);
   });
 
-  it("Donald's own extra bookings stay private: no alert to Sheena, not in her activity, dates only on her board", async () => {
+  it("Eshcol's own extra bookings stay private: no alert to RJ McLeod, not in their activity, dates only on their board", async () => {
     await repo.reset();
     await as('manager');
     const a = freeSpan('x-monadh', 3);
@@ -141,21 +141,21 @@ describe('extra properties (demo)', () => {
       role: 'manager',
     });
     expect(forHim.find(g => g.stay)!.stay!.id).toBe(s.id);
-    // and Sheena cannot change or cancel it
+    // and RJ McLeod cannot change or cancel it
     await as('client');
     await expect(repo.saveStay({ ...s, away: null, notes: 'x' })).rejects.toThrow(/made by Eshcol/);
     await expect(repo.deleteStay(s.id)).rejects.toThrow(/made by Eshcol|Ask Eshcol/);
   });
 
-  it('calendar blocks: Donald sees "booked elsewhere", Sheena only "taken"', async () => {
+  it('calendar blocks: Eshcol sees "booked elsewhere", RJ McLeod only "taken"', async () => {
     await repo.reset();
     const b = S.db.blocks!.find(x => x.roomId === 'x-monadh')!;
     const client = S.db.users.find(u => u.role === 'client')!;
     expect(segments(S.db, 'x-monadh', b.from, b.to, client).every(g => g.kind === 'taken')).toBe(true);
-    expect(segments(S.db, 'x-monadh', b.from, b.to, { id: 'u-donald', role: 'manager' })[0].kind).toBe('elsewhere');
+    expect(segments(S.db, 'x-monadh', b.from, b.to, { id: 'u-eshcol', role: 'manager' })[0].kind).toBe('elsewhere');
   });
 
-  it('indicative prices: £350 per room per week; extras whole-property; only Donald changes the rate', async () => {
+  it('indicative prices: £350 per room per week; extras whole-property; only Eshcol changes the rate', async () => {
     await repo.reset();
     const P = (name: string) => S.db.properties.find(p => p.short === name)!;
     // block contract: no price at all
@@ -166,7 +166,7 @@ describe('extra properties (demo)', () => {
       [1, 350],
       [1, 350],
       [2, 700],
-      [3, 700], // Donald, 18 Oct 2026: Abhainn charged as 2 rooms (sofa-bed/desk room not charged)
+      [3, 700], // Eshcol, 18 Oct 2026: Abhainn charged as 2 rooms (sofa-bed/desk room not charged)
     ]);
     expect(priceLine(S.db, P('Abhainn Cottage'))).toBe(
       'Indicative £350 per room per week · whole property, 2 rooms charged = £700 a week',
@@ -232,7 +232,7 @@ describe('extra properties (demo)', () => {
     expect((await repo.syncFeeds()).conflicts).toBe(1);
     expect(S.db.activity[0].text).toMatch(/^⚠ Monadh is now booked elsewhere/);
     expect(S.db.activity[0].text).not.toMatch(/SuperControl/);
-    expect(S.db.activity[0].managerOnly).toBe(true); // Sheena never sees this
+    expect(S.db.activity[0].managerOnly).toBe(true); // RJ McLeod never sees this
   });
 
   it('calendar not linked yet: reading calendars gives those units no blocks and no error', async () => {
@@ -262,7 +262,7 @@ describe('extra properties (demo)', () => {
     // nobody can book on top of it, however far out
     await as('manager');
     await expect(repo.saveStay(ask('x-pod2', a + 90, a + 92))).rejects.toThrow(/taken|Clash/i);
-    // Donald is told it is open-ended, with the weekly price
+    // Eshcol is told it is open-ended, with the weekly price
     const al = S.db.alerts.find(x => x.subject.startsWith('New booking') && x.body.includes('until further notice'));
     expect(al?.body).toMatch(/Indicative £350 per week, until further notice/);
     expect(
@@ -276,7 +276,7 @@ describe('extra properties (demo)', () => {
     const ev = parseICS(unitIcs(S.db, 'x-pod2')).find(e => e.from === addDays(T, a))!;
     expect(ev.to).toBe(addDays(addDays(T, a), 365));
     expect(unitIcs(S.db, 'x-pod2')).not.toMatch(/Long stay/);
-    // Sheena sets the end date later; the nights after it are free again
+    // RJ McLeod sets the end date later; the nights after it are free again
     await as('client');
     const cur = S.db.stays.find(x => x.id === s.id)!;
     await repo.saveStay({ ...cur, away: null, departure: addDays(T, a + 14), depStatus: 'planned' });
@@ -329,7 +329,7 @@ describe('extra properties (demo)', () => {
       { id: 'f-x-pod1', roomId: 'x-pod1', label: 'Airbnb (sample)', url: 'https://x/a.ics' },
     ];
     const n = upgrade(old);
-    expect(n.v).toBe(6);
+    expect(n.v).toBe(7);
     expect(n.rooms.some(r => r.id === 'x-lodge')).toBe(false);
     expect(n.stays.some(x => x.id === 'lodge-req')).toBe(false);
     expect(n.feeds!.every(f => typeof f.linked === 'boolean' && !('url' in f))).toBe(true);
@@ -349,7 +349,7 @@ describe('extra properties (demo)', () => {
     });
     old.stays.push({ ...S.db.stays[0], id: 'old-req', roomId: 'x-pod2', request: 'pending' } as never);
     const n = upgrade(old);
-    expect(n.v).toBe(6);
+    expect(n.v).toBe(7);
     expect(n.settings!.ratePerRoomWeek).toBe(350);
     expect(n.properties.map(p => p.short)).toEqual([
       'Eshcol',

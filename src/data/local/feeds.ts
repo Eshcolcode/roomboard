@@ -1,5 +1,5 @@
 // Demo calendar links. Only Monadh's calendar is linked so far (SuperControl); Harris, Uig and Abhainn Cottage
-// show "Calendar not linked yet" until Donald sends their links. Monadh's demo feed is a sanitised copy of the real
+// show "Calendar not linked yet" until Eshcol sends their links. Monadh's demo feed is a sanitised copy of the real
 // feed's structure and dates (monadh-sample.ics: same VTIMEZONE, local-midnight all-day events, "Closed" periods;
 // guest names, booking refs and UIDs replaced). It goes through the real parser, like a live sync.
 // If the sample's dates have all passed, they move forward by whole 52-week steps (same weekdays) so the demo

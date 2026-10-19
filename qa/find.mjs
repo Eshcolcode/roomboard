@@ -27,14 +27,14 @@ async function pg(w, h, { user = 'u-client', mode = 'quick' } = {}) {
   await p.evaluate(
     ({ m }) => {
       localStorage.clear();
-      for (const id of ['u-donald', 'u-client', 'u-mairi']) localStorage.setItem('rb-welcome:' + id, '1');
+      for (const id of ['u-eshcol', 'u-client', 'u-housekeeper']) localStorage.setItem('rb-welcome:' + id, '1');
       localStorage.setItem('rb-ui-mode', m);
     },
     { m: mode },
   );
   await p.reload();
   await settle(p);
-  if (user !== 'u-donald') {
+  if (user !== 'u-eshcol') {
     await p.selectOption('select.who', user);
     await settle(p);
   }
@@ -57,7 +57,7 @@ const cards = p =>
       es.map(e => ({ id: e.getAttribute('data-extra'), off: e.classList.contains('off'), t: e.innerText })),
     );
 
-// ---- Sheena, Quick, desktop ----
+// ---- RJ McLeod, Quick, desktop ----
 let p = await pg(1440, 950);
 await dates(p, A, Z);
 let c = await cards(p);
@@ -153,7 +153,7 @@ ok(c.find(x => x.id === 'p-pod1').off, 'after booking: Harris no longer free for
 await p.close();
 
 // ---- Classic: Book → stay form prefilled ----
-p = await pg(1440, 950, { user: 'u-donald', mode: 'classic' });
+p = await pg(1440, 950, { user: 'u-eshcol', mode: 'classic' });
 await dates(p, A, Z);
 const free1 = (await cards(p)).find(x => !x.off);
 await p.click(`.freeextra[data-extra="${free1.id}"]`);

@@ -15,7 +15,7 @@ async function sms(to: string, text: string) {
   if (!r.ok) throw new Error(`twilio ${r.status} ${await r.text()}`);
 }
 Deno.serve(async () => {
-  // OFF until Donald switches it on (0009): app_settings 'notifications_live' = true. Until then nothing is sent and
+  // OFF until Eshcol switches it on (0009): app_settings 'notifications_live' = true. Until then nothing is sent and
   // queued rows simply wait (the in-app red dot works regardless).
   const { data: live } = await sb.rpc('notifications_live');
   if (live !== true) return new Response(JSON.stringify({ sent: 0, live: false }), { headers: { 'Content-Type': 'application/json' } });

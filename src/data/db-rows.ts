@@ -45,7 +45,6 @@ export interface ProfileRow {
   sms_opt_in: boolean;
   push_enabled: boolean;
   email_immediate?: boolean; // 0009
-  minor_digest?: boolean; // 0009
 }
 export interface PropertyRow {
   id: string;

@@ -9,16 +9,16 @@ export function seed(): DB {
   const T = londonToday();
   const d = (n: number) => addDays(T, n);
   const users: User[] = [
-    { id: 'u-client', name: 'Sheena', role: 'client', email: '', phone: '' },
+    { id: 'u-client', name: 'RJ McLeod', role: 'client', email: '', phone: '' },
     {
-      id: 'u-donald',
-      name: 'Donald Macarthur',
+      id: 'u-eshcol',
+      name: 'Eshcol',
       role: 'manager',
-      email: 'donaldlochroag@gmail.com',
+      email: 'stay@eshcol.com',
       phone: '',
       pushEnabled: true,
     },
-    { id: 'u-mairi', name: 'Mairi (demo cleaner)', role: 'cleaner', email: '', phone: '' },
+    { id: 'u-housekeeper', name: 'Housekeeper', role: 'cleaner', email: '', phone: '' },
   ];
   const properties: Property[] = PROPERTIES.map(p => ({ ...p }));
   const units: Unit[] = UNITS.map(u => ({ ...u }));
@@ -98,8 +98,8 @@ export function seed(): DB {
     S('es-8', 12, -5, 1, 'confirmed'),
     S('es-8', 18, 1, 15),
     S('es-10', 17, -1, 13),
-    // Donald's own guest in an extra property: Sheena sees these dates as "taken", never who
-    S('x-cottage', null, 3, 10, 'planned', { holdLabel: 'Direct guest', bookedBy: 'u-donald', updatedBy: 'u-donald' }),
+    // Eshcol's own guest in an extra property: RJ McLeod sees these dates as "taken", never who
+    S('x-cottage', null, 3, 10, 'planned', { holdLabel: 'Direct guest', bookedBy: 'u-eshcol', updatedBy: 'u-eshcol' }),
   ];
   const changeovers: Changeover[] = [
     {
@@ -111,7 +111,7 @@ export function seed(): DB {
       readyBy: d(4),
       status: 'scheduled',
       scheduledFor: d(1),
-      cleanerId: 'u-mairi',
+      cleanerId: 'u-housekeeper',
       vacated: false,
       note: 'Full turnover, fresh linen, check shared shower room',
     },
@@ -136,14 +136,14 @@ export function seed(): DB {
     {
       id: uid(),
       ts: new Date(Date.now() - 36e5 * 4.8).toISOString(),
-      userId: 'u-donald',
+      userId: 'u-eshcol',
       text: `Scheduled Room 8 changeover for ${fmt(d(1))}`,
       propertyId: 'p-lr',
       kind: 'cleaning',
     },
   ];
   return {
-    v: 6,
+    v: 7,
     settings: { ...DEFAULT_SETTINGS },
     rateHistory: [],
     users,
@@ -158,6 +158,6 @@ export function seed(): DB {
     notices: [],
     enquiries: [],
     ...demoFeeds(T),
-    currentUser: 'u-donald',
+    currentUser: 'u-eshcol',
   };
 }

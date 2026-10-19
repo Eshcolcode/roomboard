@@ -122,7 +122,7 @@ export function Change({
   const room = db.rooms.find(r => r.id === stay.roomId)!;
   const prop0 = db.properties.find(p => p.id === room.propertyId)!;
   // Extra properties use this same card (name, phone, notes, dates, rota, cancel), booked whole. A booking
-  // someone else made there (Donald's own guests, to Sheena) stays dates-only.
+  // someone else made there (Eshcol's own guests, to RJ McLeod) stays dates-only.
   const isX = !prop0.contracted;
   if (isX && me().role !== 'manager' && stay.bookedBy !== me().id) return <ExtraCard stay={stay} onHome={onHome} />;
   const W = stay.workerId ? db.workers.find(w => w.id === stay.workerId) : undefined;

@@ -1,4 +1,4 @@
-// Demo commands for extra properties: the calendar links, the export, and Donald's indicative rate.
+// Demo commands for extra properties: the calendar links, the export, and Eshcol's indicative rate.
 import { fmt, londonToday } from '../../dates';
 import { S, iso, roomOf, roomLabel, propOf, stayLabel, DEFAULT_SETTINGS } from '../core';
 import type { Settings } from '../core';
@@ -13,7 +13,7 @@ function needManager() {
   if (actorRole() !== 'manager') throw new Error('Only Eshcol can do that.');
 }
 
-/** Donald's indicative rate (£ per room per week). Sheena cannot change it. */
+/** Eshcol's indicative rate (£ per room per week). RJ McLeod cannot change it. */
 export function setSettings(next: Partial<Settings>) {
   needManager();
   const cur = { ...DEFAULT_SETTINGS, ...(S.db.settings ?? {}) };
@@ -50,7 +50,7 @@ export function syncFeeds(): { conflicts: number } {
   const fresh = blockClashes(S.db).filter(c => !before.has(c.stay.id + c.block.from));
   for (const c of fresh) {
     const t = `${unitName(c.stay.roomId)} is now booked elsewhere ${dates(c.block.from, c.block.to)}, overlapping ${stayLabel(c.stay)} (${dates(c.stay.arrival, c.stay.departure)}). Check for a double booking.`;
-    log('⚠ ' + t, roomOf(c.stay.roomId).propertyId, true, 'ical'); // Donald only
+    log('⚠ ' + t, roomOf(c.stay.roomId).propertyId, true, 'ical'); // Eshcol only
     usersOf('manager').forEach(u => queueFor(u, `⚠ Possible double booking · ${unitName(c.stay.roomId)}`, t));
   }
   commit();

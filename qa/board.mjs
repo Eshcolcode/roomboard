@@ -14,7 +14,7 @@ async function pg(w, h, hash = 'board', mode = null) {
   p.on('pageerror', e => errs.push(e.message));
   p.on('console', m => m.type() === 'error' && errs.push(m.text()));
   await p.goto(U + '#' + hash);
-  await p.evaluate(m => { localStorage.clear(); for (const id of ['u-donald', 'u-client', 'u-mairi']) localStorage.setItem('rb-welcome:' + id, '1'); if (m) localStorage.setItem('rb-ui-mode', m); }, mode);
+  await p.evaluate(m => { localStorage.clear(); for (const id of ['u-eshcol', 'u-client', 'u-housekeeper']) localStorage.setItem('rb-welcome:' + id, '1'); if (m) localStorage.setItem('rb-ui-mode', m); }, mode);
   await p.reload();
   await p.waitForTimeout(450);
   return p;
@@ -67,7 +67,7 @@ await p.keyboard.press('Escape'); await settle(p);
   const held = (await db(p)).stays.find(s => s.roomId === pick.room.id && s.arrival === D(pick.k));
   ok(held && held.departure === D(pick.k + 3), 'hold saved in the tapped room on the tapped day');
   {
-    // Donald, 18 Oct 2026: Eshcol / Loch Roag are on the block contract, so the "Room held" sheet shows no money
+    // Eshcol, 18 Oct 2026: Eshcol / Loch Roag are on the block contract, so the "Room held" sheet shows no money
     const t = await p.locator('.q-panel').innerText();
     ok(!/£|indicative|estimate/i.test(t) && t.includes('Included in your contract'), '"Room held" for a contract room: no price, "Included in your contract"');
   }
@@ -289,7 +289,7 @@ await p.click('.s-toast button:has-text("Undo")'); await p.waitForTimeout(700);
 const ser3 = (await db(p)).stays.filter(s => ser.some(o => o.id === s.id));
 ok(ser3.every(s => s.arrival === ser.find(o => o.id === s.id).arrival), 'one Undo puts every rotation back');
 
-// ---------- Sheena: quick card never shows cleaner names ----------
+// ---------- RJ McLeod: quick card never shows cleaner names ----------
 p = await pg(390, 844, 'rooms');
 await p.selectOption('select.who', 'u-client'); await settle(p);
 const names = (await db(p)).users.filter(u => u.role === 'cleaner').map(u => u.name.split(' ')[0]);
@@ -300,7 +300,7 @@ for (let i = 0; i < Math.min(6, await p.locator('.rcard .qup').count()); i++) {
   if (names.some(n => t.includes(n))) leaked = true;
   await p.click('.q-x'); await settle(p);
 }
-ok(!leaked, 'Sheena: no cleaner names in quick cards');
+ok(!leaked, 'RJ McLeod: no cleaner names in quick cards');
 
 // ---------- regression (18 Oct 2026): set an end date on an open-ended stay, every mode and width ----------
 {
@@ -414,7 +414,7 @@ for (const w of [1440, 1100]) {
   await p.close();
 }
 
-// ---------- extras: the same guest details as a contract room (name picker, new name, phone, notes), Sheena ----------
+// ---------- extras: the same guest details as a contract room (name picker, new name, phone, notes), RJ McLeod ----------
 for (const mode of ['quick', 'classic'])
   for (const [w, h, tag] of [[1440, 950, 'desktop'], [390, 844, 'phone']]) {
     const t = `extras ${mode} ${tag}`;
@@ -444,7 +444,7 @@ for (const mode of ['quick', 'classic'])
     let x = await db(p);
     const cm = x.workers.find(v => v.name === 'Callum MacLeod');
     const st = x.stays.find(s => s.roomId === 'x-pod1' && s.workerId === cm.id && s.bookedBy === 'u-client');
-    ok(!!st, `${t}: Sheena books Harris with a worker picked from her list`);
+    ok(!!st, `${t}: RJ McLeod books Harris with a worker picked from their list`);
     if (mode === 'quick') {
       await q.locator('.s-extra:has-text("Phone number")').click();
       await q.locator('input[aria-label="Phone number"]').fill('07700 900444');
@@ -479,7 +479,7 @@ for (const mode of ['quick', 'classic'])
       const s2 = x.stays.find(s => s.id === st.id);
       ok(s2.workerId === eu.id && s2.notes === 'Edited note', `${t}: edit picks another worker and changes the notes`);
     }
-    ok(!(await p.locator('body').innerText()).includes('Direct guest'), `${t}: Donald's own guest still never shown to Sheena`);
+    ok(!(await p.locator('body').innerText()).includes('Direct guest'), `${t}: Eshcol's own guest still never shown to RJ McLeod`);
     await p.close();
   }
 

@@ -22,5 +22,5 @@ await p.selectOption('select.who', 'u-client');
 await p.goto('http://localhost:4173/#activity');
 await p.waitForTimeout(300);
 const txt = await p.locator('body').innerText();
-console.log((txt.match(/.{0,40}(Mairi|cleaner\b).{0,20}/gi) || []).slice(0, 5));
+console.log((txt.match(/.{0,40}(Housekeeper|cleaner\b).{0,20}/gi) || []).slice(0, 5));
 await b.close();

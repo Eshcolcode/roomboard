@@ -18,7 +18,7 @@ const mk = (db: DB, roomId: string, a: string, d: string | null, extra: Partial<
     depStatus: d ? 'planned' : 'tbc',
     notes: '',
     version: 1,
-    updatedBy: 'u-donald',
+    updatedBy: 'u-eshcol',
     updatedAt: '',
     ...extra,
   };
@@ -27,18 +27,18 @@ const mk = (db: DB, roomId: string, a: string, d: string | null, extra: Partial<
 };
 
 describe('extra properties in the plain-language check', () => {
-  it("never names Donald's own guest to Sheena, and counts dates booked on other sites", () => {
+  it("never names Eshcol's own guest to RJ McLeod, and counts dates booked on other sites", () => {
     const db = seed();
     db.currentUser = 'u-client';
     const w = db.workers[0];
-    mk(db, 'x-pod1', far, addDays(far, 5), { workerId: w.id, holdLabel: '', bookedBy: 'u-donald' });
+    mk(db, 'x-pod1', far, addDays(far, 5), { workerId: w.id, holdLabel: '', bookedBy: 'u-eshcol' });
     const mine = mk(db, 'x-pod1', addDays(far, 10), addDays(far, 12), { bookedBy: 'u-client' });
     const p = checkBatch(db, [{ ...toInput(mine), arrival: addDays(far, 3) }], [mine.id]);
     expect(p).toHaveLength(1);
     expect(p[0].text).toContain('taken on some of those dates');
     expect(p[0].text).not.toContain(w.name);
-    // Donald sees who it is
-    db.currentUser = 'u-donald';
+    // Eshcol sees who it is
+    db.currentUser = 'u-eshcol';
     expect(checkBatch(db, [{ ...toInput(mine), arrival: addDays(far, 3) }], [mine.id])[0].text).toContain(w.name);
     // a calendar block from another site
     db.blocks = [...(db.blocks ?? []), { roomId: 'x-pod1', from: addDays(far, 20), to: addDays(far, 24) } as never];

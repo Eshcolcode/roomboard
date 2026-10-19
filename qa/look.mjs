@@ -5,7 +5,7 @@ mkdirSync('/tmp/look', { recursive: true });
 const U = 'http://localhost:4173/';
 const b = await chromium.launch({ executablePath: '/usr/bin/google-chrome', args: ['--no-sandbox'] });
 const errs = [];
-async function pg(w, h, user = 'u-donald', welcome = false) {
+async function pg(w, h, user = 'u-eshcol', welcome = false) {
   const c = await b.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: 1 });
   const p = await c.newPage();
   p.on('pageerror', e => errs.push(e.message));
@@ -14,13 +14,13 @@ async function pg(w, h, user = 'u-donald', welcome = false) {
   await p.evaluate(
     ([u, wl]) => {
       localStorage.clear();
-      if (!wl) for (const id of ['u-donald', 'u-client', 'u-mairi']) localStorage.setItem('rb-welcome:' + id, '1');
+      if (!wl) for (const id of ['u-eshcol', 'u-client', 'u-housekeeper']) localStorage.setItem('rb-welcome:' + id, '1');
     },
     [user, welcome],
   );
   await p.reload();
   await p.waitForTimeout(300);
-  if (user !== 'u-donald') {
+  if (user !== 'u-eshcol') {
     await p.selectOption('select.who', user);
     await p.waitForTimeout(200);
   }
@@ -70,7 +70,7 @@ if (want('print')) {
   await p.screenshot({ path: '/tmp/look/print.png', fullPage: true });
 }
 if (want('welcome')) {
-  const p = await pg(1440, 950, 'u-donald', true);
+  const p = await pg(1440, 950, 'u-eshcol', true);
   await p.screenshot({ path: '/tmp/look/welcome.png' });
 }
 if (want('w900')) {

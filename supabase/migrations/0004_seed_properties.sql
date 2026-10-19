@@ -1,4 +1,4 @@
--- Real property/room structure (no guest data). Confirmed by Donald 16 Oct 2026.
+-- Real property/room structure (no guest data). Confirmed by Eshcol 16 Oct 2026.
 insert into properties (id,name,short_name,contracted,address,blurb,photo_url,features,beds_label,brand,sort) values
  ('p-lr','Loch Roag Guest House','Loch Roag',true,'22A Breasclete, Isle of Lewis HS2 9EF','9 bedrooms: 1–5 upstairs, 6–9 downstairs. Rooms 2 & 3 share a shower room, Room 8 has a private shower room, the rest are ensuite. Images to follow.',null,'{9 bedrooms,2 kitchens,Games room & lounge}',null,null,1),
  ('p-es','Eshcol Worker Accommodation','Eshcol',true,'Formerly Eshcol Guest House, Breasclete','10 bedrooms: main house Rooms 1–7 and downstairs flat Rooms 8–10.','img/eshcol-exterior.jpg','{Parking,High-speed Wi-Fi,Laundry,Games room}',null,null,2),

@@ -14,7 +14,7 @@ const { londonToday } = await import('../dates');
 
 beforeAll(async () => {
   await repo.reset();
-  await repo.setUser('u-donald');
+  await repo.setUser('u-eshcol');
   // book today's clean with a named cleaner so the provider text has a name in it
   const c = S.db.changeovers.find(x => x.afterDate === londonToday())!;
   const cleaner = S.db.users.find(u => u.role === 'cleaner')!;

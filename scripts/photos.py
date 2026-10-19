@@ -1,6 +1,6 @@
 """Builds public/img/*.webp (max 1280px) and public/img/t/*.webp (480px thumbs) from the source photos.
-Sources: Donald's Eshcol share-page zip (extracted under /workspace/occupancy-portal/site) and the public
-websites listed in docs/PROPERTY-DATA.md (downloaded to /tmp/ph). Loch Roag (lr-*): Donald's Google Photos room albums, supplied 18 Oct 2026 (unzipped to /workspace/uploads/zip1).
+Sources: the Eshcol share-page zip (extracted under /workspace/occupancy-portal/site) and the public
+websites listed in docs/PROPERTY-DATA.md (downloaded to /tmp/ph). Loch Roag (lr-*): Eshcol's Google Photos room albums, supplied 18 Oct 2026 (unzipped to /workspace/uploads/zip1).
 Re-run: python3 scripts/photos.py [prefix]   e.g. `python3 scripts/photos.py lr-` rebuilds only the Loch Roag photos.
 EXIF (including GPS) is never written to the output; orientation is applied first."""
 import os

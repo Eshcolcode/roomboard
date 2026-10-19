@@ -29,7 +29,7 @@ export function nextFree(db: DB, roomId: string, from: string): string | null {
   return null;
 }
 
-/** The .ics Donald pastes into Airbnb / Booking.com: Roomboard bookings, merged, no names. */
+/** The .ics Eshcol pastes into Airbnb / Booking.com: Roomboard bookings, merged, no names. */
 export function unitIcs(db: DB, roomId: string, now?: Date): string {
   const r = db.rooms.find(x => x.id === roomId)!;
   const p = db.properties.find(x => x.id === r.propertyId)!;
@@ -61,8 +61,8 @@ export interface Segment {
 }
 /**
  * What one extra unit looks like between `from` and `to` for this person, for the board and the Rooms view.
- * Donald sees every booking, plus dates booked on other sites. Sheena sees her own bookings; everything else
- * (Donald's guests, other sites) is just "taken", with no name and no site.
+ * Eshcol sees every booking, plus dates booked on other sites. RJ McLeod sees their own bookings; everything else
+ * (Eshcol's guests, other sites) is just "taken", with no name and no site.
  */
 export function segments(
   db: DB,
@@ -85,7 +85,7 @@ export function segments(
   return out.sort((a, b) => a.from.localeCompare(b.from));
 }
 
-/** Sheena's own booking on this night, if any (shown as "Yours"; Donald's other guests stay just "taken"). */
+/** RJ McLeod's own booking on this night, if any (shown as "Yours"; Eshcol's other guests stay just "taken"). */
 export const ownOn = (db: DB, roomId: string, d: string, userId: string) =>
   live(db, roomId).find(s => s.bookedBy === userId && overlaps(s.arrival, s.departure, d, addDays(d, 1)));
 

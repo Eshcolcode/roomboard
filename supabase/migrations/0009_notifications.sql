@@ -4,7 +4,7 @@
 --              getting an end date, a move to another room -> notifications row (red dot) + email in alert_outbox.
 --   MINOR:     names, phone, notes, away dates, guest swap on the same dates, confirmed departure -> activity only.
 --   Housekeeper: alerted only when an IMMEDIATE change at a contract property touches the next 7 days.
--- Nothing is emailed until Donald sets app_settings 'notifications_live' to true: dispatch-alerts checks it first.
+-- Nothing is emailed until Eshcol sets app_settings 'notifications_live' to true: dispatch-alerts checks it first.
 
 -- ---------- classification (same rules as classify() in src/data/notify.ts) ----------
 create or replace function rb_change_tier(op text, o_arrival date, o_departure date, o_room text,
@@ -29,8 +29,7 @@ create or replace function rb_touches_window(d date[], today date, days int defa
 -- ---------- columns ----------
 alter table activity add column if not exists kind text, add column if not exists tier text check (tier in ('immediate','minor')),
   add column if not exists reasons text[];
-alter table profiles add column if not exists email_immediate boolean not null default true,
-  add column if not exists minor_digest boolean not null default false;
+alter table profiles add column if not exists email_immediate boolean not null default true;
 alter table alert_outbox add column if not exists tier text not null default 'immediate';
 insert into app_settings (key, value) values ('notifications_live', 'false'::jsonb), ('housekeeper_alerts', 'true'::jsonb)
   on conflict (key) do nothing;

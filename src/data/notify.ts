@@ -1,4 +1,4 @@
-// Notification tiers (Donald, 19 Oct 2026). Pure functions: the demo store, the screens and the tests use these, and
+// Notification tiers (Eshcol, 19 Oct 2026). Pure functions: the demo store, the screens and the tests use these, and
 // supabase/migrations/0009_notifications.sql mirrors classify() as rb_change_tier().
 //   IMMEDIATE: a new booking (contract or extras), a cancellation, a changed arrival or leaving date, an open-ended
 //              stay getting an end date, a move to another room. In-app alert (red dot) + an email in the outbox.
@@ -71,12 +71,11 @@ export function touchesWindow(c: Change, today: string, days = 7): boolean {
   return dates.some(d => d >= today && d <= end);
 }
 
-/** How a person is shown to this viewer. Eshcol sees who did it; RJ McLeod and the housekeeper see roles only. */
+/** How a person is shown: always by role (RJ McLeod, Eshcol, Housekeeper), never by name. */
 export function actorName(db: DB, id: string, viewer: Pick<User, 'role'>): string {
+  void viewer; // every view, Eshcol included, sees roles only: no personal names anywhere (19 Oct 2026)
   const x = db.users.find(u => u.id === id);
-  if (!x) return 'Someone';
-  if (viewer.role === 'manager') return x.name;
-  return ROLE_LABEL[x.role];
+  return x ? ROLE_LABEL[x.role] : 'Someone';
 }
 
 /** Kinds RJ McLeod may see. Never cleaning (cleaner names), rate changes, calendar sync, settings or enquiries. */

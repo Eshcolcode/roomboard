@@ -1,10 +1,10 @@
-// The real property and room details (no guest data). Every fact here comes from Donald or from a source listed
+// The real property and room details (no guest data). Every fact here comes from Eshcol or from a source listed
 // in docs/PROPERTY-DATA.md. Anything not found is left out and listed in `todo` ("details to come"), never guessed.
 import type { Bath, Photo, Property, Room, Unit } from './core';
 
 const ph = (name: string, alt: string): Photo => ({ src: `img/${name}.webp`, alt });
 const AREA = 'Breasclete, Isle of Lewis';
-// Public booking pages from Donald (18 Oct 2026), tracking/date query strings removed. Not iCal feeds.
+// Public booking pages from Eshcol (18 Oct 2026), tracking/date query strings removed. Not iCal feeds.
 const POD_BOOKING =
   'https://booking-directly.com/widgets/AFdwunTlQtRXLGG59glXBg6bzyX2zGOL7uVYq3BXiXjQVNUL0wvLZtXa9p9Fd/properties';
 
@@ -41,7 +41,7 @@ export const PROPERTIES: Property[] = [
       'Flat with its own kitchen',
     ],
     mapUrl: 'https://maps.app.goo.gl/mvJ8TRz1fuh4FGsX9',
-    credit: "Photos and room details: Donald's Eshcol share page (July 2026)",
+    credit: 'Photos and room details: the Eshcol share page (July 2026)',
   },
   {
     id: 'p-lr',
@@ -64,10 +64,10 @@ export const PROPERTIES: Property[] = [
       ph('lr-room9-bath', 'Room 9 ensuite shower'),
     ],
     website: 'https://lochroag.com/',
-    credit: "Room photos: Donald's Google Photos albums (October 2026)",
+    credit: "Room photos: Eshcol's Google Photos albums (October 2026)",
     todo: ['Photos of Room 4', 'Outside and shared-space photos (kitchens, games room, lounge)'],
   },
-  // Pods: Donald, 18 Oct 2026: the pod once called "Pod 1" is Harris View, the other is Uig View. Shown as Harris
+  // Pods: Eshcol, 18 Oct 2026: the pod once called "Pod 1" is Harris View, the other is Uig View. Shown as Harris
   // and Uig. The website photos may show either pod (they are the same design).
   {
     id: 'p-pod1',
@@ -128,7 +128,7 @@ export const PROPERTIES: Property[] = [
     credit:
       'Photos and details: hebrideanholidaycabins.co.uk (the two pods are the same design; photos may show either)',
   },
-  // Donald, 18 Oct 2026: "The Lodge" is Monadh, the only Whitefalls lodge offered. Description is Donald's, word
+  // Eshcol, 18 Oct 2026: "The Lodge" is Monadh, the only Whitefalls lodge offered. Description is Eshcol's, word
   // for word. Website photos may be used.
   {
     id: 'p-monadh',
@@ -158,7 +158,7 @@ export const PROPERTIES: Property[] = [
     bookingUrl: 'https://secure.supercontrol.co.uk/availability/availability_search.asp?ownerID=859&siteID=10573',
     credit: 'Photos: whitefalls.co.uk',
   },
-  // Donald, 18 Oct 2026: the 3-bedroom cottage is Abhainn Cottage. Charged as 2 rooms (Donald, 18 Oct 2026):
+  // Eshcol, 18 Oct 2026: the 3-bedroom cottage is Abhainn Cottage. Charged as 2 rooms (Eshcol, 18 Oct 2026):
   // the sofa-bed/desk room is not charged.
   {
     id: 'p-cottage',
@@ -203,7 +203,7 @@ export const UNITS: Unit[] = [
   { id: 'un-cottage', propertyId: 'p-cottage', name: 'Abhainn Cottage' },
 ];
 
-// Loch Roag room photos from Donald's Google Photos room albums (18 Oct 2026), assigned by album (folder) name.
+// Loch Roag room photos from Eshcol's Google Photos room albums (18 Oct 2026), assigned by album (folder) name.
 // Two photos sit in two albums each and are kept in both rooms, as supplied: the Rooms 2 & 3 shower room and a
 // bedroom photo in the Room 6 and Room 7 albums. There is no Room 4 album yet.
 const LR_PHOTOS: Record<number, Photo[]> = {
@@ -229,7 +229,7 @@ const LR_PHOTOS: Record<number, Photo[]> = {
   9: [ph('lr-room9', 'Room 9 bedroom'), ph('lr-room9-bath', 'Room 9 ensuite')],
 };
 
-// Eshcol room lines from the share page; Loch Roag from Donald.
+// Eshcol room lines from the share page; Loch Roag from Eshcol.
 const ES_DESC = [
   'Private bedroom with an allocated shower room, accessed separately.',
   'Furnished room with its own ensuite shower room.',

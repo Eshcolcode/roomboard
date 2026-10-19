@@ -1,5 +1,5 @@
 import { fmt, londonToday } from '../../dates';
-import { S, uid, iso, roomOf, roomLabel, isExtra } from '../core';
+import { S, uid, iso, roomOf, roomLabel, isExtra, ROLE_LABEL } from '../core';
 import type { CoEvent, Role, User, Alert, Changeover, Stay, Activity, Tier } from '../core';
 import { classify, classifyAll, diffStays, touchesWindow } from '../notify';
 import type { Change } from '../notify';
@@ -20,7 +20,7 @@ export function queueFor(u: User, subject: string, body: string) {
         ts: iso(),
         channel: ch,
         toUserId: u.id,
-        to: `${u.name} <${addr || 'no address yet'}>`,
+        to: `${ROLE_LABEL[u.role]} <${addr || 'no address yet'}>`,
         subject,
         body,
         status: addr ? ('queued' as const) : ('no_address' as const),

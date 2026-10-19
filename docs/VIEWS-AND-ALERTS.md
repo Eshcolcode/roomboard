@@ -2,14 +2,16 @@
 
 ## Logins
 Labelled by role only, never by a person's name: **RJ McLeod**, **Eshcol**, **Housekeeper** (`ROLE_LABEL` in
-`src/data/core.ts`). Several people can share a login later; the Activity log still records which person made each
-change, and only Eshcol sees those names.
+`src/data/core.ts`). No personal name of any staff member or user appears anywhere: screens, activity log (all
+views, Eshcol included), alerts, emails, database messages or demo data. People are always shown by role. Guest and
+worker names on bookings stay, because they are needed to book. Several people can share a login later; the data
+still records which account made each change, but it is shown by role only.
 
 | | RJ McLeod | Eshcol | Housekeeper |
 |---|---|---|---|
 | Board, Find a room, Workers, bookings | yes | yes | no |
 | Prices | extras only, never contract properties | yes | **never** (`noPrices()` in `src/data/pricing.ts`) |
-| Activity log | own rooms and bookings only (see below) | everything, with names | no |
+| Activity log | own rooms and bookings only (see below) | everything (by role) | no |
 | Today, Cleaning, room status | Today | yes | yes |
 | Rate, rate history, calendar links, settings | no | yes | no |
 
@@ -31,7 +33,7 @@ holds stay, crew and worker entries that are not Eshcol-only. Never cleaning (cl
 ## Email is OFF
 The demo never sends anything (outbox rows show "not sent (demo)"). Live, rows queue in `alert_outbox`, but the
 `dispatch-alerts` function sends nothing until `app_settings.notifications_live` is set to `true`, which is a
-deliberate step for Donald once Supabase and Resend are set up. Migration: `supabase/migrations/0009_notifications.sql`
+deliberate step for Eshcol once Supabase and Resend are set up. Migration: `supabase/migrations/0009_notifications.sql`
 (tested locally by `supabase/tests/notify.sql`).
 
 Checks: `npm test` (`src/data/notify.test.ts`) and `node qa/views.mjs`.

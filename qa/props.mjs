@@ -19,7 +19,7 @@ const D = n => new Date(Date.parse(T + 'T00:00Z') + n * 864e5).toISOString().sli
 const settle = p => p.waitForTimeout(400);
 const db = p => p.evaluate(() => JSON.parse(localStorage.getItem('roomboard-demo-v2')));
 const shot = (p, n, full = false) => p.screenshot({ path: OUT + 'props-' + n + '.png', fullPage: full });
-async function pg(w, h, hash, { user = 'u-donald', mode = null } = {}) {
+async function pg(w, h, hash, { user = 'u-eshcol', mode = null } = {}) {
   const p = await b.newPage({ viewport: { width: w, height: h }, deviceScaleFactor: 2 });
   p.on('pageerror', e => errs.push(e.message));
   p.on('console', m => m.type() === 'error' && errs.push(m.text()));
@@ -27,14 +27,14 @@ async function pg(w, h, hash, { user = 'u-donald', mode = null } = {}) {
   await p.evaluate(
     ({ m }) => {
       localStorage.clear();
-      for (const id of ['u-donald', 'u-client', 'u-mairi']) localStorage.setItem('rb-welcome:' + id, '1');
+      for (const id of ['u-eshcol', 'u-client', 'u-housekeeper']) localStorage.setItem('rb-welcome:' + id, '1');
       if (m) localStorage.setItem('rb-ui-mode', m);
     },
     { m: mode },
   );
   await p.reload();
   await settle(p);
-  if (user !== 'u-donald') await as(p, user);
+  if (user !== 'u-eshcol') await as(p, user);
   return p;
 }
 // switch person on either header (main app .who, stand-alone page .s-who)
@@ -94,7 +94,7 @@ async function pickFree(p, scope, n) {
 }
 const names = x => x.workers.map(w => w.name).concat(x.users.filter(u => u.role === 'cleaner').map(u => u.name));
 
-// ---------- availability page as Sheena (phone) ----------
+// ---------- availability page as RJ McLeod (phone) ----------
 let p = await pg(390, 844, 'availability', { user: 'u-client' });
 ok(await p.locator('.avp-sim:has-text("Simulated")').isVisible(), 'availability: demo is labelled Simulated');
 ok((await p.locator('.avp-card').count()) === 4, 'availability: all 4 extra properties');
@@ -119,10 +119,10 @@ ok((await p.locator('.avp-card img').count()) >= 3, 'availability: photos shown 
   );
   const body = await p.locator('body').innerText();
   ok(
-    !names(x).some(n => body.includes(n)) && !/Mairi/.test(body),
+    !names(x).some(n => body.includes(n)) && !/Housekeeper/.test(body),
     'privacy: no guest or cleaner names on the availability page',
   );
-  ok(!/Airbnb|Booking\.com|SuperControl/.test(body), 'privacy: Sheena does not see which site a booking came from');
+  ok(!/Airbnb|Booking\.com|SuperControl/.test(body), 'privacy: RJ McLeod does not see which site a booking came from');
   ok(!/Guestname|01632|example\.invalid/.test(body), 'privacy: no guest details from the calendar feed');
 }
 await p.locator('#av-p-pod1').scrollIntoViewIfNeeded();
@@ -140,13 +140,13 @@ ok(
 const iPick = await pickFree(p, '[data-unit="x-pod1"]', 3);
 ok(
   iPick >= 0 && (await p.locator('[data-unit="x-pod1"] .av-go:has-text("Book these dates")').isVisible()),
-  'Sheena: picking dates shows "Book these dates" (no request step)',
+  'RJ McLeod: picking dates shows "Book these dates" (no request step)',
 );
 ok(
   (await p.locator('[data-unit="x-pod1"] .av-est').innerText()).includes(
     'Indicative £150 for 3 nights (£350 a week ÷ 7 × 3)',
   ),
-  'Sheena: pro-rata estimate before booking',
+  'RJ McLeod: pro-rata estimate before booking',
 );
 await p.fill('[data-unit="x-pod1"] .av-who input', 'Calum Test');
 {
@@ -161,24 +161,24 @@ await settle(p);
   const m = await p.locator('[data-unit="x-pod1"] .av-msg.ok').innerText();
   ok(
     m.includes('Booked and confirmed') &&
-      m.includes('Donald has been notified') &&
+      m.includes('Eshcol has been notified') &&
       m.includes('£150') &&
       /long-term/.test(m),
-    'confirmation: booked straight away, Donald notified, indicative £150, long-term deals possible',
+    'confirmation: booked straight away, Eshcol notified, indicative £150, long-term deals possible',
   );
 }
 let bk1 = (await db(p)).stays.find(s => s.roomId === 'x-pod1' && s.holdLabel === 'Calum Test');
 ok(bk1 && bk1.bookedBy === 'u-client' && !('request' in bk1), 'client booking of an extra is a confirmed booking');
-ok((await p.locator('[data-unit="x-pod1"] .av-d.s-mine').count()) === 3, 'Sheena: her booked nights show as "Yours"');
+ok((await p.locator('[data-unit="x-pod1"] .av-d.s-mine').count()) === 3, 'RJ McLeod: their booked nights show as "Yours"');
 ok(
   (await p.locator('[data-unit="x-pod1"] .av-yours').innerText()).includes('Calum Test') &&
     (await p.locator('[data-unit="x-pod1"] .av-d.s-mine').first().getAttribute('aria-label')).includes('yours'),
-  'Sheena: "Your bookings here" lists it',
+  'RJ McLeod: "Your bookings here" lists it',
 );
-ok(!(await p.locator('[data-unit="x-cottage"] .av-d.s-mine').count()), "Donald's guest is not shown as hers");
+ok(!(await p.locator('[data-unit="x-cottage"] .av-d.s-mine').count()), "Eshcol's guest is not shown as hers");
 ok(
-  (await db(p)).alerts.some(a => a.toUserId === 'u-donald' && /New booking/.test(a.subject) && /£150/.test(a.body)),
-  'Donald is alerted, with the indicative price',
+  (await db(p)).alerts.some(a => a.toUserId === 'u-eshcol' && /New booking/.test(a.subject) && /£150/.test(a.body)),
+  'Eshcol is alerted, with the indicative price',
 );
 // a booked-elsewhere night cannot be picked
 ok(
@@ -186,7 +186,7 @@ ok(
   'booked-elsewhere nights cannot be picked',
 );
 
-// ---------- the main board includes the extras (desktop), Sheena ----------
+// ---------- the main board includes the extras (desktop), RJ McLeod ----------
 await p.setViewportSize({ width: 1440, height: 950 });
 await p.goto(U + '#board');
 await settle(p);
@@ -204,25 +204,25 @@ ok(
 );
 ok(
   (await p.locator(`[data-extra="p-pod1"] .xbar[data-stay="${bk1.id}"]`).count()) === 1,
-  'board: Sheena sees her own extra booking',
+  'board: RJ McLeod sees their own extra booking',
 );
 {
   const row = await p.locator('[data-extra="p-cottage"]').innerText();
   ok(
     (await p.locator('[data-extra="p-cottage"] .xblock').count()) >= 1 && !row.includes('Direct guest'),
-    "board: Donald's own guest shows to Sheena as Taken, no name",
+    "board: Eshcol's own guest shows to RJ McLeod as Taken, no name",
   );
   ok(
     (await p.locator('[data-extra="p-monadh"] .xblock').count()) >= 1 &&
       !(await p.locator('[data-extra="p-monadh"] .xblock.elsewhere').count()),
-    'board: Monadh calendar dates show to Sheena as Taken (no site)',
+    'board: Monadh calendar dates show to RJ McLeod as Taken (no site)',
   );
   ok(
     /Indicative £350 per room per week/.test(await p.locator('.xgrp').innerText()),
     'board: price note on the extras group',
   );
 }
-await shot(p, '3-board-sheena');
+await shot(p, '3-board-rj');
 await p.click('[data-extra="p-pod1"] .xbar');
 await settle(p);
 {
@@ -231,7 +231,7 @@ await settle(p);
     t.includes('Indicative £150 for 3 nights') && t.includes('Long-term deals possible'),
     'Quick card: indicative estimate',
   );
-  ok(/\bCancel\b/.test(t) && !/Confirm|Decline/.test(t), 'Quick card: no confirm/decline; Sheena can cancel her own');
+  ok(/\bCancel\b/.test(t) && !/Confirm|Decline/.test(t), 'Quick card: no confirm/decline; RJ McLeod can cancel their own');
   ok(
     t.includes('Add the name') &&
       t.includes('Change dates') &&
@@ -242,7 +242,7 @@ await settle(p);
   );
 }
 await shot(p, '3b-extra-card');
-// Sheena names her extra booking from the workers list she holds, then adds a phone and notes
+// RJ McLeod names their extra booking from the workers list they holds, then adds a phone and notes
 {
   const q = p.locator('.q-panel');
   await q.locator('.s-act:has-text("Add the name")').click();
@@ -267,7 +267,7 @@ await shot(p, '3b-extra-card');
     (await q.innerText()).includes('Late ferry') && (await q.innerText()).includes('07700 900111'),
     'extra card shows the phone and notes',
   );
-  // swap person: a brand-new name (Sheena's crew: added to her workers list)
+  // swap person: a brand-new name (RJ McLeod's crew: added to their workers list)
   await q.locator('.s-act:has-text("Swap person")').click();
   await q.locator('input[aria-label="Name"]').fill('Hamish New');
   await q.locator('input[aria-label="Name"]').press('Enter');
@@ -290,7 +290,7 @@ ok(
   'board filter: extras only',
 );
 
-// ---------- Donald books an extra directly; it stays private ----------
+// ---------- Eshcol books an extra directly; it stays private ----------
 p = await pg(1440, 950, 'available/p-pod2', { mode: 'classic' });
 ok(await p.locator('.pp-head h1:has-text("Uig")').isVisible(), 'property page for an extra');
 {
@@ -321,14 +321,14 @@ await whoNext(p, { name: 'Mrs Visitor' });
 {
   const x = await db(p);
   const s2 = x.stays.find(s => s.roomId === 'x-pod2' && s.holdLabel === 'Mrs Visitor');
-  ok(s2 && s2.bookedBy === 'u-donald', 'Donald books an extra directly');
+  ok(s2 && s2.bookedBy === 'u-eshcol', 'Eshcol books an extra directly');
   ok(
     !x.alerts.some(a => a.toUserId === 'u-client' && a.body.includes('Mrs Visitor')),
-    "Donald's guest: no alert to Sheena",
+    "Eshcol's guest: no alert to RJ McLeod",
   );
   ok(
     x.activity.filter(a => a.text.includes('Mrs Visitor')).every(a => a.managerOnly),
-    "Donald's guest: log is Donald-only",
+    "Eshcol's guest: log is Eshcol-only",
   );
 }
 // back to Quick (the default) for the board's in-place booking
@@ -340,13 +340,13 @@ await p.click('.seg button:has-text("6 wks")');
 await settle(p);
 ok(
   (await p.locator('[data-extra="p-cottage"] .xbar:has-text("Direct guest")').count()) === 1,
-  'board: Donald sees his own guests by name',
+  'board: Eshcol sees their own guests by name',
 );
 ok(
   (await p.locator('[data-extra="p-monadh"] .xblock.elsewhere:has-text("Booked elsewhere")').count()) >= 1,
-  'board: Donald sees "Booked elsewhere"',
+  'board: Eshcol sees "Booked elsewhere"',
 );
-await shot(p, '3c-board-donald');
+await shot(p, '3c-board-eshcol');
 // a free day on an extras row starts a booking with that night (up to a week) already picked
 {
   const x = await db(p);
@@ -400,7 +400,7 @@ await shot(p, '3c-board-donald');
   );
   ok(
     !x0.workers.some(w => w.name === 'Board Sheet Test'),
-    "Donald's own extra guest is not added to the shared workers list",
+    "Eshcol's own extra guest is not added to the shared workers list",
   );
   ok(
     (await q.innerText()).includes('Harris') &&
@@ -443,17 +443,17 @@ await p.goto(U + '#activity');
 await settle(p);
 {
   const t = await p.locator('body').innerText();
-  ok(!t.includes('Mrs Visitor') && !t.includes('Direct guest'), "Sheena's activity: none of Donald's extra guests");
-  ok(!/SuperControl|Airbnb/.test(t), "Sheena's activity: no booking-site names");
+  ok(!t.includes('Mrs Visitor') && !t.includes('Direct guest'), "RJ McLeod's activity: none of Eshcol's extra guests");
+  ok(!/SuperControl|Airbnb/.test(t), "RJ McLeod's activity: no booking-site names");
 }
 
-// ---------- Donald's rate setting ----------
+// ---------- Eshcol's rate setting ----------
 p = await pg(1440, 950, 'available');
-ok(await p.locator('.pp-rate').isVisible(), 'Donald: indicative rate setting on Properties');
+ok(await p.locator('.pp-rate').isVisible(), 'Eshcol: indicative rate setting on Properties');
 await p.fill('.pp-rate input', '400');
 await p.click('.pp-rate button:has-text("Save")');
 await settle(p);
-ok((await db(p)).settings.ratePerRoomWeek === 400, 'Donald: rate saved');
+ok((await db(p)).settings.ratePerRoomWeek === 400, 'Eshcol: rate saved');
 ok(
   (await p.locator('[data-prop="p-es"] .pp-price').innerText()) === 'Included in your contract' &&
     (await p.locator('[data-prop="p-monadh"] .pp-price').innerText()).includes('2 rooms charged = £800 a week') &&
@@ -465,17 +465,17 @@ await settle(p);
 {
   const h = await p.locator('.pp-hist').innerText();
   ok(
-    h.includes('Rate history (1)') && /£350\s*→\s*£400/.test(h) && h.includes('Donald'),
-    'Donald: rate history shows who, when, old → new',
+    h.includes('Rate history (1)') && /£350\s*→\s*£400/.test(h) && h.includes('Eshcol'),
+    'Eshcol: rate history shows who, when, old → new',
   );
 }
 await shot(p, '5b-rate');
 await as(p, 'u-client');
-ok(!(await p.locator('.pp-rate').count()), 'Sheena: cannot edit the rate');
+ok(!(await p.locator('.pp-rate').count()), 'RJ McLeod: cannot edit the rate');
 ok(
   (await p.locator('.pp-price-note').innerText()).includes('£400 per room per week') &&
     /Long-term deals possible/.test(await p.locator('.pp-price-note').innerText()),
-  'Sheena: sees the indicative rate and that long-term deals are possible',
+  'RJ McLeod: sees the indicative rate and that long-term deals are possible',
 );
 
 // ---------- property pages ----------
@@ -501,7 +501,7 @@ await shot(p, '4b-lightbox');
 await p.keyboard.press('Escape');
 await settle(p);
 ok(!(await p.locator('.lb').count()), 'viewer: Esc closes');
-ok(!/Mairi/.test(await p.locator('body').innerText()), 'privacy: no cleaner name on the property page');
+ok(!/Housekeeper/.test(await p.locator('body').innerText()), 'privacy: no cleaner name on the property page');
 ok(!(await p.locator('.pp-todo').count()), 'Eshcol: nothing left "to come" (address confirmed, bed sizes not needed)');
 await shot(p, '4-property-eshcol');
 await p.goto(U + '#available/p-lr');
@@ -554,17 +554,17 @@ ok(
   'Properties list: Eshcol, Loch Roag, Harris, Uig, Monadh, Abhainn Cottage',
 );
 ok((await p.locator('[data-prop] .pp-price').count()) === 6, 'Properties list: indicative price on every card');
-ok(!(await p.locator('.pp-cal').count()), 'Sheena: no calendar-link settings or enquiry list');
+ok(!(await p.locator('.pp-cal').count()), 'RJ McLeod: no calendar-link settings or enquiry list');
 await shot(p, '5-properties-list');
 
-// ---------- Donald: calendar links (demo) ----------
+// ---------- Eshcol: calendar links (demo) ----------
 p = await pg(1440, 950, 'available/p-cottage');
 await p.click('.pp-cal summary');
 await settle(p);
 ok(
   (await p.locator('.pp-feed').innerText()).includes('Calendar not linked yet') &&
     !(await p.locator('.pp-cal input').count()),
-  'Donald: Abhainn Cottage calendar "not linked yet", no link box to paste into',
+  'Eshcol: Abhainn Cottage calendar "not linked yet", no link box to paste into',
 );
 await p.goto(U + '#available/p-monadh');
 await settle(p);
@@ -574,14 +574,14 @@ await settle(p);
   const t = await p.locator('.pp-cal').innerText();
   ok(
     t.includes('Calendar linked') && t.includes('SuperControl') && !/https?:|\.ics\b/.test(t.replace('(.ics)', '')),
-    'Donald: Monadh calendar linked, link never shown',
+    'Eshcol: Monadh calendar linked, link never shown',
   );
 }
 await p.click('.pp-cal button:has-text("Read calendars now")');
 await settle(p);
 ok(!errs.length, 'no console errors so far');
 const [dl] = await Promise.all([p.waitForEvent('download'), p.click('.pp-cal button:has-text("Download")')]);
-ok(/\.ics$/.test(dl.suggestedFilename()), 'Donald: export downloads an .ics');
+ok(/\.ics$/.test(dl.suggestedFilename()), 'Eshcol: export downloads an .ics');
 await shot(p, '6-calendar-links');
 
 // ---------- phone: property page ----------
@@ -602,7 +602,7 @@ ok(
     (await p.locator('.xcard .xbtns :is(a,button):has-text("Book")').count()) === 4,
   'phone Rooms: next 14 nights and a Book button on each',
 );
-ok(!(await p.locator('.xsec').innerText()).includes('Direct guest'), "phone Rooms: no names of Donald's guests");
+ok(!(await p.locator('.xsec').innerText()).includes('Direct guest'), "phone Rooms: no names of Eshcol's guests");
 ok((await p.evaluate(() => document.documentElement.scrollWidth)) <= 392, 'phone Rooms: fits the width');
 await p.locator('.xsec').scrollIntoViewIfNeeded();
 await shot(p, '7-rooms-extras-phone');
@@ -718,14 +718,14 @@ p = await pg(1440, 950, 'available/p-pod2', { user: 'u-client' });
   const st = (await db(p)).stays.find(s => s.roomId === 'x-pod2' && s.arrival === first);
   ok(
     !!st && st.departure === null && st.depStatus === 'ufn' && st.bookedBy === 'u-client',
-    'open-ended: saved with no end date, booked by Sheena',
+    'open-ended: saved with no end date, booked by RJ McLeod',
   );
   ok(
     (await p.locator(`${u} .av-d[data-d="${D(55)}"]`).getAttribute('class')).includes('s-mine') &&
       (await p.locator(`${u} .av-yours`).innerText()).includes('until further notice'),
     'open-ended: availability blocks every night going forward (shown as "Yours")',
   );
-  // the Rooms card / board show it, and Donald's iCal export blocks it
+  // the Rooms card / board show it, and Eshcol's iCal export blocks it
   await p.goto(U + '#board');
   await settle(p);
   ok((await p.locator(`[data-extra="p-pod2"] [data-stay="${st?.id}"]`).count()) === 1, 'open-ended: on the board');
@@ -915,9 +915,9 @@ p = await pg(390, 844, 'available/p-lr', { user: 'u-client' });
     [1440, 950, 'desktop'],
     [390, 844, 'phone'],
   ])
-    for (const user of ['u-donald', 'u-client', 'u-mairi']) {
+    for (const user of ['u-eshcol', 'u-client', 'u-housekeeper']) {
       const p = await pg(w, h, 'board', { user });
-      const who = { 'u-donald': 'Donald', 'u-client': 'Sheena', 'u-mairi': 'cleaner' }[user];
+      const who = { 'u-eshcol': 'Eshcol', 'u-client': 'RJ McLeod', 'u-housekeeper': 'cleaner' }[user];
       const bad = [];
       let seen = 0;
       for (const [hash, sel] of VIEWS) {
@@ -934,7 +934,7 @@ p = await pg(390, 844, 'available/p-lr', { user: 'u-client' });
       const actBad = act.split('\n').filter(l => /Eshcol|Loch Roag/.test(l) && /£/.test(l));
       if (actBad.length) bad.push('#activity: ' + actBad[0]);
       // a contract booking's card (Quick on the board / Rooms) and the Classic panel
-      if (user !== 'u-mairi') {
+      if (user !== 'u-housekeeper') {
         for (const mode of ['quick', 'classic']) {
           await p.evaluate(m => localStorage.setItem('rb-ui-mode', m), mode);
           await p.goto(U + (w > 500 ? '#board' : '#rooms'));
@@ -955,7 +955,7 @@ p = await pg(390, 844, 'available/p-lr', { user: 'u-client' });
         await p.evaluate(() => localStorage.setItem('rb-ui-mode', 'quick'));
       }
       ok(
-        !bad.length && seen > (user === 'u-mairi' ? 4 : 10),
+        !bad.length && seen > (user === 'u-housekeeper' ? 4 : 10),
         `${sz} ${who}: no £, price or estimate on any Eshcol / Loch Roag view (${seen} areas) ${bad.join(' | ')}`,
       );
       if (user === 'u-client') {
@@ -964,13 +964,13 @@ p = await pg(390, 844, 'available/p-lr', { user: 'u-client' });
         ok(
           (await p.locator('[data-price="contract"]').innerText()).includes('Included in your contract') &&
             !(await p.locator('.pp-rate').count()),
-          `${sz} Sheena: Eshcol says "Included in your contract", no money`,
+          `${sz} RJ McLeod: Eshcol says "Included in your contract", no money`,
         );
         await p.goto(U + '#available/p-monadh');
         await settle(p);
         ok(
           /£700 a week/.test(await p.locator('[data-price="p-monadh"]').innerText()),
-          `${sz} Sheena: extras still priced (Monadh £700 a week)`,
+          `${sz} RJ McLeod: extras still priced (Monadh £700 a week)`,
         );
       }
       await p.close();

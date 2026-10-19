@@ -11,7 +11,7 @@ async function pg(w = 390, h = 844) {
   p.on('pageerror', e => errs.push(e.message));
   p.on('console', m => m.type() === 'error' && errs.push(m.text()));
   await p.goto(U + '#simple');
-  await p.evaluate(() => { localStorage.clear(); for (const id of ['u-donald', 'u-client', 'u-mairi']) localStorage.setItem('rb-welcome:' + id, '1'); });
+  await p.evaluate(() => { localStorage.clear(); for (const id of ['u-eshcol', 'u-client', 'u-housekeeper']) localStorage.setItem('rb-welcome:' + id, '1'); });
   await p.reload();
   await p.waitForTimeout(400);
   return p;
@@ -20,7 +20,7 @@ const shot = (p, n, full = false) => p.screenshot({ path: OUT + 'flow-' + n + '.
 const stays = p => p.evaluate(() => JSON.parse(localStorage.getItem('roomboard-demo-v2')).stays);
 const settle = p => p.waitForTimeout(450);
 
-// ---- Sheena: home and a single booking ----
+// ---- RJ McLeod: home and a single booking ----
 let p = await pg();
 await p.selectOption('select.s-who', 'u-client'); await settle(p);
 ok(!/mockup/i.test(await p.locator('.s-top').innerText()), 'no Mockup wording in the header');
@@ -93,7 +93,7 @@ await p.click('.s-act:has-text("Move room")'); await settle(p); await shot(p, 'c
 await p.click('[aria-label="Back"]'); await settle(p);
 await p.click('.s-act:has-text("Cancel")'); await settle(p); await shot(p, 'change-cancel');
 
-// ---- Donald: crew of 12 ----
+// ---- Eshcol: crew of 12 ----
 p = await pg();
 await p.click('text=Book a room'); await settle(p);
 await p.click('.s-pick:has-text("A crew")'); await settle(p);
@@ -130,9 +130,9 @@ p = await pg();
 await p.click('text=Who’s arriving today'); await settle(p); await shot(p, 'arrivals');
 await p.goto(U + '#simple'); await settle(p);
 await p.selectOption('select.s-who', 'u-client'); await settle(p);
-await p.click('text=What needs cleaning'); await settle(p); await shot(p, 'cleaning-sheena');
+await p.click('text=What needs cleaning'); await settle(p); await shot(p, 'cleaning-rj');
 const txt = await p.locator('.s-box').innerText();
-ok(!/Mairi/i.test(txt), 'Sheena never sees cleaner names on the cleaning list');
+ok(!/Housekeeper/i.test(txt), 'RJ McLeod never sees cleaner names on the cleaning list');
 p = await pg(1280, 900); await shot(p, 'home-desktop');
 await p.goto(U + '#board'); await settle(p);
 ok(await p.locator('.top').isVisible(), 'full app still opens from simple mode (#board)');
@@ -154,7 +154,7 @@ ok(await p.locator('.top').isVisible(), 'full app still opens from simple mode (
   ok(txt.includes(nice) && !txt.includes('To follow'), 'the card shows the new leaving date (' + nice + ')');
 }
 
-// ---- extra property (Harris), phone: same guest details as a contract room, Sheena ----
+// ---- extra property (Harris), phone: same guest details as a contract room, RJ McLeod ----
 {
   const p = await pg();
   await p.selectOption('select.s-who', 'u-client'); await settle(p);
@@ -186,11 +186,11 @@ ok(await p.locator('.top').isVisible(), 'full app still opens from simple mode (
   const s2 = x.stays.find(s => s.id === st.id);
   ok(s2.workerId === iain.id && iain.phone === '07700 900666' && s2.notes === 'Needs ground floor', 'extra card (Simple): name picked from the list, phone and notes saved');
   await shot(p, 'extra-card-named');
-  // Donald's own guest: dates only for Sheena, no edit, no name
-  const dg = x.stays.find(s => s.roomId === 'x-cottage' && s.bookedBy === 'u-donald');
+  // Eshcol's own guest: dates only for RJ McLeod, no edit, no name
+  const dg = x.stays.find(s => s.roomId === 'x-cottage' && s.bookedBy === 'u-eshcol');
   await p.goto(U + '#simple/stay/' + dg.id); await p.reload(); await settle(p);
   const t1 = await p.locator('body').innerText();
-  ok(!t1.includes('Direct guest') && !t1.includes('Swap person') && t1.includes('ask him'), "Donald's own extra guest stays dates-only to Sheena");
+  ok(!t1.includes('Direct guest') && !t1.includes('Swap person') && t1.includes('ask Eshcol'), "Eshcol's own extra guest stays dates-only to RJ McLeod");
   await p.close();
 }
 

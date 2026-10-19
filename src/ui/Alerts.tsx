@@ -130,16 +130,6 @@ export function AlertSettings() {
         <label className="cb">
           <input
             type="checkbox"
-            checked={!!u.minorDigest}
-            onChange={e => data.setPrefs(u.id, { minorDigest: e.target.checked })}
-          />{' '}
-          A 6pm summary of minor changes, if there were any
-        </label>
-      )}
-      {u.role === 'manager' && (
-        <label className="cb">
-          <input
-            type="checkbox"
             checked={hk}
             onChange={e => data.setSettings({ housekeeperAlerts: e.target.checked })}
           />{' '}

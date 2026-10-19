@@ -1,15 +1,15 @@
 -- Local smoke test (plain Postgres + 00_local_stub.sql). Mirrors the demo checks.
 \set ON_ERROR_STOP 0
 insert into auth.users values ('00000000-0000-0000-0000-000000000001'),('00000000-0000-0000-0000-000000000002'),('00000000-0000-0000-0000-000000000003');
-insert into profiles (id,full_name,role,email,phone) values ('00000000-0000-0000-0000-000000000001','Sheena','client','',null),('00000000-0000-0000-0000-000000000002','Donald','manager','d@x',null),('00000000-0000-0000-0000-000000000003','Mairi','cleaner','m@x',null);
+insert into profiles (id,full_name,role,email,phone) values ('00000000-0000-0000-0000-000000000001','RJ McLeod','client','',null),('00000000-0000-0000-0000-000000000002','Eshcol','manager','d@x',null),('00000000-0000-0000-0000-000000000003','Housekeeper','cleaner','m@x',null);
 insert into workers(id,name) values ('00000000-0000-0000-0000-0000000000a1','Neil'),('00000000-0000-0000-0000-0000000000a2','Iain'),('00000000-0000-0000-0000-0000000000a3','Daniel');
-set request.uid = '00000000-0000-0000-0000-000000000001'; -- Sheena
+set request.uid = '00000000-0000-0000-0000-000000000001'; -- RJ McLeod
 insert into stays(room_id,worker_id,arrival,departure,dep_status) values ('lr-8','00000000-0000-0000-0000-0000000000a1','2026-10-02','2026-10-16','confirmed');
 insert into stays(room_id,hold_label,arrival,dep_status) values ('lr-8','Name to follow','2026-10-20','tbc');
 select 'T1 changeover created' t, count(*) = 1 ok from changeovers where room_id='lr-8';
 select 'T2 provider alerted for client edit' t, count(*) > 0 ok from alert_outbox o join profiles p on p.id=o.recipient_id where p.role='manager';
 select 'T3 client not alerted for own edit' t, count(*) = 0 ok from alert_outbox o where recipient_id='00000000-0000-0000-0000-000000000001';
-set request.uid = '00000000-0000-0000-0000-000000000002'; -- Donald
+set request.uid = '00000000-0000-0000-0000-000000000002'; -- Eshcol
 update changeovers set status='scheduled', scheduled_for='2026-10-17', cleaner_id='00000000-0000-0000-0000-000000000003' where room_id='lr-8';
 select 'T4 cleaner alerted on schedule' t, count(*) > 0 ok from alert_outbox where recipient_id='00000000-0000-0000-0000-000000000003';
 -- C2 out of window
@@ -60,25 +60,25 @@ do $$ begin perform apply_series('{"label":"Clash","property_id":"p-lr","start_d
 exception when others then raise notice 'PASS crew clash rolls back whole booking: %', sqlerrm; end $$;
 select 'T16 crew clash left nothing behind' t, count(*) = 0 ok from series where label = 'Clash';
 -- extras: direct bookings (no request step), privacy, indicative prices, iCal blocks (0008)
-set request.uid = '00000000-0000-0000-0000-000000000001'; -- Sheena
+set request.uid = '00000000-0000-0000-0000-000000000001'; -- RJ McLeod
 insert into stays(room_id,hold_label,arrival,departure) values ('x-pod1','Calum','2027-03-01','2027-03-04');
 select 'T17 client books an extra straight away (no request step), recorded as hers' t, booked_by = '00000000-0000-0000-0000-000000000001' ok from stays where room_id='x-pod1' and hold_label='Calum';
 select 'T17a no request column any more' t, not exists (select 1 from information_schema.columns where table_name='stays' and column_name='request') ok;
-select 'T18 Donald alerted: New booking with the indicative price (1 bedroom, £350/7 x 3 = £150)' t, count(*) > 0 ok from alert_outbox
+select 'T18 Eshcol alerted: New booking with the indicative price (1 bedroom, £350/7 x 3 = £150)' t, count(*) > 0 ok from alert_outbox
   where subject like 'New booking%' and body like '%Indicative £150 for 3 nights%' and recipient_id='00000000-0000-0000-0000-000000000002';
 select 'T19 extras make no changeovers' t, count(*) = 0 ok from changeovers where room_id like 'x-%';
 update stays set version = version, notes = 'Late arrival' where room_id='x-pod1' and hold_label='Calum';
-select 'T20 client can change her own extra booking' t, notes = 'Late arrival' ok from stays where hold_label='Calum';
-set request.uid = '00000000-0000-0000-0000-000000000002'; -- Donald
+select 'T20 client can change their own extra booking' t, notes = 'Late arrival' ok from stays where hold_label='Calum';
+set request.uid = '00000000-0000-0000-0000-000000000002'; -- Eshcol
 insert into stays(room_id,hold_label,arrival,departure) values ('x-monadh','Mrs Direct','2027-03-10','2027-03-17');
-select 'T21 Donald''s own extra booking is private: activity hidden from Sheena, no alert to her' t,
+select 'T21 Eshcol''s own extra booking is private: activity hidden from RJ McLeod, no alert to their' t,
   (select bool_and(manager_only) from activity where entity_id = (select id::text from stays where hold_label='Mrs Direct'))
   and not exists (select 1 from alert_outbox where recipient_id='00000000-0000-0000-0000-000000000001' and body like '%Mrs Direct%') ok;
 select 'T21a whole-property price: Monadh 2 bedrooms x £350 = £700 a week' t, indicative_price('x-monadh','2027-03-10','2027-03-17') like 'Indicative £700 for 7 nights%' ok;
 set request.uid = '00000000-0000-0000-0000-000000000001';
 do $$ begin insert into stays(room_id,hold_label,arrival,departure) values ('x-monadh','Crew','2027-03-15','2027-03-20'); raise notice 'FAIL double booking allowed';
 exception when others then if sqlerrm like '%Direct%' then raise notice 'FAIL clash message names a guest'; else raise notice 'PASS taken dates blocked without naming anyone: %', sqlerrm; end if; end $$;
-do $$ begin update stays set version = version, notes = 'x' where hold_label='Mrs Direct'; raise notice 'FAIL client edited Donald''s extra'; exception when others then raise notice 'PASS Donald''s extra bookings locked for Sheena: %', sqlerrm; end $$;
+do $$ begin update stays set version = version, notes = 'x' where hold_label='Mrs Direct'; raise notice 'FAIL client edited Eshcol''s extra'; exception when others then raise notice 'PASS Eshcol''s extra bookings locked for RJ McLeod: %', sqlerrm; end $$;
 insert into stays(room_id,worker_id,hold_label,arrival,departure) values ('lr-5',null,'Contract','2027-03-01','2027-03-03');
 select 'T23 contract rooms book as before' t, count(*) = 1 ok from stays where hold_label='Contract';
 -- feed + blocks (as the sync would write them)
@@ -91,18 +91,18 @@ do $$ begin if not exists (select 1 from pg_roles where rolname = 'rb_rls_probe'
 grant usage on schema public to rb_rls_probe; grant select, update on ical_feeds to rb_rls_probe; grant select on profiles to rb_rls_probe;
 grant execute on all functions in schema public to rb_rls_probe; grant usage on schema auth to rb_rls_probe; grant execute on all functions in schema auth to rb_rls_probe;
 set role rb_rls_probe;
-set request.uid = '00000000-0000-0000-0000-000000000001'; -- Sheena
-select 'T24c Sheena cannot see the calendar settings' t, count(*) = 0 ok from ical_feeds;
-set request.uid = '00000000-0000-0000-0000-000000000002'; -- Donald
-select 'T24d Donald sees each calendar''s status' t, count(*) = 4 ok from ical_feeds;
-do $$ begin update ical_feeds set env_key = 'ICAL_OTHER' where room_id = 'x-pod1'; if found then raise notice 'FAIL Donald changed a feed row from the app'; else raise notice 'PASS feed rows are written by the sync only'; end if; exception when others then raise notice 'PASS feed rows are written by the sync only: %', sqlerrm; end $$;
+set request.uid = '00000000-0000-0000-0000-000000000001'; -- RJ McLeod
+select 'T24c RJ McLeod cannot see the calendar settings' t, count(*) = 0 ok from ical_feeds;
+set request.uid = '00000000-0000-0000-0000-000000000002'; -- Eshcol
+select 'T24d Eshcol sees each calendar''s status' t, count(*) = 4 ok from ical_feeds;
+do $$ begin update ical_feeds set env_key = 'ICAL_OTHER' where room_id = 'x-pod1'; if found then raise notice 'FAIL Eshcol changed a feed row from the app'; else raise notice 'PASS feed rows are written by the sync only'; end if; exception when others then raise notice 'PASS feed rows are written by the sync only: %', sqlerrm; end $$;
 reset role;
 set request.uid = ''; -- the sync runs as the service role, not as a person
 update ical_feeds set label = 'Airbnb' where room_id = 'x-pod1';
 select replace_ical_blocks((select id from ical_feeds where label='Airbnb'), '[{"from":"2027-03-03","to":"2027-03-06"},{"from":"2027-04-10","to":"2027-04-12"}]') as clashes \gset
 select 'T24 blocks stored, dates only' t, count(*) = 2 ok from ical_blocks where room_id='x-pod1';
 select 'T25 double booking flagged once' t, :clashes = 1 ok;
-select 'T26 Donald alerted: possible double booking' t, count(*) > 0 ok from alert_outbox where subject like '⚠ Possible double booking%';
+select 'T26 Eshcol alerted: possible double booking' t, count(*) > 0 ok from alert_outbox where subject like '⚠ Possible double booking%';
 select replace_ical_blocks((select id from ical_feeds where label='Airbnb'), '[{"from":"2027-03-03","to":"2027-03-06"},{"from":"2027-04-10","to":"2027-04-12"}]');
 select 'T27 re-sync does not re-alert' t, count(*) = 1 ok from alert_outbox where subject like '⚠ Possible double booking%';
 select replace_ical_blocks((select id from ical_feeds where label='Airbnb'), null, 'HTTP 404');
@@ -115,47 +115,47 @@ do $$ begin insert into stays(room_id,hold_label,arrival,departure) values ('x-p
 insert into stays(room_id,hold_label,arrival,departure) values ('x-pod2','Ewan','2027-05-01','2027-05-03');
 set request.uid = '00000000-0000-0000-0000-000000000002';
 insert into stays(room_id,hold_label,arrival,departure) values ('x-cottage','Direct guest','2027-05-01','2027-05-08');
-select 'T29 Donald books extras directly' t, count(*) = 1 ok from stays where hold_label='Direct guest';
+select 'T29 Eshcol books extras directly' t, count(*) = 1 ok from stays where hold_label='Direct guest';
 set request.uid = '00000000-0000-0000-0000-000000000001';
 delete from stays where hold_label='Ewan';
-select 'T30 Sheena can cancel her own extra booking' t, count(*) = 0 ok from stays where hold_label='Ewan';
-select 'T31 double-booking log is Donald-only and names no booking site' t, bool_and(manager_only) and not bool_or(text like '%Airbnb%') ok from activity where text like '⚠ Possible double booking%';
+select 'T30 RJ McLeod can cancel their own extra booking' t, count(*) = 0 ok from stays where hold_label='Ewan';
+select 'T31 double-booking log is Eshcol-only and names no booking site' t, bool_and(manager_only) and not bool_or(text like '%Airbnb%') ok from activity where text like '⚠ Possible double booking%';
 -- RLS as an ordinary signed-in role: settings, activity, others' extra bookings
 grant select, update on app_settings to rb_rls_probe; grant select on app_settings_history to rb_rls_probe; grant select on activity, stays to rb_rls_probe;
 set role rb_rls_probe;
-set request.uid = '00000000-0000-0000-0000-000000000001'; -- Sheena
-select 'T34 Sheena reads the rate' t, (value #>> '{}')::int = 350 ok from app_settings where key = 'rate_per_room_week';
+set request.uid = '00000000-0000-0000-0000-000000000001'; -- RJ McLeod
+select 'T34 RJ McLeod reads the rate' t, (value #>> '{}')::int = 350 ok from app_settings where key = 'rate_per_room_week';
 update app_settings set value = '1' where key = 'rate_per_room_week';
-select 'T35 Sheena cannot change the rate' t, (value #>> '{}')::int = 350 ok from app_settings where key = 'rate_per_room_week';
-select 'T36 Sheena sees no Donald-only activity' t, count(*) = 0 ok from activity where manager_only;
-select 'T37 Sheena cannot read Donald''s extra bookings (dates only via extra_taken)' t, count(*) = 0 ok from stays where hold_label in ('Mrs Direct','Direct guest');
-select 'T37a Sheena reads her own extra booking' t, count(*) = 1 ok from stays where hold_label = 'Calum';
-set request.uid = '00000000-0000-0000-0000-000000000002'; -- Donald
+select 'T35 RJ McLeod cannot change the rate' t, (value #>> '{}')::int = 350 ok from app_settings where key = 'rate_per_room_week';
+select 'T36 RJ McLeod sees no Eshcol-only activity' t, count(*) = 0 ok from activity where manager_only;
+select 'T37 RJ McLeod cannot read Eshcol''s extra bookings (dates only via extra_taken)' t, count(*) = 0 ok from stays where hold_label in ('Mrs Direct','Direct guest');
+select 'T37a RJ McLeod reads their own extra booking' t, count(*) = 1 ok from stays where hold_label = 'Calum';
+set request.uid = '00000000-0000-0000-0000-000000000002'; -- Eshcol
 update app_settings set value = '400' where key = 'rate_per_room_week';
-select 'T38 Donald changes the rate' t, (value #>> '{}')::int = 400 ok from app_settings where key = 'rate_per_room_week';
-select 'T38a rate history: who, old and new, Donald can read it' t, count(*) = 1 ok from app_settings_history
+select 'T38 Eshcol changes the rate' t, (value #>> '{}')::int = 400 ok from app_settings where key = 'rate_per_room_week';
+select 'T38a rate history: who, old and new, Eshcol can read it' t, count(*) = 1 ok from app_settings_history
   where old_value = '350' and new_value = '400' and changed_by = '00000000-0000-0000-0000-000000000002';
 set request.uid = '00000000-0000-0000-0000-000000000001';
-select 'T38b Sheena cannot read the rate history' t, count(*) = 0 ok from app_settings_history;
+select 'T38b RJ McLeod cannot read the rate history' t, count(*) = 0 ok from app_settings_history;
 reset role;
 select 'T39 prices follow the rate (Abhainn 2 rooms charged x £400, 7 nights = £800)' t, indicative_price('x-cottage','2027-06-01','2027-06-08') like 'Indicative £800 for 7 nights%' ok;
 set request.uid = '00000000-0000-0000-0000-000000000001';
-select 'T32 extra_taken gives Sheena dates without names' t, count(*) = 1 ok from extra_taken() where room_id = 'x-cottage' and start_date = '2027-05-01';
+select 'T32 extra_taken gives RJ McLeod dates without names' t, count(*) = 1 ok from extra_taken() where room_id = 'x-cottage' and start_date = '2027-05-01';
 select 'T33 export tokens for every extra unit' t, count(*) = 4 ok from ical_exports;
 -- open-ended (until further notice) extra bookings
-set request.uid = '00000000-0000-0000-0000-000000000001'; -- Sheena
+set request.uid = '00000000-0000-0000-0000-000000000001'; -- RJ McLeod
 insert into stays(room_id,hold_label,arrival,departure,dep_status) values ('x-pod2','Long stay','2027-07-01',null,'ufn');
-select 'T40 Sheena books an extra open-ended (until further notice)' t, count(*) = 1 ok from stays where hold_label='Long stay' and departure is null;
+select 'T40 RJ McLeod books an extra open-ended (until further notice)' t, count(*) = 1 ok from stays where hold_label='Long stay' and departure is null;
 do $$ begin insert into stays(room_id,hold_label,arrival,departure) values ('x-pod2','Later','2027-09-01','2027-09-03'); raise notice 'FAIL open-ended booking did not block later dates'; exception when others then raise notice 'PASS open-ended booking blocks every later night: %', sqlerrm; end $$;
 do $$ begin insert into stays(room_id,hold_label,arrival,departure,dep_status) values ('x-pod1','Open clash','2027-03-20',null,'ufn'); raise notice 'FAIL open-ended over a later calendar block allowed'; exception when others then raise notice 'PASS open-ended refused when a later night is booked elsewhere: %', sqlerrm; end $$;
 select 'T41 open-ended price is weekly, until further notice' t, indicative_price('x-pod2','2027-07-01',null) = 'Indicative £400 per week, until further notice' ok;
-select 'T42 Donald alerted it is open-ended' t, count(*) = 1 ok from alert_outbox where subject like 'New booking%' and body like '%Uig%until further notice%';
+select 'T42 Eshcol alerted it is open-ended' t, count(*) = 1 ok from alert_outbox where subject like 'New booking%' and body like '%Uig%until further notice%';
 update stays set departure = '2027-07-15', dep_status = 'planned' where hold_label='Long stay';
-select 'T43 Sheena sets the end date later' t, departure = '2027-07-15' ok from stays where hold_label='Long stay';
+select 'T43 RJ McLeod sets the end date later' t, departure = '2027-07-15' ok from stays where hold_label='Long stay';
 insert into stays(room_id,hold_label,arrival,departure) values ('x-pod2','Later','2027-09-01','2027-09-03');
 select 'T44 after the end date the nights are free again' t, count(*) = 1 ok from stays where hold_label='Later';
 -- regression 18 Oct 2026: set the end date of an open-ended contract stay (the row the app sends: date + planned)
-set request.uid = '00000000-0000-0000-0000-000000000001'; -- Sheena
+set request.uid = '00000000-0000-0000-0000-000000000001'; -- RJ McLeod
 insert into stays(room_id,worker_id,hold_label,arrival,departure,dep_status) values ('lr-5',null,'Open contract','2027-08-01',null,'ufn');
 do $$ begin insert into stays(room_id,hold_label,arrival,departure) values ('lr-5','After','2027-08-20','2027-08-22'); raise notice 'FAIL open-ended contract stay did not block'; exception when others then raise notice 'PASS open-ended contract stay blocks later nights: %', sqlerrm; end $$;
 update stays set departure = '2027-08-10', dep_status = 'planned' where hold_label='Open contract';

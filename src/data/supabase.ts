@@ -1,7 +1,7 @@
 // Supabase backend. Mirrors supabase/migrations/*.sql. Derived changeovers, activity log and the alert
 // outbox are written by database triggers, so this file only reads tables and performs the user's writes.
 import { createClient, type RealtimeChannel } from '@supabase/supabase-js';
-import { S, publish, ConflictError, DEFAULT_SETTINGS, normDep } from './core';
+import { S, publish, ConflictError, DEFAULT_SETTINGS, normDep, ROLE_LABEL } from './core';
 import type { ActKind, DB, Stay, Changeover, Worker, Series, Settings, StayInput } from './core';
 import { reshape } from './crew';
 import { londonToday } from '../dates';
@@ -156,7 +156,7 @@ async function refresh() {
     q('series', 'created_at'),
     q('ical_feeds', 'label'), // manager only (RLS); others get an empty list
     q('ical_blocks', 'start_date'),
-    // Sheena cannot read other guests' stays in the extras (0008 RLS): she gets their dates only
+    // RJ McLeod cannot read other guests' stays in the extras (0008 RLS): they gets their dates only
     sb.rpc('extra_taken'),
     sb.from('app_settings').select('*'), // everyone reads; only the manager can change (0008)
     sb.from('app_settings_history').select('*').order('changed_at', { ascending: false }).limit(50), // manager only
@@ -168,14 +168,13 @@ async function refresh() {
     currentUser: user.id,
     users: rows<R.ProfileRow>(pr.data).map(r => ({
       id: r.id,
-      name: r.full_name,
+      name: ROLE_LABEL[r.role], // never a person's name on screen, in logs or alerts (19 Oct 2026)
       role: r.role,
       email: r.email ?? '',
       phone: r.phone ?? '',
       smsOptIn: r.sms_opt_in,
       pushEnabled: r.push_enabled,
       emailImmediate: r.email_immediate ?? true,
-      minorDigest: r.minor_digest ?? false,
     })),
     properties: rows<R.PropertyRow>(pp.data).map(r => ({
       id: r.id,
@@ -419,7 +418,6 @@ export const supabaseRepo: Repo = {
             sms_opt_in: p.smsOptIn,
             push_enabled: p.pushEnabled,
             email_immediate: p.emailImmediate,
-            minor_digest: p.minorDigest,
           })
           .eq('id', id)
       ).error,

@@ -15,6 +15,7 @@ import {
   propOf,
   blocksIn,
   normDep,
+  ROLE_LABEL,
 } from '../core';
 import type { Stay, StayInput } from '../core';
 import { snap, commit, log, undoStack } from './store';
@@ -22,13 +23,17 @@ import { stayError } from '../rules';
 import { notifyStays, handle } from './alerts';
 import { estimateLine } from '../pricing';
 
-/** An extra-property booking Sheena made (she may see and change it); Donald's own ones stay private. */
+const roleOf = (id: string) => {
+  const r = S.db.users.find(u => u.id === id)?.role;
+  return r ? ROLE_LABEL[r] : 'someone else';
+};
+/** An extra-property booking RJ McLeod made (they may see and change it); Eshcol's own ones stay private. */
 const clientOwned = (s: Stay) => S.db.users.find(u => u.id === s.bookedBy)?.role === 'client';
 
 export function saveStay(inp: StayInput): Stay {
   inp = normDep(inp);
-  // Extra properties are booked whole and confirmed straight away (Donald is told; invoiced separately).
-  // Sheena can change or cancel only her own extra bookings; she never sees who else has one.
+  // Extra properties are booked whole and confirmed straight away (Eshcol is told; invoiced separately).
+  // RJ McLeod can change or cancel only their own extra bookings; they never sees who else has one.
   const extra = isExtra(roomOf(inp.roomId).propertyId);
   const actor = S.db.users.find(u => u.id === S.db.currentUser)?.role;
   if (actor === 'client' && inp.id) {
@@ -55,7 +60,7 @@ export function saveStay(inp: StayInput): Stay {
     if (!cur) throw new ConflictError('This stay was cancelled by someone else.');
     if (cur.version !== inp.version)
       throw new ConflictError(
-        `This stay was changed by ${S.db.users.find(u => u.id === cur.updatedBy)?.name ?? 'someone else'} while you were editing. Reload to see the latest before saving.`,
+        `This stay was changed by ${roleOf(cur.updatedBy)} while you were editing. Reload to see the latest before saving.`,
       );
     const changes: string[] = [];
     if (!cur.workerId && inp.workerId) changes.push(`named hold as ${who}`);

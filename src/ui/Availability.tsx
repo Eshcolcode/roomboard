@@ -1,7 +1,7 @@
 // Extra properties: three-month availability per unit (free / taken only, never who), pick dates by tapping
 // the first night and the check-out day, then "Book these dates". Used on the property page and on the
 // stand-alone #availability page. A booking is confirmed straight away (whole property, indicative price shown);
-// Donald is told, and invoicing happens separately.
+// Eshcol is told, and invoicing happens separately.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { data, useDB, me, stayLabel, thumb, ROLE_LABEL } from '../data';
 import type { Property } from '../data';

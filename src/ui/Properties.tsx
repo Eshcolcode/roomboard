@@ -1,6 +1,6 @@
 // Properties: every house with its real details, photos and indicative price. Contract houses list their rooms;
 // extra properties show availability and are booked straight away, whole ("Extra · invoiced separately").
-// Donald sets the one indicative rate here (Sheena sees the prices only).
+// Eshcol sets the one indicative rate here (RJ McLeod sees the prices only).
 // Unknown items are marked "details to come", never invented. #available, #available/<propertyId>.
 import { useRef, useState } from 'react';
 import { Lightbox } from './Lightbox';
@@ -74,7 +74,7 @@ export function Properties({ sub, start, onOpen }: { sub?: string; start?: strin
   );
 }
 
-// enquiries sent from the old "More rooms" page (and any still arriving) stay visible to Donald
+// enquiries sent from the old "More rooms" page (and any still arriving) stay visible to Eshcol
 function Enquiries() {
   const db = useDB();
   return (
@@ -140,7 +140,7 @@ const chargeText = (p: Property) =>
     ? `Booked as a whole property: ${p.charged} of its ${p.bedrooms} rooms are charged (the sofa-bed/desk room is not), even if only one is used.`
     : 'Booked as a whole property: every bedroom is charged, even if only one is used.';
 
-/** Donald only: the one indicative rate used for every price in the app. Sheena sees the prices, not this. */
+/** Eshcol only: the one indicative rate used for every price in the app. RJ McLeod sees the prices, not this. */
 function RateSetting() {
   const db = useDB();
   const [v, setV] = useState(String(rate(db)));
@@ -183,7 +183,7 @@ function RateSetting() {
   );
 }
 
-/** Donald only: every change of the rate, newest first: who, when, old → new. */
+/** Eshcol only: every change of the rate, newest first: who, when, old → new. */
 function RateHistory() {
   const db = useDB();
   const list = db.rateHistory ?? [];
@@ -419,7 +419,7 @@ function PropertyPage({ p, start, onOpen }: { p: Property; start?: string; onOpe
   );
 }
 
-/** Donald only: is this unit's booking calendar linked, when was it last read, and the export link. The calendar
+/** Eshcol only: is this unit's booking calendar linked, when was it last read, and the export link. The calendar
  * link itself is a server secret (see docs/PROPERTY-DATA.md): it is never shown or typed in here. */
 function CalendarLinks({ p }: { p: Property }) {
   const db = useDB();

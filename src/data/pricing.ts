@@ -3,7 +3,7 @@
 // estimate anywhere (priceLine / estimateLine return null and the screens show CONTRACT_LINE instead). The flag is
 // the single source of truth (demo: src/data/properties.ts; database: properties.contracted); see
 // docs/PROPERTY-DATA.md to switch a property onto or off the contract.
-// One rate, set by Donald (app_settings in the database; demo: this browser). An extra property (Harris, Uig, Monadh,
+// One rate, set by Eshcol (app_settings in the database; demo: this browser). An extra property (Harris, Uig, Monadh,
 // Abhainn Cottage) is always booked whole, so it is priced as its charged rooms (every bedroom, except Abhainn's
 // sofa-bed/desk room: 2 of 3), even if only one is used.
 // Pro rata: weekly price ÷ 7 per night, rounded to the nearest pound. Indicative only: invoiced separately, and

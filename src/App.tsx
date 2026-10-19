@@ -130,7 +130,7 @@ function Shell({ wide }: { wide: boolean }) {
 
   // Quick (default): the one-question quick card / booking flow. Classic: the original panel, unchanged.
   const open = (p: PanelInit) => {
-    // an extra-property booking someone else made (Donald's own guests, to Sheena) only ever opens as the
+    // an extra-property booking someone else made (Eshcol's own guests, to RJ McLeod) only ever opens as the
     // read-only quick card (dates only); every other booking, extras included, opens in the chosen mode
     const othersExtra =
       !!p.stay &&

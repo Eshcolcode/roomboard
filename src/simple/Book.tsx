@@ -22,7 +22,7 @@ const nextMonday = (t: string) => {
 const err = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 /**
- * A typed new name becomes a saved worker (the workers list Sheena holds). `privateName`: Donald's own guest in
+ * A typed new name becomes a saved worker (the workers list RJ McLeod holds). `privateName`: Eshcol's own guest in
  * an extra property stays a name on that booking only, never added to the shared workers list.
  */
 export async function resolveWho(

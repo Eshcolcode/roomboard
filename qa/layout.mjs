@@ -1,4 +1,4 @@
-// Layout sanity across every route, at 1440 and 390, for Donald, Sheena and the cleaner, plus the overlay states
+// Layout sanity across every route, at 1440 and 390, for Eshcol, RJ McLeod and the cleaner, plus the overlay states
 // (book-in-place sheet, photo viewer, quick card). Fails on: horizontal page scroll, elements spilling off the
 // screen outside a scroll container, form controls / text blocks taller than half the screen (the "Who is
 // staying?" box bug), images taller than the screen, and console errors. node qa/layout.mjs (preview on :4173 or
@@ -40,7 +40,7 @@ const ROUTES = [
   'print-today',
   'print-cleaning',
 ];
-const USERS = { donald: 'u-donald', sheena: 'u-client', cleaner: 'u-mairi' };
+const USERS = { eshcol: 'u-eshcol', rj: 'u-client', cleaner: 'u-housekeeper' };
 const SIZES = { desk: [1440, 950], phone: [390, 844] };
 
 async function scan(p) {
@@ -96,7 +96,7 @@ async function audit(p, tag) {
   await p.goto(U + '#available/p-pod2');
   await p.evaluate(() => {
     localStorage.clear();
-    localStorage.setItem('rb-welcome:u-donald', '1');
+    localStorage.setItem('rb-welcome:u-eshcol', '1');
   });
   await p.reload();
   await p.waitForTimeout(400);
@@ -135,12 +135,12 @@ for (const [sz, [w, h]] of Object.entries(SIZES))
     await p.goto(U + '#board');
     await p.evaluate(u => {
       localStorage.clear();
-      for (const x of ['u-donald', 'u-client', 'u-mairi']) localStorage.setItem('rb-welcome:' + x, '1');
+      for (const x of ['u-eshcol', 'u-client', 'u-housekeeper']) localStorage.setItem('rb-welcome:' + x, '1');
       localStorage.setItem('rb-demo-user', u);
     }, id);
     await p.reload();
     await p.waitForTimeout(400);
-    if (id !== 'u-donald') {
+    if (id !== 'u-eshcol') {
       const sel = (await p.locator('select.who').count()) ? 'select.who' : 'select.s-who';
       if (await p.locator(sel).count()) await p.selectOption(sel, id);
       await p.waitForTimeout(300);
@@ -183,15 +183,15 @@ for (const [sz, [w, h]] of Object.entries(SIZES))
       await p.screenshot({ path: OUT + `${sz}-${who}-state-lightbox.png` });
       await p.keyboard.press('Escape');
       shots += 2;
-      // quick card: a contract booking, and (Donald) an extra booking with its price and end-date box
+      // quick card: a contract booking, and (Eshcol) an extra booking with its price and end-date box
       await p.goto(U + (sz === 'desk' ? '#board' : '#rooms'));
       await p.waitForTimeout(400);
       const sels =
         sz === 'desk'
-          ? ['.track .bar:not(.xbar)', ...(who === 'donald' ? ['[data-extra="p-cottage"] .xbar'] : [])]
+          ? ['.track .bar:not(.xbar)', ...(who === 'eshcol' ? ['[data-extra="p-cottage"] .xbar'] : [])]
           : [
               '.rcard button:has-text("Quick update")',
-              ...(who === 'donald' ? ['.xcard[data-extra="p-cottage"] .xbtns .btn.ghost'] : []),
+              ...(who === 'eshcol' ? ['.xcard[data-extra="p-cottage"] .xbtns .btn.ghost'] : []),
             ];
       for (const sel of sels) {
         const bar = p.locator(sel).first();

@@ -42,7 +42,7 @@ function db(stays: Stay[]): DB {
   return {
     v: 1,
     currentUser: 'u1',
-    users: [{ id: 'u1', name: 'Donald', role: 'manager', email: '', phone: '' }],
+    users: [{ id: 'u1', name: 'Eshcol', role: 'manager', email: '', phone: '' }],
     properties: [
       {
         id: 'p',

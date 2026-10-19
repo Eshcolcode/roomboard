@@ -143,16 +143,37 @@ describe('demo store: red dot, outbox and the RJ McLeod activity log', () => {
     for (const a of seen) {
       expect(['stay', 'rota', 'worker']).toContain(a.kind);
       expect(a.managerOnly).toBeFalsy();
-      expect(a.text).not.toMatch(/£|rate|calendar|clean|Mairi/i);
+      expect(a.text).not.toMatch(/£|rate|calendar|clean|Housekeeper/i);
     }
     expect(S.db.activity.some(a => a.kind === 'rate')).toBe(true);
     expect(S.db.activity.some(a => a.kind === 'cleaning')).toBe(true);
-    const donald = S.db.users.find(u => u.role === 'manager')!;
-    const mairi = S.db.users.find(u => u.role === 'cleaner')!;
-    expect(actorName(S.db, donald.id, client)).toBe('Eshcol');
-    expect(actorName(S.db, mairi.id, client)).toBe('Housekeeper');
-    expect(actorName(S.db, mairi.id, donald)).toBe(mairi.name);
-    expect(visibleActivity(S.db, mairi)).toEqual([]);
+    const eshcol = S.db.users.find(u => u.role === 'manager')!;
+    const housekeeper = S.db.users.find(u => u.role === 'cleaner')!;
+    expect(actorName(S.db, eshcol.id, client)).toBe('Eshcol');
+    expect(actorName(S.db, housekeeper.id, client)).toBe('Housekeeper');
+    expect(actorName(S.db, housekeeper.id, eshcol)).toBe('Housekeeper'); // Eshcol sees roles too, never names
+    expect(visibleActivity(S.db, housekeeper)).toEqual([]);
+  });
+  it('older demo data loses every personal name (v6 → v7); guest names stay', async () => {
+    const { toV7 } = await import('./local/store');
+    const old = structuredClone(S.db);
+    old.v = 6;
+    old.users = [
+      { id: 'u-client', name: 'Sheena', role: 'client', email: '', phone: '' },
+      { id: 'u-donald', name: 'Donald Macarthur', role: 'manager', email: 'x@gmail.com', phone: '' },
+      { id: 'u-mairi', name: 'Mairi (demo cleaner)', role: 'cleaner', email: '', phone: '' },
+    ];
+    old.activity = [
+      { id: 'z', ts: '', userId: 'u-donald', text: 'Room 8 clean booked for Mairi (demo cleaner)', kind: 'cleaning' },
+    ];
+    old.stays[0].bookedBy = 'u-donald';
+    const n = toV7(old);
+    const j = JSON.stringify(n);
+    expect(j).not.toMatch(/Donald|Sheena|Mairi|Macarthur|u-donald|u-mairi/);
+    expect(n.users.map(u => u.name)).toEqual(['RJ McLeod', 'Eshcol', 'Housekeeper']);
+    expect(n.activity[0].userId).toBe('u-eshcol');
+    expect(n.stays[0].bookedBy).toBe('u-eshcol');
+    expect(j).toContain('Callum MacLeod'); // guest / worker names are kept
   });
   it('the housekeeper never sees a price', async () => {
     const harris = S.db.properties.find(p => !p.contracted)!;

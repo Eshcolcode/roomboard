@@ -1,6 +1,6 @@
 // Rooms view (v2 look): one card per room with status, nights, departure vs next arrival and the gap,
 // the incoming guest, the cleaning strip and a Quick update button. Summary tiles filter the cards.
-// The urgent banner is computed from real changeovers. Sheena's phone home; also a desktop view.
+// The urgent banner is computed from real changeovers. RJ McLeod's phone home; also a desktop view.
 import { useState } from 'react';
 import {
   data,

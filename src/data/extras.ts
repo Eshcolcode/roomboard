@@ -105,3 +105,14 @@ export function openBlocker(db: DB, roomId: string, from: string): string | null
   for (const b of db.blocks ?? []) if (b.roomId === roomId && b.to > from) take(b.from > from ? b.from : from);
   return first;
 }
+
+/** Find a room: every extra property in board order, each one whole unit, free only if the entire stay is free
+ *  (bookings, calendar "Taken" blocks and open-ended stays all count). `to` null = open-ended. No names, ever. */
+export function extrasFor(db: DB, from: string, to: string | null) {
+  return extraProps(db).flatMap(p => {
+    const r = unitOf(db, p.id);
+    if (!r) return [];
+    const free = to ? to > from && rangeFree(db, r.id, from, to) : openBlocker(db, r.id, from) === null;
+    return [{ p, room: r, free }];
+  });
+}

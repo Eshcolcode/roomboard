@@ -3067,3 +3067,83 @@ button:focus-visible {
 .row3 {
   grid-template-columns: 1.7fr 0.8fr 0.8fr;
 }
+/* Find a room: extra properties (whole unit, indicative price) */
+.xfree-note {
+  margin: -4px 0 10px;
+  color: var(--mute);
+  font-size: 12px;
+}
+.xfree-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 8px;
+}
+.freeextra {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 8px;
+  text-align: left;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  font: inherit;
+  color: inherit;
+}
+button.freeextra {
+  cursor: pointer;
+}
+button.freeextra:hover {
+  border-color: var(--gold);
+  background: var(--em-bg);
+}
+.freeextra img,
+.freeextra .xf-ph {
+  width: 64px;
+  height: 64px;
+  border-radius: 8px;
+  object-fit: cover;
+  flex: none;
+  background: var(--bg);
+}
+.freeextra .xf-txt {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.freeextra b {
+  color: var(--navy);
+}
+.freeextra small {
+  color: var(--mute);
+}
+.freeextra .xf-price {
+  color: var(--navy);
+  font-weight: 700;
+  font-size: 13px;
+}
+.freeextra .xf-price small {
+  font-weight: 400;
+}
+.freeextra .go {
+  color: var(--teal);
+  font-weight: 700;
+  font-size: 12px;
+}
+.freeextra.off {
+  opacity: 0.6;
+  background: var(--sand);
+}
+.freeextra.off img {
+  filter: grayscale(1);
+}
+.freeextra .xf-no {
+  color: var(--mute);
+  font-size: 12px;
+  font-weight: 600;
+}
+@media (max-width: 520px) {
+  .xfree-grid {
+    grid-template-columns: 1fr;
+  }
+}

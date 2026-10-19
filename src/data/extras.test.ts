@@ -10,7 +10,7 @@ const mem = new Map<string, string>();
 const { localRepo: repo } = await import('./local');
 const { S, occupancy } = await import('./core');
 const { addDays, londonToday } = await import('../dates');
-const { dayState, rangeFree, unitIcs, segments, openBlocker } = await import('./extras');
+const { dayState, rangeFree, unitIcs, segments, openBlocker, extrasFor } = await import('./extras');
 const { estimateLine, priceLine, weekly } = await import('./pricing');
 const { parseICS } = await import('./ical');
 const T = londonToday();
@@ -364,5 +364,29 @@ describe('extra properties (demo)', () => {
     expect('request' in req).toBe(false);
     expect(req.bookedBy).toBe(client);
     expect(n.stays.every(x => x.bookedBy !== undefined)).toBe(true);
+  });
+  it('Find a room: extras in board order, whole unit, free only when the whole stay is (bookings, Taken blocks, open-ended)', async () => {
+    await repo.reset();
+    as('client');
+    const a = freeSpan('x-pod1', 10);
+    const from = addDays(T, a);
+    const to = addDays(T, a + 3);
+    const before = extrasFor(S.db, from, to);
+    expect(before.map(x => x.p.short)).toEqual(['Harris', 'Uig', 'Monadh', 'Abhainn Cottage']);
+    expect(before.find(x => x.room.id === 'x-pod1')!.free).toBe(true);
+    await repo.saveStay(ask('x-pod1', a + 2, a + 4));
+    expect(extrasFor(S.db, from, to).find(x => x.room.id === 'x-pod1')!.free).toBe(false);
+    expect(extrasFor(S.db, from, addDays(T, a + 2)).find(x => x.room.id === 'x-pod1')!.free).toBe(true);
+    // open-ended: any later night taken means not free
+    expect(extrasFor(S.db, from, null).find(x => x.room.id === 'x-pod1')!.free).toBe(false);
+    // a calendar "Taken" block counts the same
+    const withBlock = {
+      ...S.db,
+      blocks: [
+        ...(S.db.blocks ?? []),
+        { id: 'b-t', roomId: 'x-pod2', feedId: 'taken', from: addDays(T, a + 1), to: addDays(T, a + 2) },
+      ],
+    } as typeof S.db;
+    expect(extrasFor(withBlock, from, to).find(x => x.room.id === 'x-pod2')!.free).toBe(false);
   });
 });

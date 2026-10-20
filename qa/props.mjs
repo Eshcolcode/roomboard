@@ -199,7 +199,7 @@ ok(
 );
 ok(
   JSON.stringify(await p.locator('.board .grp .gl b').evaluateAll(bs => bs.map(b => b.textContent))) ===
-    JSON.stringify(['Eshcol Worker Accommodation', 'Loch Roag Guest House', 'Extra properties']),
+    JSON.stringify(['Eshcol', 'Loch Roag', 'Extra properties']),
   'board: group order Eshcol, Loch Roag, extras',
 );
 ok(

@@ -11,7 +11,7 @@ const POD_BOOKING =
 export const PROPERTIES: Property[] = [
   {
     id: 'p-es',
-    name: 'Eshcol Worker Accommodation',
+    name: 'Eshcol',
     short: 'Eshcol',
     contracted: true,
     checkout: '10:00',
@@ -45,7 +45,7 @@ export const PROPERTIES: Property[] = [
   },
   {
     id: 'p-lr',
-    name: 'Loch Roag Guest House',
+    name: 'Loch Roag',
     short: 'Loch Roag',
     contracted: true,
     checkout: '10:00',

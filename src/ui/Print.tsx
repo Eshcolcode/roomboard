@@ -37,7 +37,7 @@ export function PrintView({ kind, onBack }: { kind: 'today' | 'cleaning'; onBack
             {fmt(T, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
           </h1>
           <p>
-            Loch Roag Guest House · Eshcol Worker Accommodation · printed{' '}
+            Loch Roag · Eshcol · printed{' '}
             {new Date().toLocaleString('en-GB', {
               timeZone: 'Europe/London',
               day: '2-digit',

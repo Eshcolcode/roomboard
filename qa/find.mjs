@@ -67,7 +67,7 @@ ok(
 );
 const secs = await p.locator('main section[aria-label]').evaluateAll(es => es.map(e => e.getAttribute('aria-label')));
 ok(
-  secs.join('|') === 'Free at Eshcol Worker Accommodation|Free at Loch Roag Guest House|Extra properties free',
+  secs.join('|') === 'Free at Eshcol|Free at Loch Roag|Extra properties free',
   'sections: Eshcol, Loch Roag, then Extra properties',
 );
 ok(

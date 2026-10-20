@@ -26,8 +26,8 @@ Deno.serve(async req => {
   const ranges = mergeRanges(
     (stays ?? []).map(s => ({ from: s.arrival, to: s.departure ?? addDays(s.arrival > today ? s.arrival : today, 365) })),
   ).map(r => ({ ...r, id: `${ex.room_id}-${r.from}` }));
-  const name = (room as { properties?: { name?: string } } | null)?.properties?.name ?? 'Roomboard';
-  const body = exportICS({ name: `${name} · Roomboard`, host: 'roomboard.pages.dev', ranges, now: new Date() });
+  const name = (room as { properties?: { name?: string } } | null)?.properties?.name ?? 'Eshcol Rooms';
+  const body = exportICS({ name: `${name} · Eshcol Rooms`, host: 'roomboard.pages.dev', ranges, now: new Date() });
   return new Response(body, {
     headers: { 'Content-Type': 'text/calendar; charset=utf-8', 'Cache-Control': 'no-store' },
   });

@@ -24,7 +24,7 @@ beforeAll(async () => {
 describe('copy summary', () => {
   it('covers today and tomorrow', () => {
     const t = summaryText('manager');
-    expect(t).toMatch(/^Roomboard summary/);
+    expect(t).toMatch(/^Eshcol Rooms summary/);
     expect(t).toMatch(/Today · /);
     expect(t).toMatch(/Tomorrow · /);
     expect(t).toMatch(/Leaving:/);

@@ -742,7 +742,7 @@ ok(await m.locator('.sheet button:has-text("Properties")').isVisible(), 'phone: 
   await q.waitForTimeout(200);
   const mgr = await q.evaluate(() => navigator.clipboard.readText());
   ok(
-    /^Roomboard summary/.test(mgr) && /Today ·/.test(mgr) && /Tomorrow ·/.test(mgr) && /Leaving:/.test(mgr),
+    /^Eshcol Rooms summary/.test(mgr) && /Today ·/.test(mgr) && /Tomorrow ·/.test(mgr) && /Leaving:/.test(mgr),
     'v2 Copy summary: today + tomorrow movements as text',
     V,
   );

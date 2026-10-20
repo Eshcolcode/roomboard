@@ -25,7 +25,7 @@ export function Simple({ path }: { path: string }) {
       <header className="s-top">
         <button className="s-brand" onClick={home} aria-label="Simple mode home">
           <span className="mark">LR</span>
-          <b>Roomboard</b>
+          <b>Eshcol Rooms</b>
         </button>
         {data.mode === 'demo' && (
           <span className="s-mock" title="Demo mode. Data is kept in this browser only.">

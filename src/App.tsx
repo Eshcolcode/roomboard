@@ -153,7 +153,7 @@ function Shell({ wide }: { wide: boolean }) {
         <div className="brand">
           <span className="mark">LR</span>
           <div>
-            <b>Roomboard</b>
+            <b>Eshcol Rooms</b>
             <small>Loch Roag · Eshcol</small>
           </div>
         </div>

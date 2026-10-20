@@ -343,7 +343,7 @@ export function AvailabilityPage({ only }: { only?: string }) {
       <header className="avp-top">
         <a className="avp-brand" href="#">
           <span className="mark">LR</span>
-          <b>Roomboard</b>
+          <b>Eshcol Rooms</b>
         </a>
         <div className="sp" />
         {data.mode === 'demo' && (

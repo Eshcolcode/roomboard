@@ -17,7 +17,7 @@ export const PROPERTIES: Property[] = [
     checkout: '10:00',
     checkin: '15:00',
     area: AREA,
-    address: 'Formerly Eshcol Guest House, 21 Breasclete, Isle of Lewis HS2 9ED',
+    address: '21 Breasclete, Isle of Lewis HS2 9ED',
     blurb:
       'A newly renovated 10-bedroom property for worker stays: private rooms, modern shower rooms, useful shared spaces and a separate downstairs flat with its own kitchen.',
     photo: 'img/eshcol-exterior.webp',

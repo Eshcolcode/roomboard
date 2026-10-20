@@ -500,7 +500,7 @@ function CalendarLinks({ p }: { p: Property }) {
         </button>
       </div>
       <p className="pp-calp small">
-        Export: paste Roomboard’s link into Airbnb or Booking.com so dates booked here are blocked there.
+        Export: paste Eshcol Rooms’ link into Airbnb or Booking.com so dates booked here are blocked there.
         {data.mode === 'demo' && ' Needs the live backend to give a link.'}
       </p>
     </details>

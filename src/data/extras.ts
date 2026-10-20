@@ -41,7 +41,7 @@ export function unitIcs(db: DB, roomId: string, now?: Date): string {
       to: s.departure ?? addDays(s.arrival > today ? s.arrival : today, 365),
     })),
   ).map(x => ({ ...x, id: `${roomId}-${x.from}` }));
-  return exportICS({ name: `${p.name} · Roomboard`, host: 'roomboard.pages.dev', ranges, now });
+  return exportICS({ name: `${p.name} · Eshcol Rooms`, host: 'roomboard.pages.dev', ranges, now });
 }
 
 /** Bookings that a calendar block now overlaps (someone booked elsewhere after we booked). */

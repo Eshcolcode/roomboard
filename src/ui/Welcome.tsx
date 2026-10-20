@@ -49,7 +49,7 @@ export function Welcome() {
         aria-labelledby="wl-t"
         onClick={e => e.stopPropagation()}
       >
-        <h2 id="wl-t">Welcome to Roomboard</h2>
+        <h2 id="wl-t">Welcome to Eshcol Rooms</h2>
         <p>Three things worth knowing:</p>
         <ol className="hints">
           {HINTS[u.role].map(([t, d]) => (

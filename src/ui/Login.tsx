@@ -13,7 +13,7 @@ export function Login() {
       <div className="lc">
         <span className="mark">LR</span>
         <h1>Roomboard</h1>
-        <p>Loch Roag · Eshcol Worker Accommodation</p>
+        <p>Loch Roag · Eshcol</p>
         {sent ? (
           <div className="ok">Check your email for a sign-in link.</div>
         ) : (

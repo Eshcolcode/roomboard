@@ -46,7 +46,7 @@ function db(stays: Stay[]): DB {
     properties: [
       {
         id: 'p',
-        name: 'Loch Roag Guest House',
+        name: 'Loch Roag',
         short: 'Loch Roag',
         contracted: true,
         address: '',

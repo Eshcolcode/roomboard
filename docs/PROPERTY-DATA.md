@@ -19,7 +19,7 @@ Source key:
 - **WF**: https://www.whitefalls.co.uk/luxury-selfcatering-hebrides/, https://www.whitefalls.co.uk/book-now/, https://www.whitefalls.co.uk/accommodation/
 - **BH**: http://www.businesshebrides.co.uk/businesses/viewById/518 (an old directory listing)
 
-## Loch Roag Guest House (contract)
+## Loch Roag (contract)
 | Fact | Source |
 |---|---|
 | Rooms 1–5 upstairs, 6–9 downstairs | D |
@@ -32,7 +32,7 @@ Source key:
 | Check-in 15:00 / check-out 10:00 | Roomboard's existing settings (D) |
 | Room photos, Rooms 1–3 and 5–9 (none yet for Room 4) | GP |
 
-## Eshcol Worker Accommodation (contract)
+## Eshcol (contract)
 | Fact | Source |
 |---|---|
 | Main house Rooms 1–7: 2, 3, 4, 6, 7 ensuite; 1 and 5 have private shower rooms | D, and Z's room lines |

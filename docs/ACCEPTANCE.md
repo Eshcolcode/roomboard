@@ -5,7 +5,7 @@ Automated: `npm run build && npx vite preview --port 4173 &` then `node qa/qa.mj
 Run the demo (`npm run build && npx vite preview`, or open the uploaded site), then press **Reset demo**. Use the role switcher top-right.
 
 ## Structure
-- [ ] Board shows **Loch Roag Guest House Rooms 1–9**, grouped *Upstairs · Rooms 1–5* / *Downstairs · Rooms 6–9*. Rooms 2 and 3 show a shared shower, Room 8 shows *Private shower room*, and the others show Ensuite. The room panel shows the floor and bathroom detail.
+- [ ] Board shows **Loch Roag Rooms 1–9**, grouped *Upstairs · Rooms 1–5* / *Downstairs · Rooms 6–9*. Rooms 2 and 3 show a shared shower, Room 8 shows *Private shower room*, and the others show Ensuite. The room panel shows the floor and bathroom detail.
 - [ ] Board shows **Eshcol** as one property (10 rooms) with group labels *Main house · Rooms 1–7* and *Downstairs flat · Rooms 8–10*.
 - [ ] *More rooms* shows **Hebridean Holiday Cabins** (Harris, Uig, Abhainn Cottage) and **Whitefalls Spa Lodges** (Monadh) as separate groups. None of them are on the board.
 

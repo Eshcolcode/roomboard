@@ -14,7 +14,7 @@ const { londonToday } = await import('../dates');
 
 beforeAll(async () => {
   await repo.reset();
-  await repo.setUser('u-donald');
+  await repo.setUser('u-eshcol');
   // book today's clean with a named cleaner so the provider text has a name in it
   const c = S.db.changeovers.find(x => x.afterDate === londonToday())!;
   const cleaner = S.db.users.find(u => u.role === 'cleaner')!;
@@ -24,7 +24,7 @@ beforeAll(async () => {
 describe('copy summary', () => {
   it('covers today and tomorrow', () => {
     const t = summaryText('manager');
-    expect(t).toMatch(/^Roomboard summary/);
+    expect(t).toMatch(/^Eshcol Rooms summary/);
     expect(t).toMatch(/Today · /);
     expect(t).toMatch(/Tomorrow · /);
     expect(t).toMatch(/Leaving:/);

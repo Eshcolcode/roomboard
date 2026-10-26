@@ -1,5 +1,5 @@
 // Row shapes of the Supabase tables (snake_case, as stored). Kept in step with supabase/migrations/*.sql.
-import type { Role, Bath, CoStatus, Alert, Enquiry } from './core';
+import type { Role, Bath, CoStatus, Alert, Enquiry, Tier } from './core';
 type N<T> = T | null;
 export interface StayRow {
   id: string;
@@ -17,6 +17,7 @@ export interface StayRow {
   updated_at: string;
   series_id?: N<string>;
   slot?: N<number>;
+  booked_by?: N<string>;
 }
 export interface ChangeoverRow {
   id: string;
@@ -43,6 +44,7 @@ export interface ProfileRow {
   phone: N<string>;
   sms_opt_in: boolean;
   push_enabled: boolean;
+  email_immediate?: boolean; // 0009
 }
 export interface PropertyRow {
   id: string;
@@ -57,6 +59,7 @@ export interface PropertyRow {
   brand: N<string>;
   checkout_time: N<string>;
   checkin_time: N<string>;
+  details?: N<Record<string, unknown>>; // 0008: area, photos, sleeps, map/website, bookingUrl, credit, todo
 }
 export interface UnitRow {
   id: string;
@@ -72,6 +75,7 @@ export interface RoomRow {
   note: N<string>;
   photo_url: N<string>;
   floor: N<string>;
+  details?: N<Record<string, unknown>>; // 0008: photos, desc, beds
 }
 export interface WorkerRow {
   id: string;
@@ -88,6 +92,32 @@ export interface ActivityRow {
   user_id: string;
   text: string;
   property_id: N<string>;
+  manager_only?: boolean;
+  entity?: N<string>;
+  kind?: N<string>; // 0009 (stay, series, worker, changeover, …)
+  tier?: N<Tier>; // 0009
+  reasons?: N<string[]>; // 0009
+}
+/** notifications (0009): in-app alerts, one row per recipient */
+export interface NoticeRow {
+  id: number | string;
+  created_at: string;
+  recipient_id: string;
+  text: string;
+  reasons: N<string[]>;
+  property_id: N<string>;
+  read_at: N<string>;
+}
+export interface SettingsHistoryRow {
+  changed_at: string;
+  changed_by: N<string>;
+  old_value: unknown;
+  new_value: unknown;
+  key: string;
+}
+export interface SettingsRow {
+  key: string;
+  value: unknown;
 }
 export interface AlertRow {
   id: string;
@@ -132,4 +162,19 @@ export interface SeriesRow {
   cancelled_from: N<string>;
   created_by: string;
   created_at: string;
+}
+export interface FeedRow {
+  id: string;
+  room_id: string;
+  label: string;
+  linked: boolean;
+  last_synced_at: N<string>;
+  last_error: N<string>;
+}
+export interface BlockRow {
+  id: string;
+  feed_id: string;
+  room_id: string;
+  start_date: string;
+  end_date: string;
 }

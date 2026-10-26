@@ -7,6 +7,7 @@ import { saveStay, deleteStay, confirmDeparture, saveBatch } from './stays';
 import { updateChangeover, dismissChangeover } from './changeovers';
 import { upsertWorker, addEnquiry } from './misc';
 import { createSeries, updateSeries } from './series';
+import { setSettings, syncFeeds, exportLink } from './extras';
 
 export const localRepo: Repo = {
   mode: 'demo',
@@ -46,6 +47,9 @@ export const localRepo: Repo = {
     );
     log(
       `Updated default times for ${S.db.properties.find(x => x.id === id)!.name}: checkout ${p.checkout ?? ''} check-in ${p.checkin ?? ''}`,
+      undefined,
+      false,
+      'settings',
     );
     commit();
   },
@@ -54,6 +58,11 @@ export const localRepo: Repo = {
       S.db.users.find(u => u.id === id)!,
       p,
     );
+    commit();
+  },
+  async markRead(ids) {
+    const set = new Set(ids);
+    S.db.notices = (S.db.notices ?? []).map(n => (set.has(n.id) ? { ...n, read: true } : n));
     commit();
   },
   async upsertWorker(w) {
@@ -71,6 +80,15 @@ export const localRepo: Repo = {
   canUndo: () => undoStack.length > 0,
   async addEnquiry(e) {
     addEnquiry(e);
+  },
+  async setSettings(s) {
+    setSettings(s);
+  },
+  async syncFeeds() {
+    return syncFeeds();
+  },
+  async exportLink(roomId) {
+    return exportLink(roomId);
   },
   async setUser(id) {
     S.db.currentUser = id;

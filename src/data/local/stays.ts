@@ -1,4 +1,4 @@
-import { londonToday, fmt } from '../../dates';
+import { londonToday, fmt, diffDays } from '../../dates';
 import {
   S,
   uid,
@@ -11,16 +11,39 @@ import {
   stayLabel,
   roomLabel,
   depText,
+  isExtra,
+  propOf,
+  blocksIn,
+  normDep,
+  ROLE_LABEL,
 } from '../core';
 import type { Stay, StayInput } from '../core';
 import { snap, commit, log, undoStack } from './store';
 import { stayError } from '../rules';
-import { alertStayChange, handle } from './alerts';
+import { notifyStays, handle } from './alerts';
+import { estimateLine } from '../pricing';
+
+const roleOf = (id: string) => {
+  const r = S.db.users.find(u => u.id === id)?.role;
+  return r ? ROLE_LABEL[r] : 'someone else';
+};
+/** An extra-property booking RJ McLeod made (they may see and change it); Eshcol's own ones stay private. */
+const clientOwned = (s: Stay) => S.db.users.find(u => u.id === s.bookedBy)?.role === 'client';
 
 export function saveStay(inp: StayInput): Stay {
-  if (inp.depStatus === 'tbc' || inp.depStatus === 'ufn') inp = { ...inp, departure: null };
+  inp = normDep(inp);
+  // Extra properties are booked whole and confirmed straight away (Eshcol is told; invoiced separately).
+  // RJ McLeod can change or cancel only their own extra bookings; they never sees who else has one.
+  const extra = isExtra(roomOf(inp.roomId).propertyId);
+  const actor = S.db.users.find(u => u.id === S.db.currentUser)?.role;
+  if (actor === 'client' && inp.id) {
+    const cur = S.db.stays.find(s => s.id === inp.id);
+    if (cur && (extra || isExtra(roomOf(cur.roomId).propertyId)) && cur.bookedBy !== S.db.currentUser)
+      throw new Error('This booking was made by Eshcol. Ask Eshcol to change it.');
+  }
   const err = validate(inp);
   if (err) throw new Error(err);
+  const before = structuredClone(S.db.stays);
   if (inp.id) {
     const cur = S.db.stays.find(s => s.id === inp.id);
     if (cur && cur.version === inp.version) snap(`change to ${stayLabel(cur)} · ${roomLabel(cur.roomId)}`);
@@ -37,7 +60,7 @@ export function saveStay(inp: StayInput): Stay {
     if (!cur) throw new ConflictError('This stay was cancelled by someone else.');
     if (cur.version !== inp.version)
       throw new ConflictError(
-        `This stay was changed by ${S.db.users.find(u => u.id === cur.updatedBy)?.name ?? 'someone else'} while you were editing. Reload to see the latest before saving.`,
+        `This stay was changed by ${roleOf(cur.updatedBy)} while you were editing. Reload to see the latest before saving.`,
       );
     const changes: string[] = [];
     if (!cur.workerId && inp.workerId) changes.push(`named hold as ${who}`);
@@ -51,29 +74,54 @@ export function saveStay(inp: StayInput): Stay {
     if ((cur.notes ?? '') !== (inp.notes ?? '')) changes.push('notes updated');
     Object.assign(cur, inp, { version: cur.version + 1, updatedBy: S.db.currentUser, updatedAt: iso() });
     const text = `${roomLabel(cur.roomId)} · ${stayLabel(cur)}: ${changes.join(', ') || 'no changes'}`;
-    log(text, r.propertyId);
+    const priv = extra && !clientOwned(cur);
+    const a = log(text, r.propertyId, priv);
     handle(reconcile(S.db));
-    if (changes.length) alertStayChange(`Stay updated · ${roomLabel(cur.roomId)}`, text);
+    notifyStays(before, a, `Stay updated · ${roomLabel(cur.roomId)}`);
     commit();
     return cur;
   }
-  const s: Stay = { id: uid(), ...inp, version: 1, updatedBy: S.db.currentUser, updatedAt: iso() } as Stay;
+  const s: Stay = {
+    id: uid(),
+    ...inp,
+    bookedBy: S.db.currentUser,
+    version: 1,
+    updatedBy: S.db.currentUser,
+    updatedAt: iso(),
+  } as Stay;
   S.db.stays.push(s);
+  if (extra) {
+    const p = propOf(r.propertyId);
+    const nights = s.departure ? diffDays(s.arrival, s.departure) : null;
+    const t = `Booked ${p.name} (whole property) for ${who}, ${fmt(s.arrival)} → ${depText(s)} · ${estimateLine(S.db, p, nights)} · extra, invoiced separately`;
+    const a = log(t, r.propertyId, actor !== 'client');
+    // Eshcol is told when RJ McLeod books; Eshcol's own bookings of extras are never sent to RJ McLeod
+    notifyStays(before, a, `New booking · ${p.name}`);
+    commit();
+    return s;
+  }
   const text = `${inp.workerId ? 'Booked' : 'Held'} ${roomLabel(s.roomId)} for ${who} from ${fmt(s.arrival)} → ${depText(s)}`;
-  log(text, r.propertyId);
+  const a = log(text, r.propertyId);
   handle(reconcile(S.db));
-  alertStayChange(inp.workerId ? `New arrival · ${roomLabel(s.roomId)}` : `Room held · ${roomLabel(s.roomId)}`, text);
+  notifyStays(before, a, inp.workerId ? `New arrival · ${roomLabel(s.roomId)}` : `Room held · ${roomLabel(s.roomId)}`);
   commit();
   return s;
 }
 export function deleteStay(id: string) {
   const s = S.db.stays.find(x => x.id === id);
   if (!s) return;
+  const role = S.db.users.find(u => u.id === S.db.currentUser)?.role;
+  const extra = isExtra(roomOf(s.roomId).propertyId);
+  if (role === 'client' && extra && s.bookedBy !== S.db.currentUser)
+    throw new Error('This booking was made by Eshcol. Ask Eshcol to cancel it.');
+  const before = structuredClone(S.db.stays);
   snap(`cancelled ${stayLabel(s)} · ${roomLabel(s.roomId)}`);
   S.db.stays = S.db.stays.filter(x => x.id !== id);
-  log(`Cancelled ${stayLabel(s)} · ${roomLabel(s.roomId)} (${fmt(s.arrival)})`, roomOf(s.roomId).propertyId);
+  const text = `Cancelled ${stayLabel(s)} · ${roomLabel(s.roomId)} (${fmt(s.arrival)})`;
+  const priv = extra && !clientOwned(s);
+  const a = log(text, roomOf(s.roomId).propertyId, priv);
   handle(reconcile(S.db));
-  alertStayChange(`Stay cancelled · ${roomLabel(s.roomId)}`, `${stayLabel(s)} from ${fmt(s.arrival)} cancelled`);
+  notifyStays(before, a, `Stay cancelled · ${roomLabel(s.roomId)}`);
   commit();
 }
 export function confirmDeparture(id: string) {
@@ -81,14 +129,15 @@ export function confirmDeparture(id: string) {
     const c = S.db.stays.find(x => x.id === id);
     if (c) snap(`departure confirmed · ${roomLabel(c.roomId)}`);
   }
+  const before = structuredClone(S.db.stays);
   const s = S.db.stays.find(x => x.id === id)!;
   s.depStatus = 'confirmed';
   s.version++;
   s.updatedBy = S.db.currentUser;
   s.updatedAt = iso();
   const t = `Confirmed departure of ${stayLabel(s)} · ${roomLabel(s.roomId)} on ${fmt(s.departure!)}`;
-  log(t, roomOf(s.roomId).propertyId);
-  alertStayChange(`Departure confirmed · ${roomLabel(s.roomId)}`, t);
+  const a = log(t, roomOf(s.roomId).propertyId);
+  notifyStays(before, a, `Departure confirmed · ${roomLabel(s.roomId)}`); // same date: minor, log only
   commit();
 }
 
@@ -110,7 +159,7 @@ export function saveBatch(inputs: StayInput[], removeIds: string[], what: string
     S.db.stays = S.db.stays.filter(s => !removeIds.includes(s.id));
     const touched: Stay[] = [];
     for (const raw of inputs) {
-      const i = raw.depStatus === 'tbc' || raw.depStatus === 'ufn' ? { ...raw, departure: null } : raw;
+      const i = normDep(raw);
       if (i.id) {
         const cur = S.db.stays.find(s => s.id === i.id)!;
         Object.assign(cur, i, { version: cur.version + 1, updatedBy: S.db.currentUser, updatedAt: iso() });
@@ -122,10 +171,10 @@ export function saveBatch(inputs: StayInput[], removeIds: string[], what: string
       }
     }
     for (const t of touched) {
-      const e = stayError(
-        t,
-        S.db.stays.filter(s => s.id !== t.id && s.roomId === t.roomId),
-      );
+      const e = stayError(t, [
+        ...S.db.stays.filter(s => s.id !== t.id && s.roomId === t.roomId),
+        ...blocksIn(t.roomId),
+      ]);
       if (e === 'clash') throw new Error(`${roomLabel(t.roomId)} is already taken for some of those nights.`);
       if (e) throw new Error('Those dates do not work. Please check them again.');
     }
@@ -135,8 +184,8 @@ export function saveBatch(inputs: StayInput[], removeIds: string[], what: string
     throw e;
   }
   const props = new Set([...inputs.map(i => roomOf(i.roomId).propertyId)]);
-  log(what, props.size === 1 ? [...props][0] : undefined);
+  const a = log(what, props.size === 1 ? [...props][0] : undefined);
   handle(reconcile(S.db));
-  alertStayChange(what.split(':')[0], what);
+  notifyStays(before, a, what.split(':')[0]);
   commit();
 }

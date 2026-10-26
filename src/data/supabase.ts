@@ -1,12 +1,13 @@
 // Supabase backend. Mirrors supabase/migrations/*.sql. Derived changeovers, activity log and the alert
 // outbox are written by database triggers, so this file only reads tables and performs the user's writes.
 import { createClient, type RealtimeChannel } from '@supabase/supabase-js';
-import { S, publish, ConflictError } from './core';
-import type { DB, Stay, Changeover, Worker, Series, StayInput } from './core';
+import { S, publish, ConflictError, DEFAULT_SETTINGS, normDep, ROLE_LABEL } from './core';
+import type { ActKind, DB, Stay, Changeover, Worker, Series, Settings, StayInput } from './core';
 import { reshape } from './crew';
 import { londonToday } from '../dates';
 import type { Repo } from './repo';
 import type * as R from './db-rows';
+import { unitIcs } from './extras';
 
 const sb = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_ANON_KEY);
 let channel: RealtimeChannel | null = null;
@@ -21,6 +22,7 @@ const empty = (): DB => ({
   changeovers: [],
   activity: [],
   alerts: [],
+  notices: [],
   enquiries: [],
   currentUser: '',
 });
@@ -40,6 +42,7 @@ const mapStay = (r: R.StayRow): Stay => ({
   updatedAt: r.updated_at,
   seriesId: r.series_id ?? null,
   slot: r.slot ?? null,
+  bookedBy: r.booked_by ?? null,
 });
 const mapSeries = (r: R.SeriesRow): Series => ({
   id: r.id,
@@ -106,6 +109,29 @@ const mapCo = (r: R.ChangeoverRow): Changeover => ({
 });
 
 const rows = <T>(d: unknown): T[] => (d ?? []) as T[];
+/** activity.kind / entity (0009) → the app's kinds; untagged entries stay Eshcol-only in the app too */
+const KINDS: Record<string, ActKind> = {
+  stay: 'stay',
+  series: 'rota',
+  rota: 'rota',
+  worker: 'worker',
+  changeover: 'cleaning',
+  cleaning: 'cleaning',
+  enquiry: 'enquiry',
+  rate: 'rate',
+  ical: 'ical',
+  settings: 'settings',
+};
+const kindOf = (k: string | null | undefined): { kind?: ActKind } => (k && KINDS[k] ? { kind: KINDS[k] } : {});
+const settingsFrom = (rs: R.SettingsRow[]): Settings => {
+  const v = Number(rs.find(r => r.key === 'rate_per_room_week')?.value);
+  const hk = rs.find(r => r.key === 'housekeeper_alerts')?.value;
+  return {
+    ...DEFAULT_SETTINGS,
+    ...(Number.isFinite(v) && v > 0 ? { ratePerRoomWeek: v } : {}),
+    ...(hk === false || hk === 'false' ? { housekeeperAlerts: false } : {}),
+  };
+};
 
 async function refresh() {
   const {
@@ -116,7 +142,7 @@ async function refresh() {
     return;
   }
   const q = (t: string, order = 'id') => sb.from(t).select('*').order(order);
-  const [pr, pp, un, rm, wk, st, co, ac, al, en, se] = await Promise.all([
+  const [pr, pp, un, rm, wk, st, co, ac, al, en, se, fd, bl, tk, cf, rh, nt] = await Promise.all([
     q('profiles'),
     q('properties', 'sort'),
     q('units', 'sort'),
@@ -128,18 +154,27 @@ async function refresh() {
     sb.from('alert_outbox').select('*').order('created_at', { ascending: false }).limit(50),
     q('enquiries', 'created_at'),
     q('series', 'created_at'),
+    q('ical_feeds', 'label'), // manager only (RLS); others get an empty list
+    q('ical_blocks', 'start_date'),
+    // RJ McLeod cannot read other guests' stays in the extras (0008 RLS): they gets their dates only
+    sb.rpc('extra_taken'),
+    sb.from('app_settings').select('*'), // everyone reads; only the manager can change (0008)
+    sb.from('app_settings_history').select('*').order('changed_at', { ascending: false }).limit(50), // manager only
+    // in-app alerts (0009): own rows only (RLS); an empty list until that migration is applied
+    sb.from('notifications').select('*').order('created_at', { ascending: false }).limit(100),
   ]);
   publish({
     v: 1,
     currentUser: user.id,
     users: rows<R.ProfileRow>(pr.data).map(r => ({
       id: r.id,
-      name: r.full_name,
+      name: ROLE_LABEL[r.role], // never a person's name on screen, in logs or alerts (19 Oct 2026)
       role: r.role,
       email: r.email ?? '',
       phone: r.phone ?? '',
       smsOptIn: r.sms_opt_in,
       pushEnabled: r.push_enabled,
+      emailImmediate: r.email_immediate ?? true,
     })),
     properties: rows<R.PropertyRow>(pp.data).map(r => ({
       id: r.id,
@@ -154,6 +189,7 @@ async function refresh() {
       brand: r.brand ?? undefined,
       checkout: r.checkout_time?.slice(0, 5),
       checkin: r.checkin_time?.slice(0, 5),
+      ...(r.details ?? {}),
     })),
     units: rows<R.UnitRow>(un.data).map(r => ({ id: r.id, propertyId: r.property_id, name: r.name })),
     rooms: rows<R.RoomRow>(rm.data).map(r => ({
@@ -165,6 +201,7 @@ async function refresh() {
       note: r.note ?? undefined,
       photo: r.photo_url ?? undefined,
       floor: r.floor ?? undefined,
+      ...(r.details ?? {}),
     })),
     workers: rows<R.WorkerRow>(wk.data).map(r => ({
       id: r.id,
@@ -183,7 +220,29 @@ async function refresh() {
       userId: r.user_id,
       text: r.text,
       propertyId: r.property_id ?? undefined,
+      ...(r.manager_only ? { managerOnly: true } : {}),
+      ...kindOf(r.kind ?? r.entity),
+      ...(r.tier ? { tier: r.tier } : {}),
+      ...(r.reasons?.length ? { reasons: r.reasons } : {}),
     })),
+    notices: rows<R.NoticeRow>(nt.data).map(r => ({
+      id: String(r.id),
+      ts: r.created_at,
+      forUserId: r.recipient_id,
+      text: r.text,
+      reasons: r.reasons ?? [],
+      propertyId: r.property_id ?? undefined,
+      read: !!r.read_at,
+    })),
+    settings: settingsFrom(rows<R.SettingsRow>(cf.data)),
+    rateHistory: rows<R.SettingsHistoryRow>(rh.data)
+      .filter(r => r.key === 'rate_per_room_week')
+      .map(r => ({
+        ts: r.changed_at,
+        userId: r.changed_by,
+        from: r.old_value == null ? null : Number(r.old_value),
+        to: Number(r.new_value),
+      })),
     alerts: rows<R.AlertRow>(al.data).map(r => ({
       id: r.id,
       ts: r.created_at,
@@ -197,6 +256,31 @@ async function refresh() {
       nextAttemptAt: Date.parse(r.next_attempt_at),
     })),
     series: rows<R.SeriesRow>(se.data).map(mapSeries),
+    feeds: rows<R.FeedRow>(fd.data).map(r => ({
+      id: r.id,
+      roomId: r.room_id,
+      label: r.label,
+      linked: r.linked,
+      lastSync: r.last_synced_at,
+      error: r.last_error,
+    })),
+    blocks: rows<R.BlockRow>(bl.data)
+      .map(r => ({
+        id: r.id,
+        roomId: r.room_id,
+        feedId: r.feed_id,
+        from: r.start_date,
+        to: r.end_date,
+      }))
+      .concat(
+        rows<{ room_id: string; start_date: string; end_date: string }>(tk.data).map((r, i) => ({
+          id: 'taken-' + i,
+          roomId: r.room_id,
+          feedId: 'taken',
+          from: r.start_date,
+          to: r.end_date,
+        })),
+      ),
     enquiries: rows<R.EnquiryRow>(en.data).map(r => ({
       id: r.id,
       ts: r.created_at,
@@ -214,19 +298,23 @@ async function refresh() {
 type One = { kind: 'create'; id: string } | { kind: 'update' | 'delete'; before: Stay };
 type Inverse = One | { kind: 'series'; id: string } | { kind: 'batch'; items: One[] };
 const undoStack: Inverse[] = [];
-const toRow = (
-  i: Pick<Stay, 'roomId' | 'workerId' | 'holdLabel' | 'arrival' | 'departure' | 'depStatus' | 'away' | 'notes'>,
-) => ({
-  room_id: i.roomId,
-  worker_id: i.workerId,
-  hold_label: i.workerId ? null : i.holdLabel || 'Name to follow',
-  arrival: i.arrival,
-  departure: i.depStatus === 'tbc' || i.depStatus === 'ufn' ? null : i.departure,
-  dep_status: i.depStatus,
-  away_from: i.away?.from ?? null,
-  away_to: i.away?.to ?? null,
-  notes: i.notes,
-});
+export const toRow = (
+  raw: Pick<Stay, 'roomId' | 'workerId' | 'holdLabel' | 'arrival' | 'departure' | 'depStatus' | 'away' | 'notes'>,
+) => {
+  // same leaving-date rule as the demo: a date with an open status is a newly set (planned) end date
+  const i = normDep(raw);
+  return {
+    room_id: i.roomId,
+    worker_id: i.workerId,
+    hold_label: i.workerId ? null : i.holdLabel || 'Name to follow',
+    arrival: i.arrival,
+    departure: i.departure,
+    dep_status: i.depStatus,
+    away_from: i.away?.from ?? null,
+    away_to: i.away?.to ?? null,
+    notes: i.notes,
+  };
+};
 const fail = (e: R.PgError | null | undefined) => {
   if (e?.code === '23P01') throw new Error('That room is already taken for some of those nights.');
   if (e?.code === 'P0001') throw new Error(e.message);
@@ -323,8 +411,22 @@ export const supabaseRepo: Repo = {
   },
   async setPrefs(id, p) {
     fail(
-      (await sb.from('profiles').update({ sms_opt_in: p.smsOptIn, push_enabled: p.pushEnabled }).eq('id', id)).error,
+      (
+        await sb
+          .from('profiles')
+          .update({
+            sms_opt_in: p.smsOptIn,
+            push_enabled: p.pushEnabled,
+            email_immediate: p.emailImmediate,
+          })
+          .eq('id', id)
+      ).error,
     );
+    await refresh();
+  },
+  async markRead(ids) {
+    if (!ids.length) return;
+    fail((await sb.from('notifications').update({ read_at: new Date().toISOString() }).in('id', ids)).error);
     await refresh();
   },
   async upsertWorker(w) {
@@ -436,6 +538,29 @@ export const supabaseRepo: Repo = {
     undoStack.push({ kind: 'batch', items: done });
     await refresh();
   },
+  async setSettings(s) {
+    if (s.ratePerRoomWeek !== undefined) {
+      const r = Math.round(s.ratePerRoomWeek);
+      if (!Number.isFinite(r) || r <= 0 || r > 100000)
+        throw new Error('Enter a weekly price in pounds, for example 350.');
+      fail((await sb.from('app_settings').update({ value: r }).eq('key', 'rate_per_room_week')).error);
+    }
+    if (s.housekeeperAlerts !== undefined)
+      fail((await sb.from('app_settings').upsert({ key: 'housekeeper_alerts', value: s.housekeeperAlerts })).error);
+    await refresh();
+  },
+  async syncFeeds() {
+    const { data, error } = await sb.functions.invoke('ical-sync', { body: {} });
+    if (error) throw new Error('Could not read the calendar links right now. Try again in a minute.');
+    await refresh();
+    return { conflicts: (data as { conflicts?: number })?.conflicts ?? 0 };
+  },
+  async exportLink(roomId) {
+    const { data, error } = await sb.from('ical_exports').select('token').eq('room_id', roomId).maybeSingle();
+    fail(error);
+    const url = data ? `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ical-export?t=${data.token}` : null;
+    return { url, text: unitIcs(S.db, roomId) };
+  },
   canUndo: () => undoStack.length > 0,
   async setUser() {
     /* identity comes from login */
@@ -445,6 +570,17 @@ export const supabaseRepo: Repo = {
     channel?.unsubscribe();
   },
   async signIn(email) {
-    fail((await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: location.href.split('#')[0] } })).error);
+    fail(
+      (
+        await sb.auth.signInWithOtp({
+          email,
+          options: { emailRedirectTo: location.href.split('#')[0], shouldCreateUser: false },
+        })
+      ).error,
+    );
+  },
+  // the code in the same email: works even when a company mail filter has already opened (used up) the link
+  async verifyCode(email, code) {
+    fail((await sb.auth.verifyOtp({ email, token: code.replace(/\D/g, ''), type: 'email' })).error);
   },
 };

@@ -42,18 +42,18 @@ function db(stays: Stay[]): DB {
   return {
     v: 1,
     currentUser: 'u1',
-    users: [{ id: 'u1', name: 'Donald', role: 'manager', email: '', phone: '' }],
+    users: [{ id: 'u1', name: 'Eshcol', role: 'manager', email: '', phone: '' }],
     properties: [
       {
         id: 'p',
-        name: 'Loch Roag Guest House',
+        name: 'Loch Roag',
         short: 'Loch Roag',
         contracted: true,
         address: '',
         blurb: '',
         features: [],
       },
-      { id: 'x', name: 'Pod 1', short: 'Pod 1', contracted: false, address: '', blurb: '', features: [] },
+      { id: 'x', name: 'Harris', short: 'Harris', contracted: false, address: '', blurb: '', features: [] },
     ],
     units: [{ id: 'u', propertyId: 'p', name: 'All' }],
     rooms: [1, 2, 3].map(i => ({

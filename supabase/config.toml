@@ -1,0 +1,47 @@
+# Remote config for the Roomboard project (czuzlalyrnfoewxlpwdk).
+# `supabase config push` only writes properties declared here; others stay as they are.
+# Secrets are never stored here: the SMTP password comes from env at push time.
+project_id = "roomboard"
+
+[auth]
+site_url = "https://roomboard.pages.dev"
+additional_redirect_urls = ["https://roomboard.pages.dev/**", "https://properties.roomboard.pages.dev/**", "https://*.roomboard.pages.dev/**"]
+enable_signup = false
+
+[auth.rate_limit]
+# Auth emails (magic links, invites) per hour across the project.
+email_sent = 30
+
+[auth.email]
+enable_signup = true   # email provider on (magic link); public signups are off via auth.enable_signup
+enable_confirmations = true
+max_frequency = "1m0s"
+otp_length = 8
+
+[auth.email.smtp]
+enabled = true
+host = "smtp.gmail.com"
+port = 465
+user = "stay@eshcol.com"
+pass = "env(ESHCOL_SMTP_PASS)"
+admin_email = "stay@eshcol.com"
+sender_name = "Eshcol Rooms"
+
+[auth.email.template.magic_link]
+subject = "Your Eshcol Rooms sign-in link"
+content_path = "./supabase/templates/magic_link.html"
+
+[auth.email.template.invite]
+subject = "Your Eshcol Rooms sign-in link"
+content_path = "./supabase/templates/invite.html"
+
+[auth.mfa.totp]
+enroll_enabled = true
+verify_enabled = true
+
+[db.pooler]
+default_pool_size = 15
+max_client_conn = 200
+
+[storage.vector]
+enabled = false

@@ -17,6 +17,7 @@ const PATHS: Record<string, string> = {
   close: 'M6 6l12 12M18 6L6 18',
   copy: 'M9 9h11v11H9zM5 15H4V4h11v1',
   crew: 'M7 10a3 3 0 100-6 3 3 0 000 6zM17 10a3 3 0 100-6 3 3 0 000 6zM2 20c0-3 2-5 5-5s5 2 5 5M12 20c0-3 2-5 5-5s5 2 5 5',
+  bell: 'M6 8a6 6 0 1112 0c0 7 3 9 3 9H3s3-2 3-9M10 21a2 2 0 004 0',
   repeat: 'M17 2l4 4-4 4M3 11V9a3 3 0 013-3h15M7 22l-4-4 4-4M21 13v2a3 3 0 01-3 3H3',
 };
 

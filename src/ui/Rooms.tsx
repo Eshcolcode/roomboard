@@ -1,6 +1,6 @@
 // Rooms view (v2 look): one card per room with status, nights, departure vs next arrival and the gap,
 // the incoming guest, the cleaning strip and a Quick update button. Summary tiles filter the cards.
-// The urgent banner is computed from real changeovers. Sheena's phone home; also a desktop view.
+// The urgent banner is computed from real changeovers. RJ McLeod's phone home; also a desktop view.
 import { useState } from 'react';
 import {
   data,
@@ -22,6 +22,9 @@ import type { PanelInit } from './StayPanel';
 import { confirmDialog, toast } from './overlays';
 import { copySummary } from './summary';
 import { Icon } from './icons';
+import { dayState, nextFree, ownOn, segments, unitOf } from '../data/extras';
+import { priceLine, PRICE_NOTE } from '../data/pricing';
+import { ExtraSheet } from './ExtraSheet';
 
 /** "Leaves Fri 23 Oct (planned)" / "Until further notice" / "Departure TBC" — never "departs Until further notice". */
 export function leaving(s: Stay) {
@@ -148,9 +151,9 @@ export function Rooms({ onOpen }: { onOpen: (p: PanelInit) => void }) {
         {tile('long', 'Long stay', `${LONG_STAY}+ nights or open`, 'sky')}
         {extra > 0 && (
           <a className="tile t-dark" href="#available">
-            <small>Extra capacity</small>
+            <small>Extra properties</small>
             <b>{extra}</b>
-            <span>more properties · ask about dates</span>
+            <span>bookable · invoiced separately</span>
           </a>
         )}
       </div>
@@ -186,6 +189,7 @@ export function Rooms({ onOpen }: { onOpen: (p: PanelInit) => void }) {
           </section>
         );
       })}
+      {filter === 'all' && <ExtrasSection onOpen={onOpen} />}
       {filter !== 'all' && !rooms.some(show) && (
         <p className="empty-state">
           No rooms match.{' '}
@@ -196,6 +200,103 @@ export function Rooms({ onOpen }: { onOpen: (p: PanelInit) => void }) {
       )}
       {!props.length && <p className="empty-state">No properties yet.</p>}
     </div>
+  );
+}
+
+/** Extra properties (booked whole): live status from Roomboard bookings and their booking calendars. */
+function ExtrasSection({ onOpen }: { onOpen: (p: PanelInit) => void }) {
+  const db = useDB();
+  const u = me();
+  const T = londonToday();
+  const extras = db.properties.filter(p => !p.contracted);
+  const [sheet, setSheet] = useState<{ pid: string; date?: string } | null>(null);
+  if (!extras.length || u.role === 'cleaner') return null;
+  const next14 = Array.from({ length: 14 }, (_, i) => addDays(T, i));
+  return (
+    <section aria-label="Extra properties" className="rooms rgroup xsec">
+      <h3>
+        Extra properties
+        <small>Whole property · invoiced separately · {PRICE_NOTE}</small>
+      </h3>
+      <div className="rgrid">
+        {extras.map(p => {
+          const r = unitOf(db, p.id);
+          if (!r) return null;
+          const tonight = segments(db, r.id, T, addDays(T, 1), u)[0];
+          const nf = nextFree(db, r.id, T);
+          const mineNext = segments(db, r.id, T, addDays(T, 365), u).find(g => g.stay);
+          const n = p.bedrooms ?? 1;
+          const [tone, label] = !tonight ? ['emerald', 'Free tonight'] : ['slate', tonight.stay ? 'Booked' : 'Taken'];
+          return (
+            <article
+              className={'rr rcard xcard tone-' + tone}
+              key={p.id}
+              data-extra={p.id}
+              aria-label={`${p.name}: ${label}`}
+            >
+              <header>
+                <div>
+                  <b>{p.name}</b>
+                  <small>
+                    Whole property · {n} bedroom{n === 1 ? '' : 's'}
+                  </small>
+                </div>
+                <span className={'spill sp-' + tone}>{label}</span>
+              </header>
+              <div className="occ">
+                <div>
+                  <small>Tonight</small>
+                  <b>{!tonight ? 'Free' : tonight.stay ? stayLabel(tonight.stay) : 'Taken'}</b>
+                </div>
+              </div>
+              <div className="x14" role="group" aria-label={`${p.name}: next 14 nights, tap a free night to book`}>
+                {next14.map(d => {
+                  const free = dayState(db, r.id, d) === 'free';
+                  const own = !free && u.role === 'client' && !!ownOn(db, r.id, d, u.id);
+                  const label = `${fmt(d, { weekday: 'long', day: 'numeric', month: 'long' })}: ${free ? 'free, book from this night' : own ? 'yours' : 'taken'}`;
+                  const inner = (
+                    <>
+                      <small>{fmt(d, { weekday: 'short' }).slice(0, 2)}</small>
+                      {+d.slice(8)}
+                    </>
+                  );
+                  return free ? (
+                    <button
+                      key={d}
+                      className="xd f"
+                      aria-label={label}
+                      title={label}
+                      onClick={() => setSheet({ pid: p.id, date: d })}
+                    >
+                      {inner}
+                    </button>
+                  ) : (
+                    <span key={d} className={'xd ' + (own ? 'm' : 't')} aria-label={label} title={label}>
+                      {inner}
+                    </span>
+                  );
+                })}
+              </div>
+              <p className="xline">
+                {nf === T ? '' : nf ? `Next free ${fmt(nf)} · ` : 'Fully booked for now · '}
+                {priceLine(db, p)}
+              </p>
+              <div className="xbtns">
+                <button className="btn primary" onClick={() => setSheet({ pid: p.id, date: nf ?? undefined })}>
+                  {nf && nf !== T ? `Book from ${fmt(nf)}` : 'Book'}
+                </button>
+                {mineNext?.stay && (
+                  <button className="btn ghost" onClick={() => onOpen({ stay: mineNext.stay! })}>
+                    {mineNext.stay.arrival <= T ? 'Current booking' : `Booking ${fmt(mineNext.stay.arrival)}`}
+                  </button>
+                )}
+              </div>
+            </article>
+          );
+        })}
+      </div>
+      {sheet && <ExtraSheet pid={sheet.pid} date={sheet.date} onClose={() => setSheet(null)} onOpen={onOpen} />}
+    </section>
   );
 }
 

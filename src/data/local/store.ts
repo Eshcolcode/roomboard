@@ -1,13 +1,121 @@
-import { S, publish, uid, iso, reconcile } from '../core';
-import type { DB, Stay, Changeover, Series } from '../core';
+import { S, publish, uid, iso, reconcile, DEFAULT_SETTINGS, ROLE_LABEL } from '../core';
+import type { DB, Stay, Changeover, Series, Activity, ActKind } from '../core';
 import { seed } from './seed';
-import { alertStayChange } from './alerts';
+import { notifyStays } from './alerts';
+import { PROPERTIES, UNITS, ROOMS } from '../properties';
+import { demoFeeds } from './feeds';
+import { londonToday } from '../../dates';
+
+/** Older demo stores get the current property details, the extra units and the demo calendar links.
+ * v1 → v2: real details + extras. v2 → v3 (18 Oct 2026): Lodge merged into Monadh, Harris/Uig, Loch Roag photos,
+ * calendar links become secret server settings (only Monadh linked). */
+export function upgrade(x: DB): DB {
+  if ((x.v ?? 1) >= 7) return x;
+  if ((x.v ?? 1) === 6) return toV7(x);
+  if ((x.v ?? 1) === 5) return toV7(toV6(x));
+  if ((x.v ?? 1) === 4) return toV7(toV6(toV5(x)));
+  if ((x.v ?? 1) === 3) return toV7(toV6(toV5(toV4(x))));
+  const old = new Map(x.properties.map(p => [p.id, p]));
+  x.properties = structuredClone(PROPERTIES).map(p => ({
+    ...p,
+    checkout: old.get(p.id)?.checkout ?? p.checkout,
+    checkin: old.get(p.id)?.checkin ?? p.checkin,
+  }));
+  x.units = structuredClone(UNITS);
+  x.rooms = structuredClone(ROOMS);
+  const ids = new Set(x.rooms.map(r => r.id));
+  x.stays = x.stays.filter(st => ids.has(st.roomId)); // e.g. requests on the old separate Lodge
+  Object.assign(x, demoFeeds(londonToday()));
+  x.v = 3;
+  return toV7(toV6(toV5(toV4(x))));
+}
+/** v3 → v4 (18 Oct 2026): no more requests (extras are booked straight away), who booked each stay, Eshcol's
+ * indicative rate, property order Eshcol, Loch Roag, Harris, Uig, Monadh, Abhainn Cottage, bedroom counts. */
+function toV4(x: DB): DB {
+  const old = new Map(x.properties.map(p => [p.id, p]));
+  x.properties = structuredClone(PROPERTIES).map(p => ({
+    ...p,
+    checkout: old.get(p.id)?.checkout ?? p.checkout,
+    checkin: old.get(p.id)?.checkin ?? p.checkin,
+  }));
+  x.units = structuredClone(UNITS);
+  x.rooms = structuredClone(ROOMS);
+  const manager = x.users.find(u => u.role === 'manager')?.id ?? null;
+  const client = x.users.find(u => u.role === 'client')?.id ?? null;
+  x.stays = x.stays.map(st => {
+    const { request, ...rest } = st as Stay & { request?: string | null };
+    // a waiting request was RJ McLeod's; anything else already there counts as Eshcol's
+    return { ...rest, bookedBy: rest.bookedBy ?? (request === 'pending' ? client : manager) };
+  });
+  x.settings = { ...DEFAULT_SETTINGS, ...(x.settings ?? {}) };
+  x.v = 4;
+  return x;
+}
+/** v4 → v5 (18 Oct 2026): Abhainn Cottage charged as 2 rooms (fresh property details), rate history. */
+function toV5(x: DB): DB {
+  const old = new Map(x.properties.map(p => [p.id, p]));
+  x.properties = structuredClone(PROPERTIES).map(p => ({
+    ...p,
+    checkout: old.get(p.id)?.checkout ?? p.checkout,
+    checkin: old.get(p.id)?.checkin ?? p.checkin,
+  }));
+  x.rateHistory = x.rateHistory ?? [];
+  x.v = 5;
+  return x;
+}
+
+/** v5 → v6 (19 Oct 2026): activity entries get a kind (what RJ McLeod may see), in-app alerts. Older entries are
+ * sorted by their wording (anything about cleaning, rates or calendars is kept from RJ McLeod). */
+export function toV6(x: DB): DB {
+  x.activity = x.activity.map(a => (a.kind ? a : { ...a, kind: guessKind(a.text) }));
+  x.notices = x.notices ?? [];
+  x.v = 6;
+  return x;
+}
+/** v6 → v7 (19 Oct 2026): no personal names anywhere. The demo accounts become 'RJ McLeod', 'Eshcol' and
+ * 'Housekeeper' (ids u-client, u-eshcol, u-housekeeper); the old personal ids and names in stored log lines, alerts
+ * and outbox rows are rewritten to the role. Guest and worker names on bookings are left alone. */
+// legacy demo ids (internal, never shown), kept here only so older browsers' demo data can be converted
+const OLD_IDS: [string, string][] = [
+  ['u-donald', 'u-eshcol'],
+  ['u-mairi', 'u-housekeeper'],
+];
+export function toV7(x: DB): DB {
+  let j = JSON.stringify(x);
+  for (const [a, b] of OLD_IDS) j = j.split(JSON.stringify(a)).join(JSON.stringify(b));
+  const y = JSON.parse(j) as DB;
+  const old = new Map(x.users.map(u => [u.role, u.name]));
+  const swap = (t: string) => {
+    for (const [r, n] of old) if (n && n !== ROLE_LABEL[r]) t = t.split(n).join(ROLE_LABEL[r]);
+    return t;
+  };
+  y.users = y.users.map(u => ({
+    ...u,
+    name: ROLE_LABEL[u.role],
+    email: u.role === 'manager' ? 'stay@eshcol.com' : u.email,
+  }));
+  y.activity = y.activity.map(a => ({ ...a, text: swap(a.text) }));
+  y.alerts = y.alerts.map(a => ({ ...a, to: swap(a.to), subject: swap(a.subject), body: swap(a.body) }));
+  y.notices = (y.notices ?? []).map(n => ({ ...n, text: swap(n.text) }));
+  y.v = 7;
+  return y;
+}
+export function guessKind(t: string): ActKind {
+  if (/rate|£/i.test(t)) return 'rate';
+  if (/calendar|feed|booking site|ical|supercontrol/i.test(t)) return 'ical';
+  if (/clean|changeover|guest has left|same worker continues/i.test(t)) return 'cleaning';
+  if (/default times/i.test(t)) return 'settings';
+  if (/^Enquiry/.test(t)) return 'enquiry';
+  if (/worker/i.test(t)) return 'worker';
+  if (/^Crew/.test(t)) return 'rota';
+  return 'stay';
+}
 
 export const KEY = 'roomboard-demo-v2'; // bumped: changeover model changed
 export function load(): DB {
   try {
     const s = localStorage.getItem(KEY);
-    if (s) return JSON.parse(s);
+    if (s) return upgrade(JSON.parse(s));
   } catch {
     /* ignore */
   }
@@ -41,6 +149,7 @@ export function snap(label: string) {
 export function undo() {
   const u = undoStack.pop();
   if (!u) return;
+  const before = structuredClone(S.db.stays);
   const bump = new Map(S.db.stays.map(s => [s.id, s.version]));
   S.db.stays = u.stays.map(s => ({
     ...s,
@@ -50,8 +159,8 @@ export function undo() {
   }));
   S.db.changeovers = u.changeovers;
   S.db.series = u.series;
-  log(`Undid: ${u.label}`);
-  alertStayChange('Change undone', `Undid: ${u.label}`);
+  const a = log(`Undid: ${u.label}`);
+  notifyStays(before, a, 'Change undone');
   commit();
 }
 export function commit() {
@@ -59,9 +168,16 @@ export function commit() {
   localStorage.setItem(KEY, JSON.stringify(n));
   publish(n);
 }
-export function log(text: string, propertyId?: string) {
-  S.db.activity = [{ id: uid(), ts: iso(), userId: S.db.currentUser, text, propertyId }, ...S.db.activity].slice(
-    0,
-    300,
-  );
+export function log(text: string, propertyId?: string, managerOnly = false, kind: ActKind = 'stay'): Activity {
+  const a: Activity = {
+    id: uid(),
+    ts: iso(),
+    userId: S.db.currentUser,
+    text,
+    propertyId,
+    kind,
+    ...(managerOnly ? { managerOnly } : {}),
+  };
+  S.db.activity = [a, ...S.db.activity].slice(0, 300);
+  return a;
 }

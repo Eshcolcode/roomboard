@@ -32,7 +32,7 @@ export function summaryText(role: Role = me().role, today = londonToday()): stri
     );
     return lines.join('\n');
   };
-  return [`Roomboard summary`, day(today, 'Today'), day(addDays(today, 1), 'Tomorrow')].join('\n\n') + '\n';
+  return [`Eshcol Rooms summary`, day(today, 'Today'), day(addDays(today, 1), 'Tomorrow')].join('\n\n') + '\n';
 }
 
 export async function copySummary(): Promise<boolean> {

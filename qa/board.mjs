@@ -14,7 +14,7 @@ async function pg(w, h, hash = 'board', mode = null) {
   p.on('pageerror', e => errs.push(e.message));
   p.on('console', m => m.type() === 'error' && errs.push(m.text()));
   await p.goto(U + '#' + hash);
-  await p.evaluate(m => { localStorage.clear(); for (const id of ['u-donald', 'u-client', 'u-mairi']) localStorage.setItem('rb-welcome:' + id, '1'); if (m) localStorage.setItem('rb-ui-mode', m); }, mode);
+  await p.evaluate(m => { localStorage.clear(); for (const id of ['u-eshcol', 'u-client', 'u-housekeeper']) localStorage.setItem('rb-welcome:' + id, '1'); if (m) localStorage.setItem('rb-ui-mode', m); }, mode);
   await p.reload();
   await p.waitForTimeout(450);
   return p;
@@ -66,6 +66,11 @@ await p.keyboard.press('Escape'); await settle(p);
   ok(await p.locator('.q-panel h2:has-text("Room held")').isVisible(), 'room step skipped: held straight away');
   const held = (await db(p)).stays.find(s => s.roomId === pick.room.id && s.arrival === D(pick.k));
   ok(held && held.departure === D(pick.k + 3), 'hold saved in the tapped room on the tapped day');
+  {
+    // Eshcol, 18 Oct 2026: Eshcol / Loch Roag are on the block contract, so the "Room held" sheet shows no money
+    const t = await p.locator('.q-panel').innerText();
+    ok(!/£|indicative|estimate/i.test(t) && t.includes('Included in your contract'), '"Room held" for a contract room: no price, "Included in your contract"');
+  }
   await shot(p, 'desktop-empty-cell-held');
   await p.keyboard.press('Escape'); await settle(p);
 }
@@ -73,6 +78,7 @@ await p.keyboard.press('Escape'); await settle(p);
 // ---------- desktop: drag still works in Quick mode ----------
 {
   const a0 = (await db(p)).stays.find(s => s.roomId === 'lr-6').arrival;
+  await p.locator('.row[data-room="lr-6"]').scrollIntoViewIfNeeded(); // rooms now list Eshcol first
   const bb = await p.locator('.row[data-room="lr-6"] .bar').first().boundingBox();
   const W = 56;
   await p.mouse.move(bb.x + 40, bb.y + bb.height / 2); await p.mouse.down();
@@ -283,7 +289,7 @@ await p.click('.s-toast button:has-text("Undo")'); await p.waitForTimeout(700);
 const ser3 = (await db(p)).stays.filter(s => ser.some(o => o.id === s.id));
 ok(ser3.every(s => s.arrival === ser.find(o => o.id === s.id).arrival), 'one Undo puts every rotation back');
 
-// ---------- Sheena: quick card never shows cleaner names ----------
+// ---------- RJ McLeod: quick card never shows cleaner names ----------
 p = await pg(390, 844, 'rooms');
 await p.selectOption('select.who', 'u-client'); await settle(p);
 const names = (await db(p)).users.filter(u => u.role === 'cleaner').map(u => u.name.split(' ')[0]);
@@ -294,7 +300,188 @@ for (let i = 0; i < Math.min(6, await p.locator('.rcard .qup').count()); i++) {
   if (names.some(n => t.includes(n))) leaked = true;
   await p.click('.q-x'); await settle(p);
 }
-ok(!leaked, 'Sheena: no cleaner names in quick cards');
+ok(!leaked, 'RJ McLeod: no cleaner names in quick cards');
+
+// ---------- regression (18 Oct 2026): set an end date on an open-ended stay, every mode and width ----------
+{
+  const firstDep = arr => [D(7), new Date(Date.parse(arr + 'T00:00Z') + 7 * 864e5).toISOString().slice(0, 10)].sort().pop();
+  const alasdair = async p => (await db(p)).stays.find(s => s.roomId === 'es-1' && s.workerId === 'w-16');
+  const barEnd = async p => {
+    const r = await p.locator('.row[data-room="es-1"] .bar').first().boundingBox();
+    return r.x + r.width;
+  };
+  const otherOpen = async p => (await db(p)).stays.find(s => s.depStatus === 'ufn' && !s.departure && s.roomId !== 'es-1' && /^(es|lr)-/.test(s.roomId));
+  for (const [w, h, mode] of [[1440, 950, 'quick'], [1440, 950, 'classic'], [390, 844, 'quick'], [390, 844, 'classic']]) {
+    const tag = `${w < 500 ? 'phone' : 'desktop'} ${mode}`;
+    const p = await pg(w, h, w < 500 ? 'rooms' : 'board', mode);
+    const s0 = await alasdair(p);
+    if (!(s0 && s0.depStatus === 'ufn' && !s0.departure)) { ok(false, tag + ': Alasdair is open-ended in the demo'); continue; }
+    const before = w < 500 ? null : await barEnd(p);
+    const openIt = async () => {
+      if (w < 500) {
+        await p.locator('.rcard[data-room="es-1"]').scrollIntoViewIfNeeded();
+        await p.locator(mode === 'quick' ? '.rcard[data-room="es-1"] .qup' : '.rcard[data-room="es-1"]').first().click();
+      } else await p.locator('.row[data-room="es-1"] .bar').first().click();
+      await settle(p);
+    };
+    await openIt();
+    let want;
+    if (mode === 'quick') {
+      await p.click('.q-panel .s-act:has-text("Set leaving date")'); await settle(p);
+      want = firstDep(s0.arrival);
+      await p.click('.q-panel .s-btn.big:has-text("Save")'); await p.waitForTimeout(800);
+    } else {
+      if (!(await p.locator('.panel #f-dep').count())) await p.locator('.rcard[data-room="es-1"] button, .rcard[data-room="es-1"] a').first().click();
+      await settle(p);
+      want = D(5);
+      ok(!(await p.locator('.panel #f-dep').isDisabled()), tag + ': the Leaves box can be filled on an open-ended stay');
+      await p.locator('.panel #f-dep').fill(want.split('-').reverse().join('/'));
+      await p.locator('.panel #f-dep').blur();
+      await p.click('.panel .btn.primary'); await p.waitForTimeout(800);
+    }
+    const s1 = await alasdair(p);
+    ok(s1.departure === want && s1.depStatus === 'planned', `${tag}: end date saved on Alasdair (open-ended → ${want}, ${s1.depStatus})`);
+    if (w >= 500) {
+      if (await p.locator('.q-x').count()) await p.click('.q-x');
+      await p.keyboard.press('Escape'); await settle(p);
+      const after = await barEnd(p);
+      ok(after < before - 50, `${tag}: the board bar now stops at the leaving date (${Math.round(before)} → ${Math.round(after)}px)`);
+      // the nights after it are free: an empty cell there starts a booking
+      ok(!(await p.locator('.row[data-room="es-1"] .bar').first().innerText()).includes('UFN'), `${tag}: no longer shown as until further notice`);
+    } else {
+      if (await p.locator('.q-x').count()) await p.click('.q-x');
+      await p.keyboard.press('Escape'); await settle(p);
+      const t = await p.locator('.rcard[data-room="es-1"]').innerText();
+      ok(!/Until further notice/.test(t), `${tag}: the room card updates straight away`);
+    }
+    // the nights after the end date are free for a new booking
+    const free = (await db(p)).stays.filter(s => s.roomId === 'es-1' && s.arrival < D(30) && (s.departure ?? '9') > want);
+    ok(free.length === 0, `${tag}: nights after ${want} are free in Room 1`);
+    // the same on a second open-ended stay, Quick: then make it open-ended again
+    if (mode === 'quick' && w >= 500) {
+      const o = await otherOpen(p);
+      await p.locator(`.row[data-room="${o.roomId}"]`).scrollIntoViewIfNeeded();
+      await p.locator(`.row[data-room="${o.roomId}"] [data-stay="${o.id}"], .row[data-room="${o.roomId}"] .bar`).first().click(); await settle(p);
+      await p.click('.q-panel .s-act:has-text("Change dates")'); await settle(p);
+      await p.click('.q-panel button:has-text("Set a leaving date")'); await settle(p);
+      await p.click('.q-panel .s-btn.big:has-text("Save")'); await p.waitForTimeout(800);
+      const o1 = (await db(p)).stays.find(s => s.id === o.id);
+      ok(o1.departure === firstDep(o.arrival) && o1.depStatus === 'planned', `${tag}: Change dates → Set a leaving date saves too (${o.roomId})`);
+      await p.locator(`.row[data-room="${o.roomId}"] .bar`).first().click(); await settle(p);
+      await p.click('.q-panel .s-act:has-text("Change dates")'); await settle(p);
+      await p.click('.q-panel .s-link:has-text("No leaving date yet")'); await settle(p);
+      await p.click('.q-panel .s-btn.big:has-text("Save")'); await p.waitForTimeout(800);
+      const o2 = (await db(p)).stays.find(s => s.id === o.id);
+      ok(o2.departure === null && o2.depStatus === 'ufn', `${tag}: and back to until further notice`);
+      // change the start of an open-ended stay: stays open-ended (it used to turn into TBC)
+      await p.locator(`.row[data-room="${o.roomId}"] .bar`).first().click(); await settle(p);
+      await p.click('.q-panel .s-act:has-text("Change dates")'); await settle(p);
+      await p.click('.q-panel [aria-label="Arriving: one day later"]'); await settle(p);
+      await p.click('.q-panel .s-btn.big:has-text("Save")'); await p.waitForTimeout(800);
+      const o3 = (await db(p)).stays.find(s => s.id === o.id);
+      ok(o3.arrival > o.arrival && o3.departure === null && o3.depStatus === 'ufn', `${tag}: changing the start keeps it until further notice`);
+    }
+    await p.close();
+  }
+}
+
+// ---------- extras group header on the desktop board: label and price note never overlap or clip ----------
+for (const w of [1440, 1100]) {
+  const p = await pg(w, 900);
+  await p.selectOption('select.who', 'u-client'); await settle(p);
+  for (const state of ['', 'scrolled', 'side panel open']) {
+    if (state === 'scrolled') await p.evaluate(() => { document.querySelector('.board > .scroll').scrollLeft = 600; });
+    if (state === 'side panel open') { await p.locator('.row[data-room="lr-1"] .bar').first().click(); await settle(p); }
+    await p.locator('.xgrp').scrollIntoViewIfNeeded(); await settle(p);
+    const r = await p.evaluate(() => {
+      const g = document.querySelector('.xgrp .gl').getBoundingClientRect();
+      const n = document.querySelector('.xgrp-note').getBoundingClientRect();
+      const lab = document.querySelector('.xgrp .gl > div');
+      const spans = [...document.querySelectorAll('.xgrp .gl b, .xgrp .gl span')].map(e => e.getBoundingClientRect());
+      const sc = document.querySelector('.board > .scroll').getBoundingClientRect();
+      return {
+        gw: g.width, gl: g.left, gr: g.right, nl: n.left, nr: n.right,
+        clip: lab.scrollWidth > lab.clientWidth + 1,
+        inside: spans.every(x => x.left >= g.left - 1 && x.right <= g.right + 1),
+        lines: spans.length === 2 && spans[1].top >= spans[0].bottom - 1,
+        vw: Math.min(innerWidth, sc.right),
+      };
+    });
+    ok(r.gw >= 229 && r.gl >= -1 && r.nl >= r.gr - 1 && r.nr <= r.vw + 1 && !r.clip && r.inside && r.lines,
+      `extras header (${w}px${state ? ', ' + state : ''}): label column ${Math.round(r.gw)}px, note ${Math.round(r.nl)}–${Math.round(r.nr)} beside it, nothing overlaps or clips`);
+  }
+  if (w === 1440) { await p.locator('.xgrp').scrollIntoViewIfNeeded(); await shot(p, 'extras-header'); }
+  await p.close();
+}
+
+// ---------- extras: the same guest details as a contract room (name picker, new name, phone, notes), RJ McLeod ----------
+for (const mode of ['quick', 'classic'])
+  for (const [w, h, tag] of [[1440, 950, 'desktop'], [390, 844, 'phone']]) {
+    const t = `extras ${mode} ${tag}`;
+    const p = await pg(w, h, w > 900 ? 'board' : 'rooms', mode);
+    await p.selectOption('select.who', 'u-client'); await settle(p);
+    if (w > 900) {
+      await p.locator('[data-extra="p-pod1"]').scrollIntoViewIfNeeded();
+      const W = await p.evaluate(() => parseFloat(getComputedStyle(document.querySelector('.track')).backgroundSize));
+      const tl = await p.evaluate(() => parseFloat(document.querySelector('.todayline').style.left));
+      const tr = await p.locator('[data-extra="p-pod1"] .track').boundingBox();
+      await p.mouse.click(tr.x + (Math.round((tl - W / 2) / W) + 3) * W + W / 2, tr.y + tr.height / 2);
+    } else await p.locator('.xcard[data-extra="p-pod1"] button.xd.f').nth(2).click();
+    await settle(p);
+    await p.locator('[data-sheet="p-pod1"] .av-go').click(); await settle(p);
+    const q = p.locator('.q-panel'), f = p.locator('aside.panel');
+    if (mode === 'quick') {
+      ok(await q.locator('input[aria-label="Name"]').isVisible() && (await q.locator('.s-pick.tbc').isVisible()), `${t}: "Book these dates" asks who (workers list, new name or name to follow)`);
+      await q.locator('input[aria-label="Name"]').fill('Callum');
+      await q.locator('.s-pick:has-text("Callum MacLeod")').first().click(); await settle(p);
+    } else {
+      ok(await f.locator('#f-wq').isVisible() && (await f.locator('#f-notes').isVisible()) && (await f.locator('.xtag').isVisible()), `${t}: "Book these dates" opens the stay form (worker picker, notes, badge)`);
+      await f.locator('#f-wq').fill('Callum');
+      await f.locator('.chips .chip:has-text("Callum MacLeod")').first().click();
+      await f.locator('#f-notes').fill('Classic note');
+      await f.locator('.pa .btn.primary').click(); await settle(p);
+    }
+    let x = await db(p);
+    const cm = x.workers.find(v => v.name === 'Callum MacLeod');
+    const st = x.stays.find(s => s.roomId === 'x-pod1' && s.workerId === cm.id && s.bookedBy === 'u-client');
+    ok(!!st, `${t}: RJ McLeod books Harris with a worker picked from their list`);
+    if (mode === 'quick') {
+      await q.locator('.s-extra:has-text("Phone number")').click();
+      await q.locator('input[aria-label="Phone number"]').fill('07700 900444');
+      await q.locator('button[type=submit]:has-text("Save")').click(); await settle(p);
+      ok((await db(p)).workers.find(v => v.id === cm.id).phone === '07700 900444', `${t}: phone added at creation (on the worker)`);
+      await q.locator('.s-btn:has-text("Open booking")').click(); await settle(p);
+      ok(!(await q.innerText()).includes('Move room') && (await q.innerText()).includes('Swap person'), `${t}: the booking card has Swap person (no Move room)`);
+      await q.locator('.s-act:has-text("Swap person")').click();
+      await q.locator('input[aria-label="Name"]').fill('Morag Edit ' + tag);
+      await q.locator('input[aria-label="Name"]').press('Enter'); await settle(p);
+      await q.locator('[data-act="details"]').click();
+      await q.locator('input[aria-label="Phone number"]').fill('07700 900555');
+      await q.locator('textarea[aria-label="Notes"]').fill('Edited note');
+      await q.locator('button[type=submit]:has-text("Save")').click(); await settle(p);
+      x = await db(p);
+      const mo = x.workers.find(v => v.name === 'Morag Edit ' + tag);
+      const s2 = x.stays.find(s => s.id === st.id);
+      ok(!!mo && s2.workerId === mo.id && mo.phone === '07700 900555' && s2.notes === 'Edited note', `${t}: edit swaps to a new name, sets phone and notes`);
+    } else {
+      ok(st.notes === 'Classic note', `${t}: notes saved at creation`);
+      if (w > 900) await p.locator(`[data-extra="p-pod1"] [data-stay="${st.id}"]`).first().click();
+      else await p.locator('.xcard[data-extra="p-pod1"] .xbtns .btn.ghost').click();
+      await settle(p);
+      ok(await f.isVisible() && /Callum MacLeod/.test(await f.innerText()), `${t}: the booking opens in the stay form`);
+      await f.locator('.chosen .link:has-text("Change")').click();
+      await f.locator('#f-wq').fill('Euan');
+      await f.locator('.chips .chip:has-text("Euan Morrison")').first().click();
+      await f.locator('#f-notes').fill('Edited note');
+      await f.locator('.pa .btn.primary').click(); await settle(p);
+      x = await db(p);
+      const eu = x.workers.find(v => v.name === 'Euan Morrison');
+      const s2 = x.stays.find(s => s.id === st.id);
+      ok(s2.workerId === eu.id && s2.notes === 'Edited note', `${t}: edit picks another worker and changes the notes`);
+    }
+    ok(!(await p.locator('body').innerText()).includes('Direct guest'), `${t}: Eshcol's own guest still never shown to RJ McLeod`);
+    await p.close();
+  }
 
 ok(!errs.length, 'no console/page errors ' + errs.join(' | '));
 await b.close();

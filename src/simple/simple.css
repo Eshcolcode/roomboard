@@ -384,6 +384,26 @@
   background: #fff;
   color: var(--ink);
 }
+.s-field {
+  display: grid;
+  gap: 6px;
+}
+.s-field > span {
+  font-weight: 700;
+  color: var(--ink);
+}
+.s-field small {
+  color: var(--mute);
+}
+.s-field textarea.s-input {
+  font-size: 18px;
+  min-height: 96px;
+  resize: vertical;
+}
+.s-cardrow .xtag {
+  display: table;
+  margin-top: 6px;
+}
 .s-type {
   display: grid;
   gap: 10px;

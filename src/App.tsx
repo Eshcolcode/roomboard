@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { data, useDB, me } from './data';
+import { data, useDB, me, ROLE_LABEL } from './data';
 import type { Role, Stay } from './data';
 import { addDays, londonToday } from './dates';
 import { useWide } from './ui/hooks';
@@ -14,9 +14,11 @@ import { TodayList } from './ui/Today';
 import { Changeovers } from './ui/Changeovers';
 import { Workers } from './ui/Workers';
 import { FreeRooms } from './ui/FreeRooms';
-import { Available } from './ui/Available';
+import { Properties } from './ui/Properties';
+import { AvailabilityPage } from './ui/Availability';
 import { ActivityView } from './ui/Activity';
 import { Search } from './ui/Search';
+import { Bell } from './ui/Alerts';
 import { Welcome } from './ui/Welcome';
 import { PrintView } from './ui/Print';
 import { Login } from './ui/Login';
@@ -32,7 +34,7 @@ const LABEL: Record<Tab, string> = {
   today: 'Today',
   changeovers: 'Cleaning',
   workers: 'Workers',
-  available: 'More rooms',
+  available: 'Properties',
   activity: 'Activity',
   crew: 'Crew',
   more: 'More',
@@ -66,6 +68,13 @@ export default function App() {
   if (!db.users.length) return <div className="loading">Loading…</div>;
   // The step-by-step "Simple mode" lives beside the full app on its own routes.
   if (h === 'simple' || h.startsWith('simple/')) return <Simple path={h.slice(7)} />;
+  if (h === 'availability' || h.startsWith('availability/'))
+    return (
+      <>
+        <AvailabilityPage only={h.split('/')[1]} />
+        <Overlays />
+      </>
+    );
   return <Shell wide={wide} />;
 }
 
@@ -99,7 +108,8 @@ function Shell({ wide }: { wide: boolean }) {
   }, [u.id]);
 
   const print = hash.startsWith('print-') ? (hash.slice(6) as 'today' | 'cleaning') : null;
-  const asked = (hash === 'board' && !wide ? 'rooms' : hash) as Tab;
+  const [tab, sub, third] = hash.split('/');
+  const asked = (tab === 'board' && !wide ? 'rooms' : tab) as Tab;
   const cur: Tab = allowed.includes(asked) ? asked : home;
   const go = (t: Tab) => {
     setMoreOpen(false);
@@ -107,7 +117,7 @@ function Shell({ wide }: { wide: boolean }) {
     setHash(t);
   };
   useEffect(() => {
-    if (!print && readHash() !== cur) history.replaceState(null, '', '#' + cur);
+    if (!print && readHash().split('/')[0] !== cur) history.replaceState(null, '', '#' + cur);
   }, [cur, print]);
 
   if (print)
@@ -120,7 +130,14 @@ function Shell({ wide }: { wide: boolean }) {
 
   // Quick (default): the one-question quick card / booking flow. Classic: the original panel, unchanged.
   const open = (p: PanelInit) => {
-    if (uiMode === 'quick' && u.role !== 'cleaner') {
+    // an extra-property booking someone else made (Eshcol's own guests, to RJ McLeod) only ever opens as the
+    // read-only quick card (dates only); every other booking, extras included, opens in the chosen mode
+    const othersExtra =
+      !!p.stay &&
+      u.role !== 'manager' &&
+      p.stay.bookedBy !== u.id &&
+      !db.properties.find(x => x.id === db.rooms.find(r => r.id === p.stay!.roomId)?.propertyId)?.contracted;
+    if ((uiMode === 'quick' || othersExtra) && u.role !== 'cleaner') {
       setPanel(null);
       setQuick({ init: p, k: Date.now() });
     } else setPanel(p);
@@ -136,7 +153,7 @@ function Shell({ wide }: { wide: boolean }) {
         <div className="brand">
           <span className="mark">LR</span>
           <div>
-            <b>Roomboard</b>
+            <b>Eshcol Rooms</b>
             <small>Loch Roag · Eshcol</small>
           </div>
         </div>
@@ -162,6 +179,7 @@ function Shell({ wide }: { wide: boolean }) {
         <div className="sp" />
         {canEdit && wide && <ModeSwitch />}
         {canEdit && <Search onOpen={open} />}
+        <Bell />
         {data.mode === 'demo' ? (
           <div className="demo-wrap">
             <button className="live demo-pill" aria-expanded={demoOpen} onClick={() => setDemoOpen(!demoOpen)}>
@@ -210,20 +228,22 @@ function Shell({ wide }: { wide: boolean }) {
         {data.mode === 'demo' ? (
           <select
             className="who"
-            aria-label="Demo: switch person"
+            aria-label="Demo: switch login"
             value={u.id}
             onChange={e => data.setUser(e.target.value)}
           >
-            {db.users.map(x => (
-              <option key={x.id} value={x.id}>
-                {x.role === 'cleaner' && u.role === 'client'
-                  ? 'Housekeeping view'
-                  : `${x.name.split(' ')[0]} · ${x.role === 'client' ? 'RJ McLeod' : x.role === 'manager' ? 'Provider' : 'Cleaner'}`}
-              </option>
-            ))}
+            {/* labelled by role, never by a person's name; one option per login */}
+            {(['client', 'manager', 'cleaner'] as Role[]).map(r => {
+              const x = db.users.find(y => y.role === r);
+              return x ? (
+                <option key={x.id} value={x.id}>
+                  {ROLE_LABEL[r]}
+                </option>
+              ) : null;
+            })}
           </select>
         ) : (
-          <span className="who">{u.name}</span>
+          <span className="who">{ROLE_LABEL[u.role]}</span>
         )}
       </header>
 
@@ -234,7 +254,7 @@ function Shell({ wide }: { wide: boolean }) {
         {cur === 'today' && <TodayList onOpen={open} />}
         {cur === 'changeovers' && <Changeovers />}
         {cur === 'workers' && <Workers onOpen={open} />}
-        {cur === 'available' && <Available />}
+        {cur === 'available' && <Properties key={hash} sub={sub} start={third} onOpen={open} />}
         {cur === 'activity' && <ActivityView />}
         {cur === 'crew' && <Crew />}
       </main>

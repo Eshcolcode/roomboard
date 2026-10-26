@@ -17,6 +17,7 @@ import {
 } from '../data';
 import type { DepStatus, Stay, StayInput } from '../data';
 import { addDays, diffDays, fmt, londonToday } from '../dates';
+import { estimateLine, priceLine, PRICE_NOTE } from '../data/pricing';
 import { DateField } from './DateField';
 import { useEscape } from './hooks';
 import { confirmDialog, toast } from './overlays';
@@ -31,6 +32,12 @@ export interface PanelInit {
 }
 
 const OPEN: DepStatus[] = ['tbc', 'ufn'];
+/** First leaving date offered when an open-ended stay gets one: a week after arrival, never in the past. */
+const firstDep = (arrival: string) => {
+  const a = addDays(arrival, 7);
+  const t = addDays(londonToday(), 7);
+  return a > t ? a : t;
+};
 const isOpen = (d: DepStatus) => OPEN.includes(d);
 
 function initialForm(init: PanelInit): StayInput {
@@ -97,6 +104,8 @@ export function StayPanel({ init, onClose }: { init: PanelInit; onClose: () => v
   const dep = isOpen(f.depStatus) ? null : f.departure;
   const input: StayInput = { ...f, departure: dep, workerId: mode === 'hold' ? null : f.workerId };
   const room = f.roomId ? roomOf(f.roomId) : null;
+  // an extra property (Harris, Uig, Monadh, Abhainn): same form, booked whole, its own price, no room choice
+  const xp = room && !propOf(room.propertyId).contracted ? propOf(room.propertyId) : null;
   const problem = f.roomId ? validate(input) : null;
   const twoRooms = mode === 'worker' && f.roomId ? workerClash(input) : undefined;
   const nights = dep ? diffDays(f.arrival, dep) : null;
@@ -141,9 +150,11 @@ export function StayPanel({ init, onClose }: { init: PanelInit; onClose: () => v
       toast(
         existing
           ? 'Changes saved'
-          : mode === 'hold'
-            ? `${roomLabel(f.roomId)} held`
-            : `Stay added · ${roomLabel(f.roomId)}`,
+          : xp
+            ? `${xp.name} booked`
+            : mode === 'hold'
+              ? `${roomLabel(f.roomId)} held`
+              : `Stay added · ${roomLabel(f.roomId)}`,
         { undo: true },
       );
     } catch (e) {
@@ -188,14 +199,25 @@ export function StayPanel({ init, onClose }: { init: PanelInit; onClose: () => v
                   ? 'Hold a room'
                   : 'Add stay'}
             </small>
-            <h2 id="ptitle">{room ? roomLabel(room.id) : 'Choose a room'}</h2>
+            <h2 id="ptitle">{xp ? xp.name : room ? roomLabel(room.id) : 'Choose a room'}</h2>
           </div>
           <button className="x" aria-label="Close" onClick={onClose}>
             ×
           </button>
         </div>
         <div className="pbody">
-          {room && (
+          {xp && (
+            <div className="xfixed" data-extra={xp.id}>
+              <span className="xtag">Extra · whole property · invoiced separately</span>
+              <div className="price-box" data-price={xp.id}>
+                <b>{estimateLine(db, xp, nights)}</b>
+                <small>
+                  {priceLine(db, xp)}. {PRICE_NOTE}
+                </small>
+              </div>
+            </div>
+          )}
+          {room && !xp && (
             <div className="rinfo">
               {room.photo ? <img className="rthumb" src={room.photo} alt="" /> : null}
               <span>{room.floor}</span>
@@ -303,9 +325,16 @@ export function StayPanel({ init, onClose }: { init: PanelInit; onClose: () => v
               <label htmlFor="f-dep">Leaves</label>
               <DateField
                 id="f-dep"
+                key={isOpen(f.depStatus) ? 'open' : 'dated'} // a fresh box (no half-typed date) when it goes open-ended
                 value={dep ?? ''}
-                disabled={isOpen(f.depStatus)}
-                onChange={v => set({ departure: v || null })}
+                // typing or picking a date on an open-ended stay sets its end date (it becomes planned)
+                onChange={v =>
+                  set(
+                    v
+                      ? { departure: v, depStatus: isOpen(f.depStatus) ? 'planned' : f.depStatus }
+                      : { departure: null },
+                  )
+                }
               />
             </div>
           </div>
@@ -315,20 +344,22 @@ export function StayPanel({ init, onClose }: { init: PanelInit; onClose: () => v
                 ['planned', 'Planned'],
                 ['confirmed', 'Confirmed'],
                 ['tbc', 'Departure TBC'],
-                ['ufn', 'Until further notice'],
+                ['ufn', xp ? 'Open-ended' : 'Until further notice'],
               ] as [DepStatus, string][]
-            ).map(([k, l]) => (
-              <button
-                key={k}
-                className={f.depStatus === k ? 'on' : ''}
-                aria-pressed={f.depStatus === k}
-                onClick={() =>
-                  set({ depStatus: k, departure: isOpen(k) ? null : (f.departure ?? addDays(f.arrival, 7)) })
-                }
-              >
-                {l}
-              </button>
-            ))}
+            )
+              .filter(([k]) => !xp || k !== 'tbc' || f.depStatus === 'tbc')
+              .map(([k, l]) => (
+                <button
+                  key={k}
+                  className={f.depStatus === k ? 'on' : ''}
+                  aria-pressed={f.depStatus === k}
+                  onClick={() =>
+                    set({ depStatus: k, departure: isOpen(k) ? null : (f.departure ?? firstDep(f.arrival)) })
+                  }
+                >
+                  {l}
+                </button>
+              ))}
           </div>
           <small className="muted">
             {nights !== null && nights > 0
@@ -338,26 +369,28 @@ export function StayPanel({ init, onClose }: { init: PanelInit; onClose: () => v
                 : ''}
           </small>
 
-          <div className="fs">
-            <label htmlFor="f-room">Room</label>
-            <select id="f-room" value={f.roomId} onChange={e => set({ roomId: e.target.value })}>
-              <option value="">
-                {roomChoices.length
-                  ? `Choose a room (${free.length} free for these dates)`
-                  : 'No rooms free for these dates'}
-              </option>
-              {roomChoices.map(r => (
-                <option key={r.id} value={r.id}>
-                  {propOf(r.propertyId).short} · {r.name} · {bathText(r)}
-                  {free.includes(r) ? '' : ' · taken'}
+          {!xp && (
+            <div className="fs">
+              <label htmlFor="f-room">Room</label>
+              <select id="f-room" value={f.roomId} onChange={e => set({ roomId: e.target.value })}>
+                <option value="">
+                  {roomChoices.length
+                    ? `Choose a room (${free.length} free for these dates)`
+                    : 'No rooms free for these dates'}
                 </option>
-              ))}
-            </select>
-            <label className="cb sm">
-              <input type="checkbox" checked={showAll} onChange={e => setShowAll(e.target.checked)} /> Show taken rooms
-              too
-            </label>
-          </div>
+                {roomChoices.map(r => (
+                  <option key={r.id} value={r.id}>
+                    {propOf(r.propertyId).short} · {r.name} · {bathText(r)}
+                    {free.includes(r) ? '' : ' · taken'}
+                  </option>
+                ))}
+              </select>
+              <label className="cb sm">
+                <input type="checkbox" checked={showAll} onChange={e => setShowAll(e.target.checked)} /> Show taken
+                rooms too
+              </label>
+            </div>
+          )}
 
           {mode === 'worker' && existing && (
             <details className="fs" open={!!f.away}>
@@ -447,7 +480,7 @@ export function StayPanel({ init, onClose }: { init: PanelInit; onClose: () => v
             </button>
           )}
           <button className="btn primary" disabled={!!problem} onClick={save}>
-            {existing ? 'Save changes' : mode === 'hold' ? 'Hold room' : 'Add stay'}
+            {existing ? 'Save changes' : xp ? 'Book' : mode === 'hold' ? 'Hold room' : 'Add stay'}
           </button>
         </div>
       </aside>

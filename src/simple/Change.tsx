@@ -9,6 +9,7 @@ import { Box, Chip, DateNudge, Note } from './parts';
 import { WhoPick } from './Who';
 import { RoomCard, RoomGroups, resolveWho } from './Book';
 import type { Notify } from './Book';
+import { ExtraBits, ExtraCard } from './Extra';
 import {
   assignRooms,
   checkBatch,
@@ -35,6 +36,7 @@ type Q =
   | 'dates'
   | 'move'
   | 'swap'
+  | 'details'
   | 'cancel'
   | 'crew'
   | 'crew-early'
@@ -44,6 +46,12 @@ type Q =
   | 'crew-cancel';
 
 const err = (e: unknown) => (e instanceof Error ? e.message : String(e));
+/** First leaving date offered for a stay with none yet: a week on from arrival, but never in the past. */
+const firstDep = (arrival: string) => {
+  const a = addDays(arrival, 7);
+  const t = addDays(londonToday(), 7);
+  return a > t ? a : t;
+};
 const depOf = (s: Stay) => (s.depStatus === 'tbc' || s.depStatus === 'ufn' ? null : s.departure);
 const plural = (n: number, w: string) => `${n} ${n === 1 ? w : w === 'person' ? 'people' : w + 's'}`;
 
@@ -92,6 +100,8 @@ export function Change({
   const [scope, setScope] = useState<'this' | 'future'>('this');
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState('');
+  const [phone, setPhone] = useState('');
+  const [notes, setNotes] = useState('');
   const T = londonToday();
   const canEdit = me().role !== 'cleaner';
 
@@ -111,6 +121,12 @@ export function Change({
 
   const room = db.rooms.find(r => r.id === stay.roomId)!;
   const prop0 = db.properties.find(p => p.id === room.propertyId)!;
+  // Extra properties use this same card (name, phone, notes, dates, rota, cancel), booked whole. A booking
+  // someone else made there (Eshcol's own guests, to RJ McLeod) stays dates-only.
+  const isX = !prop0.contracted;
+  if (isX && me().role !== 'manager' && stay.bookedBy !== me().id) return <ExtraCard stay={stay} onHome={onHome} />;
+  const W = stay.workerId ? db.workers.find(w => w.id === stay.workerId) : undefined;
+  const PHONE = /^Phone: (.*)$/m;
   const crew = crewOf(db, stay);
   const future = futureOf(db, stay);
   const rotations = Math.max(...future.map(g => g.length));
@@ -156,9 +172,11 @@ export function Change({
       return (
         <>
           <Note tone="ok">
-            {inputs.length > 1
-              ? `All ${inputs.length} rooms are free for these dates.`
-              : 'The room is free for these dates.'}
+            {isX
+              ? `${prop0.name} is free for these dates.`
+              : inputs.length > 1
+                ? `All ${inputs.length} rooms are free for these dates.`
+                : 'The room is free for these dates.'}
           </Note>
           <button className="s-btn big" disabled={busy} onClick={() => run(inputs, [], msg, o.later, o.after)}>
             Save
@@ -166,8 +184,9 @@ export function Change({
           {problem && <Note tone="bad">{problem}</Note>}
         </>
       );
-    const fixes = (o.fixes ?? []).filter((f): f is Fix => !!f);
-    const moved = fixByMoving(db, inputs, probs, ids);
+    // an extra is booked whole: never offer a contract room instead
+    const fixes = isX ? [] : (o.fixes ?? []).filter((f): f is Fix => !!f);
+    const moved = isX ? null : fixByMoving(db, inputs, probs, ids);
     if (moved) {
       const one = inputs.length === 1;
       const alt = one ? db.rooms.find(r => r.id === moved[0].roomId) : null;
@@ -210,7 +229,11 @@ export function Change({
           </div>
         ))}
         {!fixes.length && (
-          <Note tone="warn">No free room for those dates. Try other dates, or ask about More rooms.</Note>
+          <Note tone="warn">
+            {isX
+              ? 'Try other dates.'
+              : 'No free room for those dates. Try other dates, or look at the extra properties.'}
+          </Note>
         )}
         {problem && <Note tone="bad">{problem}</Note>}
       </>
@@ -256,7 +279,13 @@ export function Change({
         step={q}
         dir={dir}
         onBack={() => back()}
-        title={q === 'early' ? 'Leaving early: which day now?' : 'Staying longer: until when?'}
+        title={
+          q === 'early'
+            ? 'Leaving early: which day now?'
+            : sDep
+              ? 'Staying longer: until when?'
+              : 'Set the leaving date'
+        }
         sub={head}
       >
         <DateNudge label="Leaving" value={dep!} onChange={setDep} min={addDays(stay.arrival, 1)} from={stay.arrival} />
@@ -274,9 +303,11 @@ export function Change({
     const input: StayInput = {
       ...toInput(stay),
       arrival: arr,
+      // a leaving date on an open-ended (TBC / until further notice) stay makes it a planned departure;
+      // taking the date away again puts back the open status it had (until further notice by default)
       ...(dep
-        ? { departure: dep, depStatus: stay.depStatus === 'tbc' ? 'planned' : stay.depStatus }
-        : { departure: null, depStatus: 'tbc' }),
+        ? { departure: dep, depStatus: stay.depStatus === 'confirmed' && dep === sDep ? 'confirmed' : 'planned' }
+        : { departure: null, depStatus: stay.depStatus === 'tbc' ? 'tbc' : 'ufn' }),
       away: null,
     };
     return (
@@ -292,8 +323,13 @@ export function Change({
         {dep ? (
           <DateNudge label="Leaving" value={dep} onChange={setDep} min={addDays(arr, 1)} from={arr} />
         ) : (
-          <button className="s-btn ghost big" onClick={() => setDep(addDays(arr, 7))}>
+          <button className="s-btn ghost big" onClick={() => setDep(firstDep(arr))}>
             Set a leaving date
+          </button>
+        )}
+        {dep && (
+          <button className="s-link" onClick={() => setDep(null)}>
+            No leaving date yet ({stay.depStatus === 'tbc' ? 'departure TBC' : 'until further notice'})
           </button>
         )}
         <p className="s-muted">
@@ -342,11 +378,11 @@ export function Change({
           onPick={async w => {
             setBusy(true);
             try {
-              const p = await resolveWho(w);
+              const p = await resolveWho(w, isX && me().role === 'manager');
               await run(
                 [{ ...toInput(stay), ...p }],
                 [],
-                'Saved · ' + (p.workerId ? getDB().workers.find(x => x.id === p.workerId)!.name : 'Name TBC'),
+                'Saved · ' + (p.workerId ? getDB().workers.find(x => x.id === p.workerId)!.name : p.holdLabel),
               );
             } finally {
               setBusy(false);
@@ -355,6 +391,68 @@ export function Change({
         />
       </Box>
     );
+  if (q === 'details') {
+    // phone: on the worker record when there is one, otherwise kept on the booking (a "Phone:" line in its notes)
+    const save = () => {
+      const p = phone.trim();
+      const n = notes.trim();
+      const out = W ? n : [p && `Phone: ${p}`, n].filter(Boolean).join('\n');
+      return (async () => {
+        setBusy(true);
+        setProblem('');
+        try {
+          if (W && p !== (W.phone ?? '')) await data.upsertWorker({ id: W.id, name: W.name, phone: p });
+          if (out !== (stay.notes ?? '')) await data.saveStay({ ...toInput(stay), notes: out });
+          notify('Saved · phone and notes', 1);
+          back();
+        } catch (e) {
+          setProblem(err(e));
+        } finally {
+          setBusy(false);
+        }
+      })();
+    };
+    return (
+      <Box step="details" dir={dir} onBack={() => back()} title="Phone and notes" sub={head}>
+        <form
+          className="s-stack"
+          onSubmit={e => {
+            e.preventDefault();
+            save();
+          }}
+        >
+          <label className="s-field">
+            <span>Phone number</span>
+            <input
+              className="s-input"
+              type="tel"
+              inputMode="tel"
+              value={phone}
+              onChange={e => setPhone(e.target.value)}
+              aria-label="Phone number"
+              placeholder="07…"
+            />
+            {W && <small>Saved on {W.name}’s worker record for next time.</small>}
+          </label>
+          <label className="s-field">
+            <span>Notes</span>
+            <textarea
+              className="s-input"
+              rows={3}
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              aria-label="Notes"
+              placeholder="e.g. Late arrival, van parking"
+            />
+          </label>
+          <button className="s-btn big" type="submit" disabled={busy}>
+            Save
+          </button>
+        </form>
+        {problem && <Note tone="bad">{problem}</Note>}
+      </Box>
+    );
+  }
   if (q === 'cancel')
     return (
       <Box step="cancel" dir={dir} onBack={() => back()} title={`Cancel ${label}’s stay?`} sub={head}>
@@ -364,7 +462,12 @@ export function Change({
           disabled={busy}
           onClick={async () => {
             await data.deleteStay(stay.id);
-            notify(`Cancelled · ${room.name} is free`, 1);
+            notify(
+              isX
+                ? `Cancelled · ${prop0.name}${me().role === 'client' ? ' · Eshcol is told' : ''}`
+                : `Cancelled · ${room.name} is free`,
+              1,
+            );
             onHome();
           }}
         >
@@ -628,10 +731,9 @@ export function Change({
     <Box step="card" dir={dir} title={label} onClose={onHome}>
       <div className="s-card">
         <div className="s-cardrow">
-          <span className="s-lbl">Room</span>
-          <b>
-            {room.name} · {prop0.short}
-          </b>
+          <span className="s-lbl">{isX ? 'Property' : 'Room'}</span>
+          <b>{isX ? prop0.name : `${room.name} · ${prop0.short}`}</b>
+          {isX && <span className="xtag">Extra · whole property · invoiced separately</span>}
         </div>
         <div className="s-cardrow two">
           <div>
@@ -649,8 +751,10 @@ export function Change({
           {!stay.workerId && <span className="s-tag pu">Name TBC</span>}
           {series && <span className="s-tag sk">{series.label}</span>}
         </div>
+        {W?.phone && <p className="s-muted">Phone: {W.phone}</p>}
         {stay.notes && <p className="s-muted pre">{stay.notes}</p>}
       </div>
+      {isX && canEdit && <ExtraBits key={stay.version} stay={stay} onHome={onHome} notify={notify} />}
       {canEdit ? (
         <>
           <div className="s-actions">
@@ -663,16 +767,18 @@ export function Change({
             </button>
             <button
               className="s-act em"
-              onClick={() => open('longer', () => setDep(addDays(sDep ?? addDays(stay.arrival, 6), 1)))}
+              onClick={() => open('longer', () => setDep(sDep ? addDays(sDep, 1) : firstDep(stay.arrival)))}
             >
-              <b>Staying longer</b>
+              <b>{sDep ? 'Staying longer' : 'Set leaving date'}</b>
             </button>
             <button className="s-act" onClick={() => open('dates', () => (setArr(stay.arrival), setDep(sDep)))}>
               <b>Change dates</b>
             </button>
-            <button className="s-act" onClick={() => open('move')} disabled={!nf}>
-              <b>Move room</b>
-            </button>
+            {!isX && (
+              <button className="s-act" onClick={() => open('move')} disabled={!nf}>
+                <b>Move room</b>
+              </button>
+            )}
             <button className="s-act" onClick={() => open('swap')}>
               <b>{stay.workerId ? 'Swap person' : 'Add the name'}</b>
             </button>
@@ -680,6 +786,19 @@ export function Change({
               <b>Cancel</b>
             </button>
           </div>
+          <button
+            className="s-btn ghost big"
+            data-act="details"
+            onClick={() =>
+              open('details', () => {
+                const m = !W ? stay.notes?.match(PHONE) : null;
+                setPhone(W ? (W.phone ?? '') : (m?.[1] ?? ''));
+                setNotes(W ? (stay.notes ?? '') : (stay.notes ?? '').replace(PHONE, '').replace(/^\n+|\n+$/g, ''));
+              })
+            }
+          >
+            {W?.phone || stay.notes ? 'Phone and notes' : 'Add phone or notes'}
+          </button>
           {(crew.length > 1 || rotations > 1) && (
             <button className="s-btn big sk" onClick={() => open('crew', () => setScope('this'))}>
               {crew.length > 1

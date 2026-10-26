@@ -15,7 +15,7 @@ const T = londonToday();
 const room4 = () => S.db.changeovers.find(c => c.roomId === 'lr-4')!;
 beforeEach(async () => {
   await repo.reset();
-  await repo.setUser('u-donald');
+  await repo.setUser('u-eshcol');
 });
 
 describe('clean outside the window (Room 4: leaves +5, next arrival +6)', () => {

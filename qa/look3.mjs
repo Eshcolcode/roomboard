@@ -9,7 +9,7 @@ const b = await chromium.launch({
   args: ['--no-sandbox'],
 });
 const errs = [];
-async function pg(w, h, user = 'u-donald', mobile = false) {
+async function pg(w, h, user = 'u-eshcol', mobile = false) {
   const c = await b.newContext({
     viewport: { width: w, height: h },
     deviceScaleFactor: mobile ? 2 : 1,
@@ -22,11 +22,11 @@ async function pg(w, h, user = 'u-donald', mobile = false) {
   await p.goto(U);
   await p.evaluate(() => {
     localStorage.clear();
-    for (const id of ['u-donald', 'u-client', 'u-mairi']) localStorage.setItem('rb-welcome:' + id, '1');
+    for (const id of ['u-eshcol', 'u-client', 'u-housekeeper']) localStorage.setItem('rb-welcome:' + id, '1');
   });
   await p.reload();
   await p.waitForTimeout(300);
-  if (user !== 'u-donald') {
+  if (user !== 'u-eshcol') {
     await p.selectOption('select.who', user);
     await p.waitForTimeout(200);
   }
@@ -98,7 +98,7 @@ if (want('w1280')) {
   await p.screenshot({ path: OUT + '/v2-rooms-1280.png' });
 }
 if (want('phonemgr')) {
-  const p = await pg(390, 844, 'u-donald', true);
+  const p = await pg(390, 844, 'u-eshcol', true);
   await p.goto(U + '#rooms');
   await p.waitForTimeout(300);
   await p.screenshot({ path: OUT + '/v2-phone-rooms-manager.png' });

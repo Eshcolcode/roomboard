@@ -1,24 +1,24 @@
 # Roomboard: build brief (v0.3, v2 release)
 
-**Purpose:** a shared occupancy board between Donald Macarthur (provider) and his 3-year contract client. It records who is in which room, who is coming, and which room needs cleaning by when. No money is handled. The contract is invoiced separately.
+**Purpose:** a shared occupancy board between Eshcol (provider) and their 3-year contract client. It records who is in which room, who is coming, and which room needs cleaning by when. No money is handled. The contract is invoiced separately.
 
 ## Users and roles
 | Role | Who | Can |
 |---|---|---|
-| Client coordinator | Client's accommodation lead | Add/edit/cancel stays and holds in contracted rooms. Manage saved workers. See changeover status (read-only). Send requests for other properties. See the activity log |
-| Provider manager | Donald / team | Everything. Schedule changeovers and assign cleaners. See all requests and the alert outbox |
+| Client coordinator | Client's accommodation lead | Add/edit/cancel stays and holds in contracted rooms. Manage saved workers. See changeover status (read-only). Book the extra properties directly (confirmed straight away, whole property; they see and change only their own, others as dates). See the activity log |
+| Provider manager | Eshcol / team | Everything. Schedule changeovers and assign cleaners. Sees every extra booking and the alert outbox; sets the indicative rate |
 | Cleaner | Housekeeping | Today/Upcoming and Changeovers only, with first names only. Move own tasks to In progress → Ready |
 
-## Properties (confirmed by Donald, 16 Oct 2026)
-- **Loch Roag Guest House** (contracted): 9 rooms. **Upstairs: Rooms 1–5. Downstairs: Rooms 6–9.** Rooms 2 and 3 share a shower room. Room 8 has a private shower room (not ensuite). Rooms 1, 4, 5, 6, 7 and 9 are ensuite. Two kitchens, a large games room and lounge. *Images to follow.*
-- **Eshcol Worker Accommodation** (contracted): **10 rooms in total, one property.** Main house Rooms 1–7: 2, 3, 4, 6 and 7 are ensuite, and 1 and 5 have an allocated private shower room. The downstairs flat (shown as a group label) has Rooms 8–10: 10 is ensuite, and 8 and 9 share the flat's shower room.
+## Properties (confirmed by Eshcol, 16 Oct 2026)
+- **Loch Roag** (contracted): 9 rooms. **Upstairs: Rooms 1–5. Downstairs: Rooms 6–9.** Rooms 2 and 3 share a shower room. Room 8 has a private shower room (not ensuite). Rooms 1, 4, 5, 6, 7 and 9 are ensuite. Two kitchens, a large games room and lounge. *Images to follow.*
+- **Eshcol** (contracted): **10 rooms in total, one property.** Main house Rooms 1–7: 2, 3, 4, 6 and 7 are ensuite, and 1 and 5 have an allocated private shower room. The downstairs flat (shown as a group label) has Rooms 8–10: 10 is ensuite, and 8 and 9 share the flat's shower room.
 - **Upsell (not contracted):**
-  - **Hebridean Holiday Cabins**: Pod 1 and Pod 2 (1 bed each), The Lodge (2 ensuite), The Cottage (2 ensuite plus an office).
+  - **Hebridean Holiday Cabins**: the Harris and Uig pods (shown as **Harris** and **Uig**; Harris View was once "Pod 1") and Abhainn Cottage (3 bedrooms). "The Lodge" in the original brief is Monadh (Eshcol, 18 Oct 2026).
   - **Whitefalls Spa Lodges**: **Monadh**, the only lodge available. It is a separate card.
 
 ## Client
-**Sheena, RJ McLeod** (client coordinator). Email and phone are still to come.
-**Privacy rule: the client never sees cleaner names or details.** That covers the board, changeovers, activity log (shown as "Housekeeping"), digests and alerts. She sees status only: *Cleaning to be scheduled / Cleaning scheduled / Cleaning in progress / Ready*. In Supabase, the RLS on `profiles` hides cleaner profiles from clients, and alert rows are visible only to their recipient.
+**RJ McLeod** (client coordinator). Email and phone are still to come.
+**Privacy rule: the client never sees cleaner names or details.** That covers the board, changeovers, activity log (shown as "Housekeeping"), digests and alerts. They see status only: *Cleaning to be scheduled / Cleaning scheduled / Cleaning in progress / Ready*. In Supabase, the RLS on `profiles` hides cleaner profiles from clients, and alert rows are visible only to their recipient.
 
 ## Data model (identical in `src/data/core.ts` and `supabase/migrations`)
 Property → Unit → Room (bath: ensuite/private/shared) · ContractAllocation (room, period) · Worker (saved profile) · **Stay** (room, worker or null = *Hold, name to follow*, arrival, departure, depStatus `planned|confirmed|tbc|ufn`, away range, version) · **Changeover** (room, from/to stay, afterDate, readyBy, status `needs|scheduled|in_progress|ready` shown as *To book / Booked in / Cleaning now / Ready*, cleaner) · Activity · AlertOutbox · Enquiry · Profile (user + role).
@@ -43,13 +43,13 @@ Property → Unit → Room (bath: ensuite/private/shared) · ContractAllocation 
 12. **To book** shows cleans in the next 7 days or with a next arrival booked. The rest go under **Later**. The "Cleans due in 7 days" KPI and the nav badge count the same 7-day window.
 13. Task status has **one source of truth** (`changeovers.status`), turned into words by one function, `readinessFor()` in `core.ts`. The Board, Today, Upcoming, Rooms, print sheets and digest all use it.
     - The provider and cleaners see *Clean to book · needed by Tue 20 Oct*, *Clean booked Sat 17 Oct*, *Cleaning now*, *Ready ✓*, or a warning (*Dates changed · book clean again*, *outside usual window*).
-    - **The client sees only "Ready by Tue 20 Oct", "Being cleaned · ready by …" or "Ready ✓"**, and nothing at all for a room with no next arrival. Markers on her board are one calm colour until ready.
+    - **The client sees only "Ready by Tue 20 Oct", "Being cleaned · ready by …" or "Ready ✓"**, and nothing at all for a room with no next arrival. Markers on their board are one calm colour until ready.
 14. **Same worker in two rooms at once** is a warning, not a block ("Heads up: … is also in Loch Roag Room 4"). It can be intended (moving rooms mid-stay).
 15. **Room picker** lists only rooms free for the chosen dates, labelled "Loch Roag · Room 8 · Ensuite"; "Show taken rooms too" reveals the rest (and the clash message explains who has it).
 16. **Booking a worker** (Workers → Book, search, or picking them in Add stay) starts on the day their current dated stay ends, in the same room if it is free, so it continues without a clean. Dates the user already chose are never overwritten.
 17. **Undo:** every save, cancel and departure confirmation shows a toast with **Undo** (about 8 seconds). Cancelling a stay asks first. Undo restores the exact records (same ids, booked cleans included) in the demo; in live mode it applies the inverse change through the same database rules.
 18. **UK dates everywhere:** inputs are typed and shown as dd/mm/yyyy (with the weekday beside them and a calendar button) regardless of browser language; displays use "Fri 16 Oct".
-19. **Crew booking with rotations** (Crew tab). Sheena or the provider picks several workers and/or *N × Name TBC* places, a property (any room) or a set of rooms, a first arrival and a pattern such as **10 on / 4 off**, repeated **for N rotations**, **until a date**, or **until further notice** (the first 12 weeks are generated; *Extend* adds 12 more).
+19. **Crew booking with rotations** (Crew tab). RJ McLeod or the provider picks several workers and/or *N × Name TBC* places, a property (any room) or a set of rooms, a first arrival and a pattern such as **10 on / 4 off**, repeated **for N rotations**, **until a date**, or **until further notice** (the first 12 weeks are generated; *Extend* adds 12 more).
     - **Allocation:** each place gets its **usual room** (room of the worker's latest stay) if it is free for every rotation, else the first room free for every rotation. If none is, the room with the fewest clashes is shown with the clashes in red. Any place's room can be changed in the preview.
     - **Preview first:** a grid of every generated stay (place × rotation), clashes in red ("Taken by …", "Also given to …"), worker-already-booked warnings in amber. **Confirm is blocked while any clash remains.** Nothing is saved before Confirm.
     - **Off days (per booking, documented choice):** default **"Away, room kept"**: one stay per rotation covering the on and off days, with the off days marked *away*; rotations join back to back in the same room and continue with **no clean between blocks** (rule 7 extended: the same rotation *place* continues even while it is still an unnamed hold). Alternative **"Release the room"**: one stay per on-block; the room is free on off days and **every block ends in a changeover**.
@@ -58,7 +58,7 @@ Property → Unit → Room (bath: ensuite/private/shared) · ContractAllocation 
     - The generator `occurrences()` (`src/data/rotation.ts`) and `rb_rotation()` (SQL) are tested against the same `rules/cases.json` cases.
 20. **A continuing stay drops its unbooked clean.** If a stay becomes "continues" (same worker or same rotation place back to back) an unbooked clean is removed; a booked clean is kept as it is and a re-flagged one stays flagged, so nothing scheduled is silently dropped (rule 6 unchanged).
 21. **Drag on the desktop board:** drag a bar to move a stay (days and/or another room), drag its right edge to change the departure. A live outline shows the new room and dates in green, or the clash reason in red. Dropping asks for confirmation; the save then shows **Undo**. A clash is refused and nothing is saved. Esc cancels. The keyboard / button route (Enter opens the panel) is unchanged.
-22. **Copy summary** (Rooms): today's and tomorrow's departures, arrivals and cleans as plain text on the clipboard. The provider's copy names the cleaner; **Sheena's copy has no cleaner names and only "Ready by …" wording**; the cleaner's copy uses first names.
+22. **Copy summary** (Rooms): today's and tomorrow's departures, arrivals and cleans as plain text on the clipboard. The provider's copy names the cleaner; **RJ McLeod's copy has no cleaner names and only "Ready by …" wording**; the cleaner's copy uses first names.
 
 ## Shared rule tests (no drift between demo and database)
 The pure rules live in `src/data/rules.ts` (TypeScript) and `supabase/migrations/0006_rule_functions.sql` (`rb_nights`, `rb_overlaps`, `rb_boundary`, `rb_clean_window`, `rb_status_gate`, `rb_stay_error`). The triggers in `0002_rules.sql` call the SQL functions; the demo store calls the TS ones. **One case file, `rules/cases.json`, drives both suites:** `npm test` (vitest) and `npm run test:sql` (`qa/sql.sh`: fresh local Postgres, all migrations, smoke test, then every case through the SQL functions). A rule changed on one side only fails the other suite.
@@ -67,8 +67,8 @@ The pure rules live in `src/data/rules.ts` (TypeScript) and `supabase/migrations
 | Recipient | Gets |
 |---|---|
 | Cleaner | Changeover alerts only: scheduled, rescheduled, invalidated, ready-by moved, flagged/cancelled |
-| Client (Sheena) | Stay changes made **by the provider**, and *room ready*. Never any cleaner names |
-| Provider | Stay changes made **by the client**, departure confirmations, invalidated or flagged changeovers, requests for other properties |
+| Client (RJ McLeod) | Stay changes made **by the provider**, and *room ready*. Never any cleaner names |
+| Provider | Stay changes made **by the client**, departure confirmations, invalidated or flagged changeovers, new bookings of extra properties made by the client |
 
 - **Channels:** each user gets **one channel by default (email)**. SMS is opt-in per user (Activity → My alerts). Push only when enabled.
 - **Own edits:** a user is never alerted about their own edit.
@@ -84,8 +84,8 @@ The pure rules live in `src/data/rules.ts` (TypeScript) and `supabase/migrations
 - **Look (v2):** slate-navy header with an emerald accent; colour means the same everywhere: **amber = departing**, **purple = Name TBC / hold**, **sky = incoming / away**, **emerald = occupied / ready**.
 - **Rooms** (room cards, desktop and phone): status pill (Departing today, Occupied, Name TBC, Away · room kept, Arriving today, Free tonight), nights badge, departure ("Sat 24 Oct (planned)" / "Until further notice" / "Departure TBC", "staying on" for a continuation), next arrival with the **gap in days**, incoming-guest box (purple for a hold), cleaning strip (role-aware readiness), **Quick update** (opens the side panel).
   - **Summary tiles that filter when tapped:** Departing today, Needs clean (7 days), Name TBC, Long stay (28+ nights or open-ended), plus **Extra capacity** (links to More rooms: "more properties · ask about dates", never an availability claim). Matching filter pills on desktop.
-  - **Urgent banner:** the most urgent real changeover (turnaround today, or next arrival within 3 days) with one-tap actions: provider *Book clean <date>* (asks first), *Cleaning*, *Open room*; Sheena sees the "Ready by" wording only. Nothing is shown when nothing is urgent.
-  - **Phone:** tiles become one swipeable row and filter pills are hidden, so the first room card is on the first screen. **Sheena's phone opens here.**
+  - **Urgent banner:** the most urgent real changeover (turnaround today, or next arrival within 3 days) with one-tap actions: provider *Book clean <date>* (asks first), *Cleaning*, *Open room*; RJ McLeod sees the "Ready by" wording only. Nothing is shown when nothing is urgent.
+  - **Phone:** tiles become one swipeable row and filter pills are hidden, so the first room card is on the first screen. **RJ McLeod's phone opens here.**
 - **Crew** (rule 19): form on the left, live preview grid on the right, crew bookings list underneath.
 - **Stay panel:** side panel on desktop, **full-screen sheet on phone**; closes on Escape, on role switch and returns focus to the opener. Recent workers, search, new worker inline, hold mode, departure status, away range, free-only room picker, live clash check, two-room warning, "Last changed by …".
 - **Today / Upcoming** with a **Print** button. **Cleaning** (provider and cleaners; 5 columns with plain titles; default checkout/check-in times) with **Print cleaning list**.
@@ -100,11 +100,11 @@ Static SPA (Vite + React + TS) → uploadable to WPX. UI is split into `src/ui/*
 ## Later
 WhatsApp · CSV worker import · occupancy export for the contract · maintenance reports · photo proof on Ready · PWA install · branded domain.
 
-## Hosting and access (Donald's dashboard step)
+## Hosting and access (Eshcol's dashboard step)
 The site is on **Cloudflare Pages** (`roomboard.pages.dev`), auto-deployed from `github.com/Eshcolcode/roomboard` `main`.
 **Before sharing the link, put it behind Cloudflare Access:**
 1. Cloudflare dashboard → **Zero Trust** → Access → Applications → *Add an application* → **Self-hosted**.
 2. Application domain: `roomboard.pages.dev` (and `*.roomboard.pages.dev`, which covers preview deployments).
-3. Policy *Allow* → Include → **Emails**: Donald, Sheena and the cleaners (or "Emails ending in" a domain). Identity: **One-time PIN** (no accounts needed).
+3. Policy *Allow* → Include → **Emails**: Eshcol, RJ McLeod and the cleaners (or "Emails ending in" a domain). Identity: **One-time PIN** (no accounts needed).
 4. Save, then check in a private window that the site asks for an email code.
 Access protects the demo, which has no login of its own. In live mode, Supabase login and RLS still apply behind it.

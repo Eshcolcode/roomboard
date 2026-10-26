@@ -1,4 +1,5 @@
-// Tape chart: rooms down the side, days across, one bar per stay.
+// Tape chart: rooms down the side, days across, one bar per stay. Contract houses first (per room), then the
+// extra properties (one row each, booked whole): live from Roomboard bookings and their booking calendars.
 import { useState } from 'react';
 import { useDB, me, roomOf, propOf, stayLabel, depText, bathText, occupancy, readinessFor } from '../data';
 import type { Changeover, Stay } from '../data';
@@ -6,6 +7,9 @@ import { addDays, diffDays, fmt, londonToday } from '../dates';
 import { DateField } from './DateField';
 import { BrushIcon, Icon } from './icons';
 import type { PanelInit } from './StayPanel';
+import { segments, unitOf } from '../data/extras';
+import { ExtraSheet } from './ExtraSheet';
+import { gbp, priceLine, rate, PRICE_NOTE } from '../data/pricing';
 import { useDrag, startDrag, wasDrag, problem, describe, candidate } from './drag';
 
 const GAP = 13; // space kept free around a changeover marker so it never covers a bar
@@ -17,10 +21,15 @@ export function Board({ onOpen }: { onOpen: (p: PanelInit) => void }) {
   const [start, setStart] = useState(addDays(T, -3));
   const [days, setDays] = useState(21);
   const [filter, setFilter] = useState('all');
+  const [sheet, setSheet] = useState<{ pid: string; date?: string } | null>(null);
   const W = days > 21 ? 38 : 56;
   const end = addDays(start, days);
   const dates = Array.from({ length: days }, (_, i) => addDays(start, i));
   const props = db.properties.filter(p => p.contracted && (filter === 'all' || p.id === filter));
+  const extras = db.properties.filter(
+    p => !p.contracted && (filter === 'all' || filter === 'extras' || p.id === filter),
+  );
+  const shown = filter === 'extras' ? [] : props;
   const vis = db.stays.filter(s => propOf(roomOf(s.roomId).propertyId).contracted);
   const occ = occupancy(T);
   const totalRooms = db.rooms.filter(r => propOf(r.propertyId).contracted).length;
@@ -72,6 +81,16 @@ export function Board({ onOpen }: { onOpen: (p: PanelInit) => void }) {
                 {p.name}
               </option>
             ))}
+          <optgroup label="Extra properties">
+            <option value="extras">All extra properties</option>
+            {db.properties
+              .filter(p => !p.contracted)
+              .map(p => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+          </optgroup>
         </select>
         <div className="seg">
           <button aria-label="Previous week" onClick={() => setStart(addDays(start, -7))}>
@@ -134,7 +153,7 @@ export function Board({ onOpen }: { onOpen: (p: PanelInit) => void }) {
                 );
               })}
             </div>
-            {props.map(p => {
+            {shown.map(p => {
               const o = occupancy(T, p.id);
               const units = db.units.filter(un => un.propertyId === p.id);
               return (
@@ -172,6 +191,35 @@ export function Board({ onOpen }: { onOpen: (p: PanelInit) => void }) {
                 </div>
               );
             })}
+            {extras.length > 0 && (
+              <div className="xgroup" data-extras>
+                <div className="grp xgrp">
+                  <div className="gl">
+                    <div>
+                      <b>Extra properties</b>
+                      <span>Whole property · invoiced separately</span>
+                    </div>
+                  </div>
+                  <div className="xgrp-note">
+                    Indicative {gbp(rate(db))} per room per week · each is booked and priced as a whole property ·{' '}
+                    {PRICE_NOTE}
+                  </div>
+                </div>
+                {extras.map(p => (
+                  <ExtraRow
+                    key={p.id}
+                    pid={p.id}
+                    start={start}
+                    end={end}
+                    days={days}
+                    W={W}
+                    x={x}
+                    onOpen={onOpen}
+                    onBook={d => setSheet({ pid: p.id, date: d })}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         </div>
         <div className="legend">
@@ -207,6 +255,10 @@ export function Board({ onOpen }: { onOpen: (p: PanelInit) => void }) {
             </span>
             Same-day turnaround
           </span>
+          <span>
+            <i className="lg xtaken" />
+            {client ? 'Extra property taken' : 'Booked on another site'}
+          </span>
           <span className="lg-today">│ Today</span>
           <span className="hint">
             Click an empty day to add a stay · click a bar to edit · drag a bar to move it, or its right edge to change
@@ -214,6 +266,7 @@ export function Board({ onOpen }: { onOpen: (p: PanelInit) => void }) {
           </span>
         </div>
       </div>
+      {sheet && <ExtraSheet pid={sheet.pid} date={sheet.date} onClose={() => setSheet(null)} onOpen={onOpen} />}
     </div>
   );
 }
@@ -286,6 +339,102 @@ function RoomRow({
         {cos.map(c => (
           <Marker key={c.id} c={c} left={x(c.afterDate) + W / 2 - 10} client={client} />
         ))}
+      </div>
+    </div>
+  );
+}
+
+/** One extra property, booked whole. Clicking a free day opens its availability calendar to book. */
+function ExtraRow({
+  pid,
+  start,
+  end,
+  days,
+  W,
+  x,
+  onOpen,
+  onBook,
+}: {
+  onBook: (date?: string) => void;
+  pid: string;
+  start: string;
+  end: string;
+  days: number;
+  W: number;
+  x: (d: string) => number;
+  onOpen: (p: PanelInit) => void;
+}) {
+  const db = useDB();
+  const u = me();
+  const T = londonToday();
+  const p = propOf(pid);
+  const r = unitOf(db, pid);
+  if (!r) return null;
+  const segs = segments(db, r.id, start, end, u);
+  const todayX = diffDays(start, T);
+  const n = p.bedrooms ?? 1;
+  return (
+    <div className="row xrow" data-room={r.id} data-extra={pid}>
+      <div className="rl" title={priceLine(db, p) ?? undefined}>
+        <b>{p.name}</b>
+        <span>
+          Whole · {n} bedroom{n === 1 ? '' : 's'}
+        </span>
+      </div>
+      <div
+        className="track"
+        style={{ width: days * W, backgroundSize: `${W}px 100%` }}
+        title="Click a free day to book this property from that day"
+        onClick={e => {
+          if (!(e.target as HTMLElement).classList.contains('track')) return;
+          const i = Math.floor((e.clientX - (e.currentTarget as HTMLElement).getBoundingClientRect().left) / W);
+          const d = addDays(start, i);
+          // a free day from today on starts a booking in place, with that night (up to a week) already picked
+          onBook(d >= T ? d : undefined);
+        }}
+      >
+        {todayX >= 0 && todayX < days && <div className="todayline" style={{ left: todayX * W + W / 2 }} />}
+        {segs.map((g, i) => {
+          const cut = g.from < start;
+          const l = x(g.from) + (cut ? 0 : W / 2);
+          const rr = g.to && g.to < end ? x(g.to) + W / 2 : days * W;
+          const width = Math.max(rr - l - 4, 14);
+          const dates = `${fmt(g.from)} → ${g.to ? fmt(g.to) : 'open'}`;
+          if (g.stay) {
+            const s = g.stay;
+            const tip = `${p.name} · ${stayLabel(s)} · ${dates} · whole property, invoiced separately`;
+            return (
+              <div
+                key={s.id}
+                role="button"
+                tabIndex={0}
+                data-stay={s.id}
+                className={'bar xbar' + (cut ? ' cutl' : '') + (width < 90 ? ' tiny' : '')}
+                style={{ left: l + 2, width }}
+                title={tip}
+                aria-label={tip}
+                onClick={() => onOpen({ stay: s })}
+                onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onOpen({ stay: s }))}
+              >
+                <b>{stayLabel(s)}</b>
+                {width >= 90 && <span>Extra · {dates}</span>}
+              </div>
+            );
+          }
+          const label = g.kind === 'elsewhere' ? 'Booked elsewhere' : 'Taken';
+          return (
+            <div
+              key={'b' + i}
+              className={'xblock' + (g.kind === 'elsewhere' ? ' elsewhere' : '')}
+              style={{ left: l + 2, width }}
+              title={`${p.name}: ${label.toLowerCase()} ${dates}`}
+              aria-label={`${p.name}: ${label.toLowerCase()} ${dates}`}
+              role="img"
+            >
+              {width >= 60 && <span>{label}</span>}
+            </div>
+          );
+        })}
       </div>
     </div>
   );

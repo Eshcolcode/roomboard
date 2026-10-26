@@ -9,11 +9,11 @@ export function upsertWorker(w: Partial<Worker> & { name: string }) {
   else {
     const nw: Worker = { id: uid(), company: '', phone: '', notes: '', uses: 0, ...w } as Worker;
     S.db.workers.push(nw);
-    log(`Added worker ${nw.name}`);
+    log(`Added worker ${nw.name}`, undefined, false, 'worker');
     commit();
     return nw;
   }
-  log(`Updated worker ${w.name}`);
+  log(`Updated worker ${w.name}`, undefined, false, 'worker');
   commit();
   return workerOf(w.id!)!;
 }
@@ -24,7 +24,7 @@ export function addEnquiry(e: Omit<Enquiry, 'id' | 'ts' | 'status'>) {
   if (!(e.people >= 1 && e.people <= 50)) throw new Error('People must be between 1 and 50.');
   S.db.enquiries = [{ ...e, id: uid(), ts: iso(), status: 'new' }, ...S.db.enquiries];
   const t = `Enquiry for ${propOf(e.propertyId).name}: ${e.people} people from ${fmt(e.from)}${e.longTerm ? ' (long-term)' : e.to ? ' to ' + fmt(e.to) : ''}`;
-  log(t, e.propertyId);
+  log(t, e.propertyId, false, 'enquiry');
   usersOf('manager').forEach(u => queueFor(u, 'New accommodation request', t + (e.note ? ` — "${e.note}"` : '')));
   commit();
 }

@@ -48,7 +48,7 @@ async function page(w = 1440, h = 950, ctx) {
   return p;
 }
 const seen = () => {
-  for (const id of ['u-donald', 'u-client', 'u-mairi']) localStorage.setItem('rb-welcome:' + id, '1');
+  for (const id of ['u-eshcol', 'u-client', 'u-housekeeper']) localStorage.setItem('rb-welcome:' + id, '1');
 };
 const reset = async (p, hash = 'board') => {
   await p.goto(U + '#' + hash);
@@ -194,7 +194,17 @@ ok((await p.locator('.panel .err').count()) === 1, 'empty departure blocked');
 await p.locator('#f-dep').fill('31/02/2026');
 ok((await p.locator('.datef.bad #f-dep').count()) === 1, 'impossible date (31/02) flagged');
 await p.click('.panel [role=group][aria-label="Departure status"] button:has-text("Until further notice")');
-ok(await p.locator('#f-dep').isDisabled(), 'UFN disables departure');
+ok(
+  (await p.locator('#f-dep').inputValue()) === '' && !(await p.locator('.panel .err').count()),
+  'UFN clears the departure (no error)',
+);
+// typing a leaving date on an open-ended stay makes it a planned departure (18 Oct 2026 fix: it used to be locked)
+await date(p, '#f-dep', D(9));
+ok(
+  (await p.locator('.panel [aria-label="Departure status"] button.on').innerText()) === 'Planned',
+  'a leaving date typed on an open-ended stay switches it to Planned',
+);
+await p.click('.panel [role=group][aria-label="Departure status"] button:has-text("Until further notice")');
 await save(p);
 await p.waitForTimeout(150);
 ok((await p.locator('.row[data-room="es-9"] .bar.open').count()) === 1, 'UFN stay open-ended');
@@ -231,7 +241,7 @@ ok((await p.locator('.panel').count()) === 0, 'Escape closes panel');
 await p.click('.row[data-room="lr-6"] .bar');
 await as(p, 'u-client');
 ok((await p.locator('.panel').count()) === 0, 'role switch closes the stay panel');
-await as(p, 'u-donald');
+await as(p, 'u-eshcol');
 // name the hold
 const n = await p.locator('.bar').count();
 await p.click('.bar.hold:has-text("electrician")');
@@ -308,7 +318,7 @@ ok((await p.locator('.act:has-text("outside the usual window")').count()) >= 1, 
 await as(p, 'u-client');
 await go(p, 'rooms');
 ok(!(await body(p)).includes('outside'), 'exception: provider detail not shown to client', 'exception');
-await as(p, 'u-donald');
+await as(p, 'u-eshcol');
 // ---------- C1: cannot tick left / start before departure ----------
 await go(p, 'changeovers');
 ok(
@@ -345,7 +355,7 @@ ok(up8.length > 0 && up8.every(t => t.includes('Ready') && !t.includes('Booked')
 await as(p, 'u-client');
 await go(p, 'rooms');
 ok((await p.locator('.rr[data-room="lr-8"]').innerText()).includes('Ready ✓'), 'C3 Rooms (client) shows Ready');
-await as(p, 'u-donald');
+await as(p, 'u-eshcol');
 // ---------- item 1: date change invalidates a booked clean ----------
 await go(p, 'changeovers');
 await card(p, 'lr-2').locator('button:has-text("Book clean")').click();
@@ -356,7 +366,7 @@ await p.click('.row[data-room="lr-2"] .bar >> nth=0');
 await date(p, '#f-dep', D(8));
 await save(p);
 await p.waitForTimeout(150);
-await as(p, 'u-donald');
+await as(p, 'u-eshcol');
 await go(p, 'changeovers');
 ok(
   (await p.locator('.col-needs .cc[data-room="lr-2"] .inv:has-text("book it again")').count()) === 1,
@@ -366,7 +376,7 @@ ok(!/invalidated/i.test(await body(p)), "no 'invalidated' wording");
 await go(p, 'activity');
 await p.waitForTimeout(2500);
 ok((await p.locator('.act:has-text("clean needs booking again")').count()) >= 1, '1 activity line for the date change');
-ok((await p.locator('.al:has-text("book the clean again"):has-text("Donald")').count()) >= 1, '1 provider alerted');
+ok((await p.locator('.al:has-text("book the clean again"):has-text("Eshcol")').count()) >= 1, '1 provider alerted');
 await go(p, 'board');
 ok((await p.locator('.row[data-room="lr-9"] .bar.cont').count()) === 1, "1 same worker same day shows 'continues'");
 ok(
@@ -386,25 +396,39 @@ ok(
   '3 digest content',
 );
 // ---------- 4: routing ----------
+// minor change (notes only, 19 Oct tiers): activity log only, no alert email to anyone
 await reset(p);
 await p.click('.row[data-room="lr-6"] .bar');
 await p.fill('#f-notes', 'routing');
 await save(p);
 await go(p, 'activity');
 await p.waitForTimeout(2200);
+ok((await p.locator('.al').count()) === 0, '4 minor edit (notes) by Eshcol → no alert email');
+// important change (leaving date) by Eshcol → RJ McLeod; not self; Housekeeper only if it touches the next 7 days
+await reset(p);
+const st6 = await p.evaluate(() =>
+  JSON.parse(localStorage.getItem('roomboard-demo-v2')).stays.find(s => s.roomId === 'lr-6'),
+);
+await p.click('.row[data-room="lr-6"] .bar');
+await date(p, '#f-dep', D(30));
+await save(p);
+await go(p, 'activity');
+await p.waitForTimeout(2200);
 const out = await p.locator('.al').allInnerTexts();
+const hkDue = [st6.arrival, st6.departure].some(d => d && d >= D(0) && d <= D(7));
+const toWho = out.map(t => t.trim().split('\n').at(-1).trim()); // each outbox line ends with who it is to ('RJ McLeod <address>')
 ok(
-  out.some(t => t.includes('Sheena')) &&
-    !out.some(t => t.includes('Mairi') && t.includes('Stay updated')) &&
-    !out.some(t => t.includes('Donald') && t.includes('Stay updated')),
-  '4 provider edit → client only; not cleaner; not self',
+  toWho.some(t => t.startsWith('RJ McLeod')) &&
+    toWho.some(t => t.startsWith('Housekeeper')) === hkDue &&
+    !toWho.some(t => t.startsWith('Eshcol')),
+  `4 provider date change → RJ McLeod; not self; housekeeper ${hkDue ? 'too (within 7 days)' : 'not (outside 7 days)'}`,
 );
 ok(
   out.every(t => !/\btext\b/i.test(t.split('\n')[1] ?? '')),
   '4 email only by default',
 );
 ok(!out.some(t => /\bsent\b/i.test(t)) && out.some(t => /simulated|no address/i.test(t)), 'C6 outbox says simulated');
-await as(p, 'u-mairi');
+await as(p, 'u-housekeeper');
 ok((await p.locator('nav button').count()) === 2 && (await p.locator('.demo-pill').count()) === 1, '7 cleaner: 2 tabs');
 await p.click('.demo-pill');
 ok((await p.locator('button.reset').count()) === 0, '7 cleaner: no reset');
@@ -413,16 +437,28 @@ await as(p, 'u-client');
 await p.click('.demo-pill');
 ok((await p.locator('button.reset').count()) === 0, '7 client: no reset');
 await p.click('.demo-pill');
-// ---------- Sheena: no cleaner details, no scheduling noise ----------
+// ---------- RJ McLeod: no cleaner details, no scheduling noise ----------
 let leak = [];
 for (const t of ['board', 'rooms', 'free', 'today', 'workers', 'available', 'activity', 'print-today']) {
   await go(p, t);
-  const tx = await p.locator('body').innerText();
-  if (/Mairi|cleaner\b|to be scheduled/i.test(tx) || /To book|Booked in/.test(tx)) leak.push(t);
+  // the demo-only login switcher lists 'Housekeeper' as a login (a role, not a person): leave it out
+  const tx = await p.evaluate(() => {
+    const c = document.body.cloneNode(true);
+    c.querySelectorAll('select.who, select.s-who').forEach(e => e.remove());
+    c.style.position = 'absolute';
+    document.body.appendChild(c);
+    const t = c.innerText;
+    c.remove();
+    return t;
+  });
+  if (/Housekeeper|cleaner\b|to be scheduled/i.test(tx) || /To book|Booked in/.test(tx)) leak.push(t);
 }
 await go(p, 'board');
 const titles = await p.locator('.co').evaluateAll(es => es.map(e => e.getAttribute('title')).join(' '));
-ok(!leak.length && !/Mairi|To book/.test(titles), 'Sheena: no cleaner names and no scheduling noise ' + leak.join(','));
+ok(
+  !leak.length && !/Housekeeper|To book/.test(titles),
+  'RJ McLeod: no cleaner names and no scheduling noise ' + leak.join(','),
+);
 // ---------- free-rooms finder ----------
 await go(p, 'free');
 await date(p, '#fr-from', D(1));
@@ -460,27 +496,15 @@ ok(
   'Book for a worker in house defaults to the day their stay ends',
 );
 await p.keyboard.press('Escape');
-// ---------- C7 enquiries ----------
+// ---------- C7 extra properties (was: enquiries; now bookable requests, see qa/props.mjs) ----------
 await go(p, 'available');
 const av = await body(p);
 ok(
-  !/\d+ available|currently available|Available now/i.test(av) &&
-    /4 units · subject to confirmation/.test(av) &&
-    /1 unit · subject to confirmation/.test(av) &&
-    av.includes('Photos to follow'),
-  "More rooms: unit counts + 'subject to confirmation', no availability claims",
-);
-await p.click('.ucard:has-text("Monadh") button:has-text("Enquire")');
-await p.fill('.rq input[type=number]', '0');
-await p.click('button:has-text("Send enquiry")');
-ok((await p.locator('.rq .err').count()) === 1, 'enquiry: invalid people rejected');
-await p.fill('.rq input[type=number]', '2');
-await p.click('button:has-text("Send enquiry")');
-await p.waitForTimeout(100);
-ok(
-  (await p.locator('.ok').innerText()).includes(`Monadh · 2 people · ${fmt(D(3))} → ${fmt(D(17))}`) &&
-    /not a booking/.test(await p.locator('.ok').innerText()),
-  'C7 enquiry echoes dates, not a booking',
+  /Extra · invoiced separately/.test(av) &&
+    (await p.locator('[data-prop]').count()) === 6 &&
+    (await p.locator('[data-prop] img').count()) === 6 &&
+    !/Pod 1|Pod 2|The Lodge|bed size/i.test(av),
+  'Properties: 2 houses + 4 extras (Harris, Uig, Abhainn Cottage, Monadh), each with a photo, extras labelled',
 );
 // ---------- rooms list ----------
 await go(p, 'rooms');
@@ -499,7 +523,7 @@ ok(
   'rooms list headings: N allocated · M on site',
 );
 // ---------- navigation & dates ----------
-await as(p, 'u-donald');
+await as(p, 'u-eshcol');
 await go(p, 'board');
 const first = async () => (await p.locator('.bh .day').first().innerText()).replace(/\s+/g, ' ');
 const f0 = await first();
@@ -641,7 +665,8 @@ ok(
   'C5 phone FAB Add stay / Hold',
   'phone',
 );
-ok((await m.locator('.rr').count()) === 19, '6/C5 phone per-room list (19 rooms)', 'phone');
+ok((await m.locator('.rr:not(.xcard)').count()) === 19, '6/C5 phone per-room list (19 rooms)', 'phone');
+ok((await m.locator('.xcard').count()) === 4, 'phone: the 4 extra properties after the contract rooms', 'phone');
 await m.click('.fab button:has-text("Add stay")');
 const box = await m.locator('.panel').boundingBox();
 ok(box && box.width >= 389 && box.height >= 843, 'phone: stay panel is a full-screen sheet', 'phone');
@@ -656,7 +681,7 @@ for (const t of ['today', 'changeovers', 'free', 'available', 'activity', 'worke
   );
 }
 await m.goto(U + '#rooms');
-await m.selectOption('select.who', 'u-mairi');
+await m.selectOption('select.who', 'u-housekeeper');
 await m.waitForTimeout(150);
 ok((await m.locator('.bottom button').count()) === 2, 'phone cleaner tabs', 'phone');
 await m.selectOption('select.who', 'u-client');
@@ -664,12 +689,12 @@ await m.waitForTimeout(150);
 const sh = await m.locator('main').innerText();
 ok(
   (await m.locator('.bottom button').count()) === 5 && (await m.locator('h1').innerText()) === 'Rooms',
-  "Sheena's phone opens on Rooms (5 tabs)",
+  "RJ McLeod's phone opens on Rooms (5 tabs)",
   'phone',
 );
 ok(
   !/to be scheduled|clean to book/i.test(sh) && !/To book|Booked in/.test(sh) && /Ready by \w{3} \d+ \w{3}/.test(sh),
-  "Sheena's phone: only 'Ready by …' statuses",
+  "RJ McLeod's phone: only 'Ready by …' statuses",
   'phone',
 );
 ok(
@@ -685,7 +710,7 @@ ok(
   'phone',
 );
 await m.click('.bottom button:has-text("More")');
-ok(await m.locator('.sheet button:has-text("More rooms")').isVisible(), 'phone: More sheet', 'phone');
+ok(await m.locator('.sheet button:has-text("Properties")').isVisible(), 'phone: More sheet', 'phone');
 
 // ==================== v2: rooms cards, tiles, banner, copy summary, crew booking, drag ====================
 {
@@ -696,7 +721,7 @@ ok(await m.locator('.sheet button:has-text("More rooms")').isVisible(), 'phone: 
   const q = await page(1440, 950, ctx);
   await reset(q, 'rooms');
   const V = 'v2';
-  ok((await q.locator('.rcard').count()) === 19, 'v2 Rooms: one card per contracted room (19)', V);
+  ok((await q.locator('.rcard:not(.xcard)').count()) === 19, 'v2 Rooms: one card per contracted room (19)', V);
   const r8 = await q.locator('.rcard[data-room="lr-8"]').innerText();
   ok(
     /Departing today/i.test(r8) && /Quick update/.test(r8) && /Next arrival/i.test(r8),
@@ -723,8 +748,8 @@ ok(await m.locator('.sheet button:has-text("More rooms")').isVisible(), 'phone: 
   );
   await q.click('.fpills button:has-text("All rooms")');
   ok(
-    /more properties · ask about dates/.test(await q.locator('.tile.t-dark').innerText()),
-    'v2 Extra capacity tile makes no availability claim',
+    /bookable · invoiced separately/.test(await q.locator('.tile.t-dark').innerText()),
+    'v2 Extra properties tile: bookable, invoiced separately',
     V,
   );
   ok(await q.locator('.urgent').isVisible(), 'v2 urgent banner computed from changeovers', V);
@@ -743,7 +768,7 @@ ok(await m.locator('.sheet button:has-text("More rooms")').isVisible(), 'phone: 
   await q.waitForTimeout(200);
   const mgr = await q.evaluate(() => navigator.clipboard.readText());
   ok(
-    /^Roomboard summary/.test(mgr) && /Today ·/.test(mgr) && /Tomorrow ·/.test(mgr) && /Leaving:/.test(mgr),
+    /^Eshcol Rooms summary/.test(mgr) && /Today ·/.test(mgr) && /Tomorrow ·/.test(mgr) && /Leaving:/.test(mgr),
     'v2 Copy summary: today + tomorrow movements as text',
     V,
   );
@@ -769,7 +794,7 @@ ok(await m.locator('.sheet button:has-text("More rooms")').isVisible(), 'phone: 
   const cli = await q.evaluate(() => navigator.clipboard.readText());
   ok(
     cli.length > 50 && !cleaners.some(n => cli.includes(n)) && !/Clean to book|Clean booked/.test(cli),
-    "v2 Copy summary (Sheena): no cleaner names, only 'Ready by'",
+    "v2 Copy summary (RJ McLeod): no cleaner names, only 'Ready by'",
     V,
   );
   // crew booking
@@ -849,7 +874,7 @@ ok(await m.locator('.sheet button:has-text("More rooms")').isVisible(), 'phone: 
     V,
   );
   // drag on the board
-  await as(q, 'u-donald');
+  await as(q, 'u-eshcol');
   await go(q, 'board');
   const a0 = await q.evaluate(
     () => JSON.parse(localStorage.getItem('roomboard-demo-v2')).stays.find(s => s.roomId === 'lr-6').arrival,
@@ -899,6 +924,9 @@ ok(await m.locator('.sheet button:has-text("More rooms")').isVisible(), 'phone: 
     V,
   );
   // resize
+  // keep the grip clear of the "Not moved" toast at the bottom (the board is longer now it has the extras)
+  await q.locator('.row[data-room="lr-6"]').evaluate(e => e.scrollIntoView({ block: 'center' }));
+  await q.waitForTimeout(100);
   const bb3 = await q.locator('.row[data-room="lr-6"] .bar .grip').first().boundingBox();
   await q.mouse.move(bb3.x + 4, bb3.y + bb3.height / 2);
   await q.mouse.down();

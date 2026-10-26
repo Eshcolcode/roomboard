@@ -1,6 +1,6 @@
 // The ONE data-access interface the UI talks to. Implementations: local.ts (demo) and supabase.ts.
 // Reads come from the shared snapshot in core.ts (useDB); writes go through these commands.
-import type { Changeover, Enquiry, Series, Stay, StayInput, Worker } from './core';
+import type { Changeover, Enquiry, Series, Settings, Stay, StayInput, Worker } from './core';
 export interface Repo {
   mode: 'demo' | 'supabase';
   init(): Promise<void>;
@@ -12,14 +12,23 @@ export interface Repo {
   updateChangeover(id: string, patch: Partial<Changeover>): Promise<void>;
   dismissChangeover(id: string): Promise<void>; // provider clears a flagged (cancelled) changeover
   updateProperty(id: string, p: { checkout?: string; checkin?: string }): Promise<void>;
-  setPrefs(userId: string, p: { smsOptIn?: boolean; pushEnabled?: boolean }): Promise<void>;
+  setPrefs(userId: string, p: { smsOptIn?: boolean; pushEnabled?: boolean; emailImmediate?: boolean }): Promise<void>;
+  /** Mark in-app alerts (the red dot) as read. */
+  markRead(ids: string[]): Promise<void>;
   upsertWorker(w: Partial<Worker> & { name: string }): Promise<Worker>;
   addEnquiry(e: Omit<Enquiry, 'id' | 'ts' | 'status'>): Promise<void>;
   createSeries(base: Omit<Series, 'id' | 'createdBy' | 'createdAt'>, stays: StayInput[]): Promise<Series>; // crew booking: all stays or none
   updateSeries(next: Series, what: string): Promise<void>; // extend / shorten / cancel the whole series
+  /** Eshcol's settings (indicative rate per room per week). Manager only. */
+  setSettings(s: Partial<Settings>): Promise<void>;
+  /** Booking calendars: read every linked calendar now (live: the ical-sync edge function). */
+  syncFeeds(): Promise<{ conflicts: number }>;
+  /** The export feed of one unit: a link to paste into Airbnb / Booking.com (live) and the .ics text. */
+  exportLink(roomId: string): Promise<{ url: string | null; text: string }>;
   undo(): Promise<void>; // revert the last stay command made in this session
   canUndo(): boolean;
   setUser(id: string): Promise<void>; // demo: role switch. supabase: no-op (identity = login)
   reset(): Promise<void>; // demo: reseed. supabase: sign out
   signIn?(email: string): Promise<void>; // supabase: email magic link
+  verifyCode?(email: string, code: string): Promise<void>; // supabase: the 8-digit code from the same email
 }

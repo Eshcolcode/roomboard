@@ -1,6 +1,10 @@
-// Find a room: pick dates, see what's free, grouped by property, tap to book.
+// Find a room: pick dates, see what's free, grouped by property, tap to book. Contract houses list free rooms
+// (never a price); then the extra properties in board order, each one whole unit with its indicative price,
+// bookable only when the whole stay is free. Never shows who has an extra booked.
 import { useState } from 'react';
-import { useDB, freeRooms, bathText } from '../data';
+import { useDB, freeRooms, bathText, thumb } from '../data';
+import { extrasFor } from '../data/extras';
+import { estimate, gbp, priced, roomsCharged, weekly, PRICE_NOTE } from '../data/pricing';
 import type { Bath } from '../data';
 import { addDays, diffDays, fmt, londonToday } from '../dates';
 import { DateField } from './DateField';
@@ -17,13 +21,16 @@ export function FreeRooms({ onOpen }: { onOpen: (p: PanelInit) => void }) {
   const bad = !from || (!ufn && (!to || to <= from));
   const free = bad ? [] : freeRooms(from, end).filter(r => bath === 'any' || r.bath === bath);
   const n = end && !bad ? diffDays(from, end) : null;
+  // Extras have their own bathroom(s), not shared with other guests: shown for Any, Ensuite and Private.
+  const extras = bad || bath === 'shared' ? [] : extrasFor(db, from, end);
+  const xFree = extras.filter(x => x.free).length;
 
   return (
     <div className="page narrow">
       <div className="ph">
         <div>
           <h1>Find a room</h1>
-          <p>Pick dates to see every room that’s free for the whole stay.</p>
+          <p>Pick dates to see every room, and every extra property, that’s free for the whole stay.</p>
         </div>
       </div>
       <section className="card finder">
@@ -59,7 +66,7 @@ export function FreeRooms({ onOpen }: { onOpen: (p: PanelInit) => void }) {
         <p className="summary" aria-live="polite">
           {bad
             ? 'Leaving must be after arriving.'
-            : `${free.length} room${free.length === 1 ? '' : 's'} free · ${fmt(from)} → ${end ? `${fmt(end)} · ${n} night${n === 1 ? '' : 's'}` : 'until further notice'}`}
+            : `${free.length} room${free.length === 1 ? '' : 's'} free${extras.length ? ` · ${xFree} extra propert${xFree === 1 ? 'y' : 'ies'}` : ''} · ${fmt(from)} → ${end ? `${fmt(end)} · ${n} night${n === 1 ? '' : 's'}` : 'until further notice'}`}
         </p>
       </section>
       {!bad &&
@@ -96,11 +103,67 @@ export function FreeRooms({ onOpen }: { onOpen: (p: PanelInit) => void }) {
               </section>
             );
           })}
-      {!bad && !free.length && (
-        <p className="empty-state">
-          Nothing free for the whole stay. Try shorter dates, or{' '}
-          <a href="#available">ask about rooms elsewhere on Lewis</a>.
-        </p>
+      {!bad && extras.length > 0 && (
+        <section className="card xfree" aria-label="Extra properties free">
+          <h3>
+            Extra properties
+            <small>
+              {xFree} of {extras.length} free
+            </small>
+          </h3>
+          <p className="xfree-note">Booked as a whole property · {PRICE_NOTE}</p>
+          <div className="xfree-grid">
+            {extras.map(({ p, room, free: ok }) => {
+              const price = priced(p) ? (n ? gbp(estimate(db, p, n)) : gbp(weekly(db, p))) : null;
+              const charged = roomsCharged(p);
+              const body = (
+                <>
+                  {p.photo ? <img src={thumb(p.photo)} alt="" loading="lazy" /> : <span className="xf-ph" />}
+                  <span className="xf-txt">
+                    <b>{p.name}</b>
+                    <small>
+                      {room.name}
+                      {p.bedrooms ? ` · ${p.bedrooms} bedroom${p.bedrooms === 1 ? '' : 's'}` : ''}
+                    </small>
+                    {ok ? (
+                      <>
+                        {price && (
+                          <span className="xf-price">
+                            Indicative {price}
+                            <small>
+                              {n ? ` for ${n} night${n === 1 ? '' : 's'}` : ' a week'} · {charged} room
+                              {charged === 1 ? '' : 's'} charged
+                            </small>
+                          </span>
+                        )}
+                        <span className="go">Book →</span>
+                      </>
+                    ) : (
+                      <span className="xf-no">Not free for all these dates</span>
+                    )}
+                  </span>
+                </>
+              );
+              return ok ? (
+                <button
+                  key={p.id}
+                  className="freeextra"
+                  data-extra={p.id}
+                  onClick={() => onOpen({ roomId: room.id, date: from, departure: end })}
+                >
+                  {body}
+                </button>
+              ) : (
+                <div key={p.id} className="freeextra off" data-extra={p.id} aria-disabled="true">
+                  {body}
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+      {!bad && !free.length && !xFree && (
+        <p className="empty-state">Nothing free for the whole stay. Try shorter or different dates.</p>
       )}
     </div>
   );

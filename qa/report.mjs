@@ -53,7 +53,7 @@ const md = `# Test report
 - **Local production build:** \`${localAsset}\` ${target === localAsset ? '(same asset as the target: the deployed site is this commit)' : '(**differs from target**)'}
 - **Totals:** unit ${count(unitRows)} · SQL ${count(sqlRows)} · end-to-end ${count(e.results)} · lint (ESLint + Prettier) ${lint}
 
-All demo-mode checks below run without any of Donald's accounts. The live database, email and SMS checks need a real Supabase project, a Resend key and a Twilio account, and are **pending** (bottom section).
+All demo-mode checks below run without any of Eshcol's accounts. The live database, email and SMS checks need a real Supabase project, a Resend key and a Twilio account, and are **pending** (bottom section).
 
 ## 1. Unit tests (vitest) – ${count(unitRows)}
 Pure rules (\`src/data/rules.ts\`) and the rotation generator (\`src/data/rotation.ts\`) driven by the shared \`rules/cases.json\`, date helpers, store rules (\`core.ts\`), demo commands (\`local/\`: exception override, undo), crew booking (\`crew.ts\`: allocation, all-or-nothing, extend / shorten / single occurrence) and the role-aware Copy summary.
@@ -66,14 +66,14 @@ Fresh database, migrations 0001–0004, 0006 and 0007 (pg_cron 0005 skipped), \`
 ${table(sqlRows)}
 
 ## 3. End-to-end (Playwright, Chrome) – ${count(e.results)}
-Desktop 1440px plus 820/900/1000px layout checks, phone 390×844, every role (provider, Sheena, cleaner), axe WCAG 2 A/AA. Group \`[v2]\`: room cards, filtering tiles, urgent banner, Copy summary (clipboard read back), crew booking end to end, drag to move / resize with clash feedback and undo.
+Desktop 1440px plus 820/900/1000px layout checks, phone 390×844, every role (provider, RJ McLeod, cleaner), axe WCAG 2 A/AA. Group \`[v2]\`: room cards, filtering tiles, urgent banner, Copy summary (clipboard read back), crew booking end to end, drag to move / resize with clash feedback and undo.
 
 ${table(e.results, r => (r.group !== 'e2e' ? `[${r.group}] ` : '') + r.name)}
 
-## 4. Live database, email and SMS – pending (needs Donald's accounts)
+## 4. Live database, email and SMS – pending (needs Eshcol's accounts)
 | Check | Status |
 |---|---|
-| Magic-link sign-in for Donald and Sheena on separate devices | pending |
+| Magic-link sign-in for Eshcol and RJ McLeod on separate devices | pending |
 | RLS through the API: client cannot read cleaner profiles, write changeovers or read others' alerts; cleaner cannot edit stays | pending |
 | Concurrent double-booking: exactly one succeeds (exclusion constraint) | pending |
 | Stale edit rejected across two real sessions (40001) | pending |
@@ -99,7 +99,7 @@ ${table(e.results, r => (r.group !== 'e2e' ? `[${r.group}] ` : '') + r.name)}
 | Phone | 8.5 | Crew booking works on the phone but the preview grid needs sideways scrolling |
 | Accessibility | 8.5 | axe clean on every screen; drag has the panel as its keyboard route |
 | Code quality | 8.5 | Lint/type clean, typed Supabase rows, store split, CI; Board.tsx and StayPanel.tsx are still the largest files |
-| Live readiness | 6.0 | Supabase, email and SMS still need Donald's accounts (section 4) |
+| Live readiness | 6.0 | Supabase, email and SMS still need Eshcol's accounts (section 4) |
 | **Overall** | **8.3** | |
 `;
 writeFileSync('docs/TEST-REPORT.md', md);

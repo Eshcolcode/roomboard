@@ -1,6 +1,6 @@
 // Simple mode: book a room one question at a time. Only room + dates are required.
 import { useState } from 'react';
-import { data, useDB, getDB, bathText } from '../data';
+import { data, useDB, getDB, bathText, me } from '../data';
 import type { DB, Room, StayInput } from '../data';
 import { usualRoom, planCrew, planInputs } from '../data/crew';
 import type { RotationEnd, OffMode } from '../data/rotation';
@@ -9,6 +9,7 @@ import { Box, Calendar, Chip, Note } from './parts';
 import { WhoPick } from './Who';
 import type { WhoAnswer } from './Who';
 import { freeIn, suggestBlock, roomText, roomNum } from './logic';
+import { CONTRACT_LINE, estimate, estimateLine, gbp, priced, rate, PRICE_NOTE } from '../data/pricing';
 
 type Step = 'who' | 'count' | 'arrive' | 'leave' | 'room' | 'done';
 type Extra = null | 'phone' | 'email' | 'note' | 'rota' | 'rota-len' | 'rota-off';
@@ -20,8 +21,16 @@ const nextMonday = (t: string) => {
 };
 const err = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
-export async function resolveWho(w: WhoAnswer): Promise<{ workerId: string | null; holdLabel: string }> {
+/**
+ * A typed new name becomes a saved worker (the workers list RJ McLeod holds). `privateName`: Eshcol's own guest in
+ * an extra property stays a name on that booking only, never added to the shared workers list.
+ */
+export async function resolveWho(
+  w: WhoAnswer,
+  privateName = false,
+): Promise<{ workerId: string | null; holdLabel: string }> {
   if (w.kind === 'worker') return { workerId: w.id, holdLabel: '' };
+  if (w.kind === 'name' && privateName) return { workerId: null, holdLabel: w.name };
   if (w.kind === 'name') {
     const nw = await data.upsertWorker({ name: w.name, company: 'RJ McLeod', phone: '' });
     return { workerId: nw.id, holdLabel: '' };
@@ -109,6 +118,10 @@ export function Book({
   const T = londonToday();
   const presetWho = !!init.workerId || !!init.hold;
   const presetRoom = init.roomId && db.rooms.some(r => r.id === init.roomId) ? init.roomId : undefined;
+  // an extra property (Harris, Uig, Monadh, Abhainn): the same flow, booked whole, never a crew or another room
+  const extraP = presetRoom
+    ? db.properties.find(p => p.id === db.rooms.find(r => r.id === presetRoom)!.propertyId && !p.contracted)
+    : undefined;
   const [unlockArr, setUnlockArr] = useState(false);
   const lockArrival = !!init.date && (!!presetRoom || init.departure !== undefined || !!init.hold) && !unlockArr;
   const lockDeparture = init.departure !== undefined;
@@ -156,6 +169,8 @@ export function Book({
     const f = flowFor(v.who);
     const nxt = f[f.indexOf(from) + 1];
     if (nxt) return go(nxt);
+    // an extra is booked whole: try it straight away (a clash is explained on the question, no room list)
+    if (extraP && v.arrival) return void hold([presetRoom!], v);
     if (presetRoom && v.arrival && v.who?.kind !== 'crew') {
       const free = freeIn(getDB(), v.arrival, v.dep ?? null).some(r => r.id === presetRoom);
       if (free) return void hold([presetRoom], v);
@@ -194,7 +209,7 @@ export function Book({
       const base = {
         arrival,
         departure: dep,
-        depStatus: dep ? ('planned' as const) : ('tbc' as const),
+        depStatus: dep ? ('planned' as const) : extraP ? ('ufn' as const) : ('tbc' as const),
         away: null,
         notes: '',
       };
@@ -227,17 +242,19 @@ export function Book({
         );
         notify(`${rooms.length} rooms held`, 1);
       } else {
-        const p = await resolveWho(who);
+        const p = await resolveWho(who, !!extraP && me().role === 'manager');
         const s = await data.saveStay({ ...base, roomId: roomIds[0], ...p });
         setCreated([s.id]);
-        notify(`${roomText(getDB(), s.roomId)} held`, 1);
+        notify(extraP ? `${extraP.name} booked` : `${roomText(getDB(), s.roomId)} held`, 1);
       }
       setSince(0);
       go('done');
     } catch (e) {
+      setProblem(err(e));
+      // an extra is booked whole: stay on the question and explain (no contract rooms offered instead)
+      if (extraP) return setStep('who');
       if (presetRoom) setRoomNeeded(true);
       setStep('room');
-      setProblem(err(e));
     } finally {
       setBusy(false);
     }
@@ -363,13 +380,14 @@ export function Book({
         }
       >
         <WhoPick
-          allowCrew
+          allowCrew={!extraP}
           onPick={w => {
             setWho(w);
             setPicked(null);
             advance('who', { ...vals(), who: w });
           }}
         />
+        {extraP && problem && <Note tone="bad">{problem}</Note>}
       </Box>
     );
 
@@ -517,7 +535,7 @@ export function Book({
           {free.length < want && (
             <Note tone="warn">
               Only {free.length} rooms are free for these dates. You can hold {free.length} now and ask about the rest
-              on More rooms.
+              on Properties (extra properties).
             </Note>
           )}
           {!choose ? (
@@ -599,7 +617,9 @@ export function Book({
           </Note>
         )}
         {!free.length && (
-          <Note tone="warn">No rooms are free for those dates. Go back and try other dates, or ask on More rooms.</Note>
+          <Note tone="warn">
+            No rooms are free for those dates. Go back and try other dates, or ask on Properties (extra properties).
+          </Note>
         )}
         {usualFree && (
           <div className="s-group">
@@ -816,7 +836,12 @@ export function Book({
   );
   const r0 = db.rooms.find(r => r.id === first.roomId)!;
   return (
-    <Box step="done" dir={1} title={single ? 'Room held!' : `${stays.length} rooms held!`} onClose={onExit}>
+    <Box
+      step="done"
+      dir={1}
+      title={extraP ? `${extraP.name} booked!` : single ? 'Room held!' : `${stays.length} rooms held!`}
+      onClose={onExit}
+    >
       <div className="s-held">
         <span className="s-bigtick" aria-hidden>
           ✓
@@ -828,15 +853,54 @@ export function Book({
               : `${stays.length} rooms · ${[...new Set(stays.map(s => db.properties.find(p => p.id === db.rooms.find(r => r.id === s.roomId)!.propertyId)!.short))].join(' + ')}`}
           </b>
           <span>
-            {fmt(first.arrival)} → {first.departure ? fmt(first.departure) : 'leaving date to follow'}
+            {fmt(first.arrival)} →{' '}
+            {first.departure ? fmt(first.departure) : extraP ? 'open-ended' : 'leaving date to follow'}
             {first.departure ? ` · ${diffDays(first.arrival, first.departure)} nights` : ''}
           </span>
           <span>
-            {single ? (db.workers.find(w => w.id === first.workerId)?.name ?? 'Name TBC') : 'Names to follow'}
+            {single
+              ? (db.workers.find(w => w.id === first.workerId)?.name ?? (first.holdLabel || 'Name TBC'))
+              : 'Names to follow'}
           </span>
           {first.seriesId && doneExtras.includes('rota') && <span className="s-tag">Repeats as a rota</span>}
         </div>
       </div>
+      {stays.some(s => priced(db.properties.find(p => p.id === db.rooms.find(r => r.id === s.roomId)!.propertyId)!)) ? (
+        <div className="price-box" data-price="booking">
+          <b>
+            {single || !first.departure
+              ? estimateLine(
+                  db,
+                  db.properties.find(p => p.id === r0.propertyId)!,
+                  first.departure ? diffDays(first.arrival, first.departure) : null,
+                ) + (single ? '' : ` × ${stays.length} rooms`)
+              : `Indicative ${gbp(
+                  stays.reduce(
+                    (t, s) =>
+                      t +
+                      estimate(
+                        db,
+                        db.properties.find(p => p.id === db.rooms.find(r => r.id === s.roomId)!.propertyId)!,
+                        s.departure ? diffDays(s.arrival, s.departure) : 0,
+                      ),
+                    0,
+                  ),
+                )} for ${stays.length} rooms (${gbp(rate(db))} per room per week ÷ 7 per night)`}
+          </b>
+          <small>{PRICE_NOTE}</small>
+        </div>
+      ) : (
+        // block contract (Eshcol, Loch Roag): no price or estimate, ever
+        <div className="price-box contract" data-price="contract">
+          <b>{CONTRACT_LINE}</b>
+        </div>
+      )}
+      {extraP && (
+        <p className="s-muted" data-x-confirm>
+          Booked and confirmed straight away · whole property
+          {me().role === 'client' ? ' · Eshcol has been notified' : ''} · invoiced separately
+        </p>
+      )}
       <span className="s-lbl">Add more now? All optional</span>
       <div className="s-stack">
         {single && ex('phone', 'Phone number', 'For arrival-day texts')}

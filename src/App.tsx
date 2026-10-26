@@ -243,7 +243,13 @@ function Shell({ wide }: { wide: boolean }) {
             })}
           </select>
         ) : (
-          <span className="who">{ROLE_LABEL[u.role]}</span>
+          <>
+            <span className="who">{ROLE_LABEL[u.role]}</span>
+            {/* live mode: a way to sign out on a shared or office computer */}
+            <button className="btn sm ghost signout" onClick={() => data.reset().then(() => location.reload())}>
+              Sign out
+            </button>
+          </>
         )}
       </header>
 

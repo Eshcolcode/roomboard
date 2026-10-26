@@ -2,7 +2,7 @@
 
 Automated: `npm run build && npx vite preview --port 4173 &` then `npm run test:e2e:all` (qa, flow, board, props, find, views, layout: desktop and phone, all three logins). Unit: `npm test`. Database: `bash qa/sql.sh` (smoke + shared rules) and `bash qa/sql-rls.sh` (all migrations 0001–0014 on a fresh Postgres with Supabase-like roles, then the live-safe `live_rls.sql`, `live_flow.sql`, `stale_edit.sql` and `friendly_dates.sql` checks).
 
-Run on 26 Oct 2026 (branch `properties`): unit 174/174, lint clean, qa 162/162, flow 33/33, board 114/114, props 139/139, find 19/19, views 61/61, layout 154/154 (134 screens), sql smoke 76/76 + rules 53/53, sql-rls 35/35.
+Run on 26 Oct 2026 (branch `fix-stale-edit`, before shipping 0013–0014): unit 178/178, lint + typecheck clean, qa 162/162, flow 33/33, board 114/114, props 139/139, find 19/19, views 61/61, layout 154/154 (134 screens), login 14/14, sql smoke 76/76 + rules 53/53, sql-rls 47/47 (incl. stale_edit, friendly_dates), notify.sql 12/12 (fresh database: stub + migrations, without smoke data).
 
 > **Superseded since this list was written** (the automated suites check the current behaviour): logins are by role only
 > (RJ McLeod, Eshcol, Housekeeper; no personal names anywhere, so "first names" for the cleaner no longer apply);

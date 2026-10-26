@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { data, useDB, me } from '../data';
 import { Icon } from './icons';
+import { friendlyDates } from '../dates';
 
 const when = (ts: string) =>
   new Date(ts).toLocaleString('en-GB', {
@@ -70,7 +71,7 @@ export function Bell() {
                 className={'bp-item' + (n.read ? '' : ' unread')}
                 onClick={() => !n.read && data.markRead([n.id])}
               >
-                <span className="bp-txt">{n.text}</span>
+                <span className="bp-txt">{friendlyDates(n.text)}</span>
                 <span className="bp-meta">
                   {n.reasons.slice(0, 3).map(r => (
                     <span key={r} className="tier-chip imm">

@@ -5,7 +5,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { data, useDB, me, stayLabel, thumb, ROLE_LABEL } from '../data';
 import type { Property } from '../data';
-import { addDays, diffDays, fmt, londonToday } from '../dates';
+import { addDays, diffDays, fmt, friendlyDates, londonToday } from '../dates';
 import { dayState, openBlocker, ownOn, prefill, rangeFree, unitOf } from '../data/extras';
 import { estimateLine, priceLine, PRICE_NOTE } from '../data/pricing';
 import type { DayState } from '../data/extras';
@@ -320,7 +320,7 @@ export function UnitAvailability({
         )}
         {msg && (
           <p className={'av-msg ' + (msg.ok ? 'ok' : 'bad')} role={msg.ok ? 'status' : 'alert'}>
-            {msg.text}
+            {friendlyDates(msg.text)}
           </p>
         )}
         {msg?.ok && onBooked && (

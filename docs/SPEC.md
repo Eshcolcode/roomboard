@@ -13,7 +13,7 @@
 - **Loch Roag** (contracted): 9 rooms. **Upstairs: Rooms 1–5. Downstairs: Rooms 6–9.** Rooms 2 and 3 share a shower room. Room 8 has a private shower room (not ensuite). Rooms 1, 4, 5, 6, 7 and 9 are ensuite. Two kitchens, a large games room and lounge. *Images to follow.*
 - **Eshcol** (contracted): **10 rooms in total, one property.** Main house Rooms 1–7: 2, 3, 4, 6 and 7 are ensuite, and 1 and 5 have an allocated private shower room. The downstairs flat (shown as a group label) has Rooms 8–10: 10 is ensuite, and 8 and 9 share the flat's shower room.
 - **Upsell (not contracted):**
-  - **Hebridean Holiday Cabins**: the Harris and Uig pods (shown as **Harris** and **Uig**; Harris View was once "Pod 1") and Abhainn Cottage (3 bedrooms). "The Lodge" in the original brief is Monadh (Eshcol, 18 Oct 2026).
+  - **Hebridean Holiday Cabins**: the Harris and Uig pods (shown as **Harris** and **Uig**; Harris View was once "Pod 1") and Abhainn (3 bedrooms). "The Lodge" in the original brief is Monadh (Eshcol, 18 Oct 2026).
   - **Whitefalls Spa Lodges**: **Monadh**, the only lodge available. It is a separate card.
 
 ## Client

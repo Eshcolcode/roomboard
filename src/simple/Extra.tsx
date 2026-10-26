@@ -1,4 +1,4 @@
-// Extra properties (Harris, Uig, Monadh, Abhainn Cottage). Bookings are confirmed straight away: no request step.
+// Extra properties (Harris, Uig, Monadh, Abhainn). Bookings are confirmed straight away: no request step.
 // The bookings you may change use the normal booking card (Change.tsx: name, phone, notes, dates, rota, cancel)
 // with ExtraBits added (indicative price, end date / open-ended). ExtraCard is the read-only view of a booking
 // someone else made (Eshcol's own guests): dates only, no guest details.

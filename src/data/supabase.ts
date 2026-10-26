@@ -570,6 +570,17 @@ export const supabaseRepo: Repo = {
     channel?.unsubscribe();
   },
   async signIn(email) {
-    fail((await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: location.href.split('#')[0] } })).error);
+    fail(
+      (
+        await sb.auth.signInWithOtp({
+          email,
+          options: { emailRedirectTo: location.href.split('#')[0], shouldCreateUser: false },
+        })
+      ).error,
+    );
+  },
+  // the code in the same email: works even when a company mail filter has already opened (used up) the link
+  async verifyCode(email, code) {
+    fail((await sb.auth.verifyOtp({ email, token: code.replace(/\D/g, ''), type: 'email' })).error);
   },
 };

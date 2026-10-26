@@ -30,4 +30,5 @@ export interface Repo {
   setUser(id: string): Promise<void>; // demo: role switch. supabase: no-op (identity = login)
   reset(): Promise<void>; // demo: reseed. supabase: sign out
   signIn?(email: string): Promise<void>; // supabase: email magic link
+  verifyCode?(email: string, code: string): Promise<void>; // supabase: the 8-digit code from the same email
 }

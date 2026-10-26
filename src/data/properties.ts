@@ -158,14 +158,14 @@ export const PROPERTIES: Property[] = [
     bookingUrl: 'https://secure.supercontrol.co.uk/availability/availability_search.asp?ownerID=859&siteID=10573',
     credit: 'Photos: whitefalls.co.uk',
   },
-  // Eshcol, 18 Oct 2026: the 3-bedroom cottage is Abhainn Cottage. Charged as 2 rooms (Eshcol, 18 Oct 2026):
+  // Eshcol, 18 Oct 2026: the 3-bedroom cottage is Abhainn. Charged as 2 rooms (Eshcol, 18 Oct 2026):
   // the sofa-bed/desk room is not charged.
   {
     id: 'p-cottage',
     bedrooms: 3,
     charged: 2,
-    name: 'Abhainn Cottage',
-    short: 'Abhainn Cottage',
+    name: 'Abhainn',
+    short: 'Abhainn',
     contracted: false,
     area: AREA,
     address: 'Breasclete, Isle of Lewis HS2 9ED',
@@ -175,7 +175,7 @@ export const PROPERTIES: Property[] = [
     sleeps: '6',
     photo: 'img/cottage-exterior.webp',
     photos: [
-      ph('cottage-exterior', 'Abhainn Cottage from the garden'),
+      ph('cottage-exterior', 'Abhainn from the garden'),
       ph('cottage-lounge', 'Lounge with open fire'),
       ph('cottage-kitchen', 'Kitchen and dining room'),
       ph('cottage-bed1', 'Bedroom 1'),
@@ -200,7 +200,7 @@ export const UNITS: Unit[] = [
   { id: 'un-pod1', propertyId: 'p-pod1', name: 'Harris' },
   { id: 'un-pod2', propertyId: 'p-pod2', name: 'Uig' },
   { id: 'un-monadh', propertyId: 'p-monadh', name: 'Monadh' },
-  { id: 'un-cottage', propertyId: 'p-cottage', name: 'Abhainn Cottage' },
+  { id: 'un-cottage', propertyId: 'p-cottage', name: 'Abhainn' },
 ];
 
 // Loch Roag room photos from Eshcol's Google Photos room albums (18 Oct 2026), assigned by album (folder) name.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addDays, diffDays, fmt, fmtUK, parseUK } from './dates';
+import { addDays, diffDays, fmt, fmtUK, friendlyDate, friendlyDates, parseUK } from './dates';
 
 describe('dates', () => {
   it('addDays across the October clock change', () => {
@@ -23,5 +23,26 @@ describe('dates', () => {
     expect(parseUK('31/02/2026')).toBeNull();
     expect(parseUK('10/13/2026')).toBeNull();
     expect(parseUK('hello')).toBeNull();
+  });
+});
+describe('friendly dates in activity text', () => {
+  const today = '2026-10-26';
+  it('drops the year in the current year and keeps it otherwise', () => {
+    expect(friendlyDate('2026-11-06', today)).toBe('6 Nov');
+    expect(friendlyDate('2027-01-04', today)).toBe('4 Jan 2027');
+  });
+  it('rewrites ISO dates and padded weekday dates inside text', () => {
+    expect(friendlyDates('Eshcol Room 3 · TEST Worker: departure 2026-11-06', today)).toBe(
+      'Eshcol Room 3 · TEST Worker: departure 6 Nov',
+    );
+    expect(friendlyDates('arrival 2026-12-20 → 2027-01-04', today)).toBe('arrival 20 Dec → 4 Jan 2027');
+    expect(friendlyDates('Booked Uig for Name TBC · Thu 05 Nov → Sun 08 Nov', today)).toBe(
+      'Booked Uig for Name TBC · Thu 5 Nov → Sun 8 Nov',
+    );
+  });
+  it('leaves non-dates and other text alone', () => {
+    expect(friendlyDates('Room 10 · 2026-13-40 · ref 1234-56-78 · Mon 12 Nov', today)).toBe(
+      'Room 10 · 2026-13-40 · ref 1234-56-78 · Mon 12 Nov',
+    );
   });
 });

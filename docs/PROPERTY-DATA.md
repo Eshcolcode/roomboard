@@ -56,7 +56,7 @@ Source key:
 | Check-in 4pm, check-out 10am | HHC |
 | 2A Breasclete, Isle of Lewis HS2 9ED; 01851 621397 | HHC |
 
-**Abhainn Cottage**: **confirmed** (D) as the three-bedroom cottage.
+**Abhainn**: **confirmed** (D) as the three-bedroom cottage.
 | Fact | Source |
 |---|---|
 | Completely renovated; garden with decking overlooking the river; Wi-Fi, Sky TV | AC |
@@ -115,16 +115,16 @@ The property gallery reuses five of these room photos; there are no outside or s
 **Confirmed** (D, 18 Oct 2026): the property website photos may be used in the app.
 
 ## Gaps
-**Main gap: the booking-calendar (iCal) links for Harris, Uig and Abhainn Cottage.** Monadh's (SuperControl) is in
+**Main gap: the booking-calendar (iCal) links for Harris, Uig and Abhainn.** Monadh's (SuperControl) is in
 hand (18 Oct 2026). Until a link is set, the unit shows **Calendar not linked yet** and blocks nothing. The public booking
 pages below do not replace them. How to add one: see *Adding a booking calendar* below.
 
 Smaller items, shown in the app as "Details to come":
 - **Loch Roag**: no Room 4 photos (no Room 4 album); no outside or shared-space photos (kitchens, games room, lounge).
-- **Abhainn Cottage**: check-in and check-out times (none published; nothing invented).
+- **Abhainn**: check-in and check-out times (none published; nothing invented).
 
 Resolved 18 Oct 2026 (D): Eshcol address; which pod is which (Harris / Uig); The Lodge = Monadh; the 3-bed cottage is
-Abhainn Cottage; Monadh's description; permission to use the website photos; bed sizes not needed.
+Abhainn; Monadh's description; permission to use the website photos; bed sizes not needed.
 
 ## Public booking pages (not iCal)
 From Eshcol, 18 Oct 2026. Stored as `bookingUrl` and shown on each extra's property page as a **Check availability**
@@ -133,7 +133,7 @@ button that opens in a new tab. Tracking and date/occupancy query strings were r
 | Property | Booking page |
 |---|---|
 | Harris and Uig pods (one page for both) | https://booking-directly.com/widgets/AFdwunTlQtRXLGG59glXBg6bzyX2zGOL7uVYq3BXiXjQVNUL0wvLZtXa9p9Fd/properties |
-| Abhainn Cottage | https://booking-directly.com/widgets/Zi8g2tHyjcHeV1rY7shfws1inCMurecf736nZuRt2Q5ApN9GLY9lBQDGnSivz/properties/17285/unit-selection |
+| Abhainn | https://booking-directly.com/widgets/Zi8g2tHyjcHeV1rY7shfws1inCMurecf736nZuRt2Q5ApN9GLY9lBQDGnSivz/properties/17285/unit-selection |
 | Monadh (SuperControl) | https://secure.supercontrol.co.uk/availability/availability_search.asp?ownerID=859&siteID=10573 |
 
 ## Calendar links (iCal): what Eshcol needs
@@ -152,7 +152,7 @@ Extranet → **Rates & Availability** → **Sync calendars** → **Add calendar 
 - Booking.com imports every 2 hours. There is also **Import now**.
 - Only for properties that are Open/Bookable, with 20 room types or fewer and one unit per room type, and with no connectivity provider.
 
-**freetobook** and **booking-directly** (Abhainn Cottage, the pods): I could not verify their steps from official help pages, so ask the provider or look in their settings for "iCal" / "calendar export". freetobook feeds send one "NOT AVAILABLE" event per night, which Roomboard merges into stays.
+**freetobook** and **booking-directly** (Abhainn, the pods): I could not verify their steps from official help pages, so ask the provider or look in their settings for "iCal" / "calendar export". freetobook feeds send one "NOT AVAILABLE" event per night, which Roomboard merges into stays.
 
 **SuperControl** (Monadh): the iCal export link is in hand. Its events are all-day bookings and "Closed" periods,
 written as local midnights (`DTSTART;TZID=Europe/London:…T000000` with `X-MICROSOFT-CDO-ALLDAYEVENT:TRUE`); guest
@@ -170,7 +170,7 @@ yet** to **Calendar linked**. To change a link, set the secret again; to unlink,
 |---|---|---|
 | Harris pod (`x-pod1`) | `ICAL_HARRIS` | waiting for the link |
 | Uig pod (`x-pod2`) | `ICAL_UIG` | waiting for the link |
-| Abhainn Cottage (`x-cottage`) | `ICAL_ABHAINN` | waiting for the link |
+| Abhainn (`x-cottage`) | `ICAL_ABHAINN` | waiting for the link |
 | Monadh (`x-monadh`) | `ICAL_MONADH` | link in hand (SuperControl), kept outside the repo; set it when the live database is set up |
 
 ## Block contract vs priced properties (Eshcol, 18 Oct 2026)
@@ -178,7 +178,7 @@ yet** to **Calendar linked**. To change a link, set the secret again; to unlink,
   show a price or an estimate**, anywhere, for anyone: not on the booking confirmation ("Room held"), booking cards,
   the Classic panel, property pages, the Properties list, room cards, alerts or activity. Where a price would sit they
   say **"Included in your contract"** (no money).
-- Prices and estimates appear **only** for the out-of-contract extras: Harris, Uig, Monadh, Abhainn Cottage.
+- Prices and estimates appear **only** for the out-of-contract extras: Harris, Uig, Monadh, Abhainn.
 - **One flag decides it**: the property's `contracted` value (true = on the block contract). Nothing is keyed on
   names. The app (`priced()` / `priceLine` / `estimateLine` in `src/data/pricing.ts`) and the database
   (`indicative_price()` returns null when `properties.contracted`) both read it. The same flag already decides what
@@ -199,7 +199,7 @@ No admin screen yet (Eshcol: not urgent). Change the one flag:
 - One rate: **Indicative £350 per room per week**, used for the extras only. Eshcol changes it on *Properties* (live:
   `app_settings.rate_per_room_week`, readable by everyone signed in, writable by the manager only; demo: this
   browser). RJ McLeod sees the extras' prices but cannot change them.
-- Harris, Uig, Monadh and Abhainn Cottage are booked **whole**: their charged rooms are priced even if one is used
+- Harris, Uig, Monadh and Abhainn are booked **whole**: their charged rooms are priced even if one is used
   (every bedroom, except Abhainn's sofa-bed/desk room: `charged: 2`).
 - Every rate change is kept with who, when, old and new (`app_settings_history`, Eshcol only; demo: this browser),
   shown to Eshcol under *Rate history* on Properties.
@@ -213,7 +213,7 @@ No admin screen yet (Eshcol: not urgent). Change the one flag:
 | Harris | 1 | HHC: 1 bedroom + sofa bed (sofa bed not charged) | £350 a week, whole |
 | Uig | 1 | HHC: 1 bedroom + sofa bed (sofa bed not charged) | £350 a week, whole |
 | Monadh | 2 | D brief, "The Lodge (2 ensuite)" = Monadh | £700 a week, whole |
-| Abhainn Cottage | 3 bedrooms, **2 charged** | D, 18 Oct 2026: charge 2 rooms; the sofa-bed/desk room (bedroom 3, reached through another) is not charged | £700 a week, whole |
+| Abhainn | 3 bedrooms, **2 charged** | D, 18 Oct 2026: charge 2 rooms; the sofa-bed/desk room (bedroom 3, reached through another) is not charged | £700 a week, whole |
 
 ## Booking an extra property
 RJ McLeod books directly (no request step): the booking is confirmed straight away and Eshcol gets a "New booking"
@@ -250,6 +250,6 @@ as **Taken**, and Eshcol's bookings there do not appear in their activity or ale
 - Edge function `ical-export?t=<token>`: every Roomboard booking of the unit, as all-day "Booked" events with no guest details.
 - Demo / preview: only Monadh is linked, using `src/data/local/monadh-sample.ics`: a sanitised copy of the real
   SuperControl feed's structure and dates, with guest names, booking refs and UIDs replaced by fakes. Labelled
-  **Simulated**. Harris, Uig and Abhainn Cottage show **Calendar not linked yet**.
+  **Simulated**. Harris, Uig and Abhainn show **Calendar not linked yet**.
 - Checked 18 Oct 2026 against the real Monadh feed (run locally with the link as an environment variable): 14
   events read; from today it blocks 16–19 Nov 2026 (booked) and 20 Dec 2026 – 4 Jan 2027 (closed).

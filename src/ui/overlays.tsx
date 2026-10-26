@@ -1,6 +1,7 @@
 // Toasts (with Undo) and a promise-based confirm dialog, rendered once by the Shell.
 import { useSyncExternalStore } from 'react';
 import { data } from '../data';
+import { friendlyDates } from '../dates';
 
 type Toast = { id: number; text: string; undo?: boolean };
 type Ask = { title: string; body?: string; ok: string; danger?: boolean; resolve: (v: boolean) => void };
@@ -54,7 +55,7 @@ export function Overlays() {
       <div className="toasts" role="status" aria-live="polite">
         {toasts.map(t => (
           <div className="toast" key={t.id}>
-            <span>{t.text}</span>
+            <span>{friendlyDates(t.text)}</span>
             {t.undo && (
               <button
                 className="link light"

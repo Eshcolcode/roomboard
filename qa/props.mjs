@@ -142,7 +142,7 @@ await shot(p, '1-availability-phone');
 ok(
   JSON.stringify(await p.locator('.avp-card').evaluateAll(cs => cs.map(c => c.id))) ===
     JSON.stringify(['av-p-pod1', 'av-p-pod2', 'av-p-monadh', 'av-p-cottage']),
-  'availability: order Harris, Uig, Monadh, Abhainn Cottage',
+  'availability: order Harris, Uig, Monadh, Abhainn',
 );
 ok(
   (await p.locator('.avp-card .price-line:has-text("Indicative £350 per room per week")').count()) === 4 &&
@@ -569,7 +569,7 @@ await settle(p);
 ok(
   JSON.stringify(await p.locator('[data-prop]').evaluateAll(cs => cs.map(c => c.dataset.prop))) ===
     JSON.stringify(['p-es', 'p-lr', 'p-pod1', 'p-pod2', 'p-monadh', 'p-cottage']),
-  'Properties list: Eshcol, Loch Roag, Harris, Uig, Monadh, Abhainn Cottage',
+  'Properties list: Eshcol, Loch Roag, Harris, Uig, Monadh, Abhainn',
 );
 ok((await p.locator('[data-prop] .pp-price').count()) === 6, 'Properties list: indicative price on every card');
 ok(!(await p.locator('.pp-cal').count()), 'RJ McLeod: no calendar-link settings or enquiry list');
@@ -582,7 +582,7 @@ await settle(p);
 ok(
   (await p.locator('.pp-feed').innerText()).includes('Calendar not linked yet') &&
     !(await p.locator('.pp-cal input').count()),
-  'Eshcol: Abhainn Cottage calendar "not linked yet", no link box to paste into',
+  'Eshcol: Abhainn calendar "not linked yet", no link box to paste into',
 );
 await p.goto(U + '#available/p-monadh');
 await settle(p);

@@ -8,6 +8,7 @@ import { Book } from './Book';
 import type { BookInit, Notify } from './Book';
 import { Change } from './Change';
 import './simple.css';
+import { friendlyDates } from '../dates';
 
 export type UiMode = 'quick' | 'classic';
 export const MODE_KEY = 'rb-ui-mode';
@@ -90,7 +91,7 @@ export function useQuickToast(): [Notify, JSX.Element] {
     <div className="s-toasts" role="status" aria-live="polite">
       {toast && (
         <div className="s-toast" key={toast.id}>
-          <span>{toast.text}</span>
+          <span>{friendlyDates(toast.text)}</span>
           {toast.steps > 0 && (
             <button
               onClick={async () => {

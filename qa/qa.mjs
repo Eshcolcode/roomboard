@@ -504,7 +504,7 @@ ok(
     (await p.locator('[data-prop]').count()) === 6 &&
     (await p.locator('[data-prop] img').count()) === 6 &&
     !/Pod 1|Pod 2|The Lodge|bed size/i.test(av),
-  'Properties: 2 houses + 4 extras (Harris, Uig, Abhainn Cottage, Monadh), each with a photo, extras labelled',
+  'Properties: 2 houses + 4 extras (Harris, Uig, Abhainn, Monadh), each with a photo, extras labelled',
 );
 // ---------- rooms list ----------
 await go(p, 'rooms');

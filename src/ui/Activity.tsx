@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { data, useDB, me, digest } from '../data';
 import { actorName, visibleActivity } from '../data/notify';
 import { AlertSettings } from './Alerts';
+import { friendlyDates } from '../dates';
 
 type Filter = 'all' | 'immediate' | 'minor';
 
@@ -55,7 +56,7 @@ export function ActivityView() {
               <div className={'act' + (a.tier === 'immediate' ? ' imm' : '')} key={a.id} data-kind={a.kind}>
                 <div className="avt sm">{initials(who)}</div>
                 <div>
-                  <b>{who}</b> {a.text}
+                  <b>{who}</b> {friendlyDates(a.text)}
                   <span className="act-meta">
                     {a.tier === 'immediate' && (
                       <span className="tier-chip imm" title="Alert and email">

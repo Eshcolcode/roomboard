@@ -35,14 +35,7 @@ describe('extra properties (demo)', () => {
   it('seeds 4 bookable extra units; only Monadh has a linked calendar, outside the contract counts', async () => {
     await repo.reset();
     const extras = S.db.properties.filter(p => !p.contracted);
-    expect(S.db.properties.map(p => p.short)).toEqual([
-      'Eshcol',
-      'Loch Roag',
-      'Harris',
-      'Uig',
-      'Monadh',
-      'Abhainn Cottage',
-    ]);
+    expect(S.db.properties.map(p => p.short)).toEqual(['Eshcol', 'Loch Roag', 'Harris', 'Uig', 'Monadh', 'Abhainn']);
     expect(extras.map(p => p.id)).toEqual(['p-pod1', 'p-pod2', 'p-monadh', 'p-cottage']);
     expect(extras.every(p => S.db.rooms.filter(r => r.propertyId === p.id).length === 1)).toBe(true);
     expect(S.db.feeds!.map(f => [f.roomId, f.linked])).toEqual([
@@ -111,7 +104,7 @@ describe('extra properties (demo)', () => {
     await expect(
       repo.saveStay({ ...ask('x-monadh', 0, 1), arrival: b.from, departure: addDays(b.from, 1) }),
     ).rejects.toThrow(/booked elsewhere/);
-    // Eshcol's direct guest in Abhainn Cottage (seeded): RJ McLeod is told the dates are taken, not by whom
+    // Eshcol's direct guest in Abhainn (seeded): RJ McLeod is told the dates are taken, not by whom
     const g = S.db.stays.find(x => x.roomId === 'x-cottage')!;
     const err = await repo
       .saveStay({ ...ask('x-cottage', 0, 1), arrival: g.arrival, departure: addDays(g.arrival, 2) })
@@ -162,19 +155,19 @@ describe('extra properties (demo)', () => {
     expect(priceLine(S.db, P('Eshcol'))).toBeNull();
     expect(priceLine(S.db, P('Loch Roag'))).toBeNull();
     expect(S.db.properties.filter(p => p.contracted).map(p => p.short)).toEqual(['Eshcol', 'Loch Roag']);
-    expect([P('Harris'), P('Uig'), P('Monadh'), P('Abhainn Cottage')].map(p => [p.bedrooms, weekly(S.db, p)])).toEqual([
+    expect([P('Harris'), P('Uig'), P('Monadh'), P('Abhainn')].map(p => [p.bedrooms, weekly(S.db, p)])).toEqual([
       [1, 350],
       [1, 350],
       [2, 700],
       [3, 700], // Eshcol, 18 Oct 2026: Abhainn charged as 2 rooms (sofa-bed/desk room not charged)
     ]);
-    expect(priceLine(S.db, P('Abhainn Cottage'))).toBe(
+    expect(priceLine(S.db, P('Abhainn'))).toBe(
       'Indicative £350 per room per week · whole property, 2 rooms charged = £700 a week',
     );
     expect(priceLine(S.db, P('Monadh'))).toBe(
       'Indicative £350 per room per week · whole property, 2 rooms charged = £700 a week',
     );
-    expect(estimateLine(S.db, P('Abhainn Cottage'), 3)).toBe('Indicative £300 for 3 nights (£700 a week ÷ 7 × 3)');
+    expect(estimateLine(S.db, P('Abhainn'), 3)).toBe('Indicative £300 for 3 nights (£700 a week ÷ 7 × 3)');
     await as('client');
     await expect(repo.setSettings({ ratePerRoomWeek: 1 })).rejects.toThrow(/Only Eshcol/);
     await as('manager');
@@ -182,7 +175,7 @@ describe('extra properties (demo)', () => {
     await repo.setSettings({ ratePerRoomWeek: 420 });
     expect(priceLine(S.db, P('Harris'))).toMatch(/^Indicative £420 per room per week/);
     expect(priceLine(S.db, P('Eshcol'))).toBeNull();
-    expect(weekly(S.db, P('Abhainn Cottage'))).toBe(840);
+    expect(weekly(S.db, P('Abhainn'))).toBe(840);
     expect(S.db.activity[0].managerOnly).toBe(true);
     // rate history: who, when, old and new
     await repo.setSettings({ ratePerRoomWeek: 380 });
@@ -329,7 +322,7 @@ describe('extra properties (demo)', () => {
       { id: 'f-x-pod1', roomId: 'x-pod1', label: 'Airbnb (sample)', url: 'https://x/a.ics' },
     ];
     const n = upgrade(old);
-    expect(n.v).toBe(7);
+    expect(n.v).toBe(8);
     expect(n.rooms.some(r => r.id === 'x-lodge')).toBe(false);
     expect(n.stays.some(x => x.id === 'lodge-req')).toBe(false);
     expect(n.feeds!.every(f => typeof f.linked === 'boolean' && !('url' in f))).toBe(true);
@@ -349,21 +342,41 @@ describe('extra properties (demo)', () => {
     });
     old.stays.push({ ...S.db.stays[0], id: 'old-req', roomId: 'x-pod2', request: 'pending' } as never);
     const n = upgrade(old);
-    expect(n.v).toBe(7);
+    expect(n.v).toBe(8);
     expect(n.settings!.ratePerRoomWeek).toBe(350);
-    expect(n.properties.map(p => p.short)).toEqual([
-      'Eshcol',
-      'Loch Roag',
-      'Harris',
-      'Uig',
-      'Monadh',
-      'Abhainn Cottage',
-    ]);
-    expect(n.properties.find(p => p.short === 'Abhainn Cottage')!.bedrooms).toBe(3);
+    expect(n.properties.map(p => p.short)).toEqual(['Eshcol', 'Loch Roag', 'Harris', 'Uig', 'Monadh', 'Abhainn']);
+    expect(n.properties.find(p => p.short === 'Abhainn')!.bedrooms).toBe(3);
     const req = n.stays.find(x => x.id === 'old-req')!;
     expect('request' in req).toBe(false);
     expect(req.bookedBy).toBe(client);
     expect(n.stays.every(x => x.bookedBy !== undefined)).toBe(true);
+  });
+  it('upgrades a v7 demo store to the short names (Eshcol, Loch Roag, Abhainn); log lines are left alone', async () => {
+    await repo.reset();
+    const { upgrade } = await import('./local/store');
+    const old = JSON.parse(
+      JSON.stringify(S.db)
+        .split('"Abhainn"')
+        .join('"Abhainn Cottage"')
+        .split('Abhainn calendar')
+        .join('Abhainn Cottage calendar'),
+    ) as typeof S.db;
+    old.v = 7;
+    old.properties = old.properties.map(p =>
+      p.id === 'p-es'
+        ? { ...p, name: 'Eshcol Worker Accommodation' }
+        : p.id === 'p-lr'
+          ? { ...p, name: 'Loch Roag Guest House' }
+          : p,
+    );
+    old.activity = [{ id: 'a1', ts: '', userId: null, text: 'Booked Abhainn Cottage', kind: 'stay' } as never];
+    const n = upgrade(old);
+    expect(n.v).toBe(8);
+    expect(n.properties.map(p => p.name)).toEqual(['Eshcol', 'Loch Roag', 'Harris', 'Uig', 'Monadh', 'Abhainn']);
+    expect(n.units.find(u => u.id === 'un-cottage')!.name).toBe('Abhainn');
+    expect(n.feeds!.find(f => f.roomId === 'x-cottage')!.label).toBe('Abhainn calendar');
+    expect(JSON.stringify([n.properties, n.units, n.feeds])).not.toContain('Abhainn Cottage');
+    expect(n.activity[0].text).toBe('Booked Abhainn Cottage');
   });
   it('Find a room: extras in board order, whole unit, free only when the whole stay is (bookings, Taken blocks, open-ended)', async () => {
     await repo.reset();
@@ -372,7 +385,7 @@ describe('extra properties (demo)', () => {
     const from = addDays(T, a);
     const to = addDays(T, a + 3);
     const before = extrasFor(S.db, from, to);
-    expect(before.map(x => x.p.short)).toEqual(['Harris', 'Uig', 'Monadh', 'Abhainn Cottage']);
+    expect(before.map(x => x.p.short)).toEqual(['Harris', 'Uig', 'Monadh', 'Abhainn']);
     expect(before.find(x => x.room.id === 'x-pod1')!.free).toBe(true);
     await repo.saveStay(ask('x-pod1', a + 2, a + 4));
     expect(extrasFor(S.db, from, to).find(x => x.room.id === 'x-pod1')!.free).toBe(false);

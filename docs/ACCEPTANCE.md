@@ -1,6 +1,6 @@
 # Acceptance checklist
 
-Automated: `npm run build && npx vite preview --port 4173 &` then `npm run test:e2e:all` (qa, flow, board, props, find, views, layout: desktop and phone, all three logins). Unit: `npm test`. Database: `bash qa/sql.sh` (smoke + shared rules) and `bash qa/sql-rls.sh` (all migrations 0001–0012 on a fresh Postgres with Supabase-like roles, then the live-safe `live_rls.sql` and `live_flow.sql` checks).
+Automated: `npm run build && npx vite preview --port 4173 &` then `npm run test:e2e:all` (qa, flow, board, props, find, views, layout: desktop and phone, all three logins). Unit: `npm test`. Database: `bash qa/sql.sh` (smoke + shared rules) and `bash qa/sql-rls.sh` (all migrations 0001–0014 on a fresh Postgres with Supabase-like roles, then the live-safe `live_rls.sql`, `live_flow.sql`, `stale_edit.sql` and `friendly_dates.sql` checks).
 
 Run on 26 Oct 2026 (branch `properties`): unit 174/174, lint clean, qa 162/162, flow 33/33, board 114/114, props 139/139, find 19/19, views 61/61, layout 154/154 (134 screens), sql smoke 76/76 + rules 53/53, sql-rls 35/35.
 
@@ -16,7 +16,7 @@ Run the demo (`npm run build && npx vite preview`, or open the uploaded site), t
 ## Structure
 - [ ] Board shows **Loch Roag Rooms 1–9**, grouped *Upstairs · Rooms 1–5* / *Downstairs · Rooms 6–9*. Rooms 2 and 3 show a shared shower, Room 8 shows *Private shower room*, and the others show Ensuite. The room panel shows the floor and bathroom detail.
 - [ ] Board shows **Eshcol** as one property (10 rooms) with group labels *Main house · Rooms 1–7* and *Downstairs flat · Rooms 8–10*.
-- [ ] *More rooms* shows **Hebridean Holiday Cabins** (Harris, Uig, Abhainn Cottage) and **Whitefalls Spa Lodges** (Monadh) as separate groups. None of them are on the board.
+- [ ] *More rooms* shows **Hebridean Holiday Cabins** (Harris, Uig, Abhainn) and **Whitefalls Spa Lodges** (Monadh) as separate groups. None of them are on the board.
 
 ## Room 8 journey (Loch Roag)
 - [ ] Room 8 shows Neil Mackenzie as **Leaves today (confirmed)** (amber bar ending today, Fri 16 Oct 2026).
@@ -99,7 +99,7 @@ Run the demo (`npm run build && npx vite preview`, or open the uploaded site), t
 - [ ] `npm run lint` is clean; the CI workflow (`ci/github-actions-ci.yml`, to be moved into `.github/workflows/`) runs lint, types, unit, build and e2e on push.
 
 ## Extra properties and prices (18 Oct 2026)
-- [ ] Order everywhere (board, Rooms, availability, Properties): Eshcol, Loch Roag, Harris, Uig, Monadh, Abhainn Cottage.
+- [ ] Order everywhere (board, Rooms, availability, Properties): Eshcol, Loch Roag, Harris, Uig, Monadh, Abhainn.
 - [ ] Desktop board: an *Extra properties* group with one row each; RJ McLeod sees their own bookings as bars and everything else as **Taken**; Eshcol sees names and **Booked elsewhere**. Clicking a free day opens a booking sheet on the board itself. Phone: the same four on Rooms with tonight, the next 14 nights and **Book**.
 - [ ] RJ McLeod books an extra directly: **Book these dates** shows the indicative estimate first; the booking is confirmed straight away, Eshcol gets a "New booking" alert; no confirm/decline step anywhere.
 - [ ] Taken dates (calendar or another booking) cannot be booked; the message names nobody.
@@ -153,7 +153,7 @@ Do this on a real Supabase project with the production build in `VITE_DATA_MODE=
   `ical-sync`; set `supabase secrets set ICAL_MONADH=<link>` (Grok Bot holds it; never commit it). Then:
   - [ ] **Read calendars now** on Monadh → "Calendar linked · SuperControl"; on the availability page RJ McLeod sees
     16–19 Nov 2026 and 20 Dec 2026 – 4 Jan 2027 as **Taken** (check-out days free), with no names and no site name.
-  - [ ] Harris, Uig and Abhainn Cottage say **Calendar not linked yet**, with no error, and block nothing.
+  - [ ] Harris, Uig and Abhainn say **Calendar not linked yet**, with no error, and block nothing.
   - [ ] `select * from cron.job where jobname = 'ical-sync'` shows `17 */3 * * *`; after 3 hours `last_synced_at` moves.
   - [ ] `ical_blocks` holds dates only; `ical_feeds` holds no URL; RJ McLeod's API key reads 0 rows from `ical_feeds`.
   - Force a failure (bad API key) → row is `failed`/retry with backoff → fix the key → `accepted` / `delivered`.

@@ -32,3 +32,17 @@ export function parseUK(t: string): string | null {
   if (dt.getUTCFullYear() !== yy || dt.getUTCMonth() !== mm - 1 || dt.getUTCDate() !== dd) return null;
   return dt.toISOString().slice(0, 10);
 }
+/** '2026-11-06' -> '6 Nov' ('6 Nov 2027' when not this year), the friendly form used in activity and alert text. */
+export function friendlyDate(d: string, today: string = londonToday()): string {
+  const s = fmt(d, { day: 'numeric', month: 'short' });
+  return d.slice(0, 4) === today.slice(0, 4) ? s : `${s} ${d.slice(0, 4)}`;
+}
+/** Activity, alert and message text: ISO dates become friendly dates; 'Mon 02 Nov' loses its leading zero. */
+export function friendlyDates(t: string, today: string = londonToday()): string {
+  return t
+    .replace(/\b(\d{4})-(\d{2})-(\d{2})\b/g, (m, y, mo, d) => {
+      const iso = `${y}-${mo}-${d}`;
+      return parseUK(`${d}/${mo}/${y}`) === iso ? friendlyDate(iso, today) : m;
+    })
+    .replace(/\b(Mon|Tue|Wed|Thu|Fri|Sat|Sun) 0([1-9]) (?=[A-Z][a-z]{2}\b)/g, '$1 $2 ');
+}

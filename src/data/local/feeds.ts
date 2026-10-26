@@ -1,4 +1,4 @@
-// Demo calendar links. Only Monadh's calendar is linked so far (SuperControl); Harris, Uig and Abhainn Cottage
+// Demo calendar links. Only Monadh's calendar is linked so far (SuperControl); Harris, Uig and Abhainn
 // show "Calendar not linked yet" until Eshcol sends their links. Monadh's demo feed is a sanitised copy of the real
 // feed's structure and dates (monadh-sample.ics: same VTIMEZONE, local-midnight all-day events, "Closed" periods;
 // guest names, booking refs and UIDs replaced). It goes through the real parser, like a live sync.
@@ -14,7 +14,7 @@ export const EXTRA_UNITS = ['x-pod1', 'x-pod2', 'x-monadh', 'x-cottage'];
 const LABEL: Record<string, string> = {
   'x-pod1': 'Harris calendar',
   'x-pod2': 'Uig calendar',
-  'x-cottage': 'Abhainn Cottage calendar',
+  'x-cottage': 'Abhainn calendar',
   'x-monadh': 'SuperControl',
 };
 /** The demo's linked calendars (unit → .ics text). The others are not linked yet. */

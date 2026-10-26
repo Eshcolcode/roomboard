@@ -396,18 +396,32 @@ ok(
   '3 digest content',
 );
 // ---------- 4: routing ----------
+// minor change (notes only, 19 Oct tiers): activity log only, no alert email to anyone
 await reset(p);
 await p.click('.row[data-room="lr-6"] .bar');
 await p.fill('#f-notes', 'routing');
 await save(p);
 await go(p, 'activity');
 await p.waitForTimeout(2200);
+ok((await p.locator('.al').count()) === 0, '4 minor edit (notes) by Eshcol → no alert email');
+// important change (leaving date) by Eshcol → RJ McLeod; not self; Housekeeper only if it touches the next 7 days
+await reset(p);
+const st6 = await p.evaluate(() =>
+  JSON.parse(localStorage.getItem('roomboard-demo-v2')).stays.find(s => s.roomId === 'lr-6'),
+);
+await p.click('.row[data-room="lr-6"] .bar');
+await date(p, '#f-dep', D(30));
+await save(p);
+await go(p, 'activity');
+await p.waitForTimeout(2200);
 const out = await p.locator('.al').allInnerTexts();
+const hkDue = [st6.arrival, st6.departure].some(d => d && d >= D(0) && d <= D(7));
+const toWho = out.map(t => t.trim().split('\n').at(-1).trim()); // each outbox line ends with who it is to ('RJ McLeod <address>')
 ok(
-  out.some(t => t.includes('RJ McLeod')) &&
-    !out.some(t => t.includes('Housekeeper') && t.includes('Stay updated')) &&
-    !out.some(t => t.includes('Eshcol') && t.includes('Stay updated')),
-  '4 provider edit → client only; not cleaner; not self',
+  toWho.some(t => t.startsWith('RJ McLeod')) &&
+    toWho.some(t => t.startsWith('Housekeeper')) === hkDue &&
+    !toWho.some(t => t.startsWith('Eshcol')),
+  `4 provider date change → RJ McLeod; not self; housekeeper ${hkDue ? 'too (within 7 days)' : 'not (outside 7 days)'}`,
 );
 ok(
   out.every(t => !/\btext\b/i.test(t.split('\n')[1] ?? '')),
@@ -427,12 +441,24 @@ await p.click('.demo-pill');
 let leak = [];
 for (const t of ['board', 'rooms', 'free', 'today', 'workers', 'available', 'activity', 'print-today']) {
   await go(p, t);
-  const tx = await p.locator('body').innerText();
+  // the demo-only login switcher lists 'Housekeeper' as a login (a role, not a person): leave it out
+  const tx = await p.evaluate(() => {
+    const c = document.body.cloneNode(true);
+    c.querySelectorAll('select.who, select.s-who').forEach(e => e.remove());
+    c.style.position = 'absolute';
+    document.body.appendChild(c);
+    const t = c.innerText;
+    c.remove();
+    return t;
+  });
   if (/Housekeeper|cleaner\b|to be scheduled/i.test(tx) || /To book|Booked in/.test(tx)) leak.push(t);
 }
 await go(p, 'board');
 const titles = await p.locator('.co').evaluateAll(es => es.map(e => e.getAttribute('title')).join(' '));
-ok(!leak.length && !/Housekeeper|To book/.test(titles), 'RJ McLeod: no cleaner names and no scheduling noise ' + leak.join(','));
+ok(
+  !leak.length && !/Housekeeper|To book/.test(titles),
+  'RJ McLeod: no cleaner names and no scheduling noise ' + leak.join(','),
+);
 // ---------- free-rooms finder ----------
 await go(p, 'free');
 await date(p, '#fr-from', D(1));

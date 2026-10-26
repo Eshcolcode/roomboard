@@ -92,7 +92,19 @@ async function pickFree(p, scope, n) {
     }
   return -1;
 }
-const names = x => x.workers.map(w => w.name).concat(x.users.filter(u => u.role === 'cleaner').map(u => u.name));
+// page text without the demo-only login switcher (select.who / select.s-who lists 'Housekeeper' as a login,
+// which is a role, not a person); the cleaner is never named or mentioned anywhere else on a client page
+const pageText = p =>
+  p.evaluate(() => {
+    const c = document.body.cloneNode(true);
+    c.querySelectorAll('select.who, select.s-who').forEach(e => e.remove());
+    document.body.appendChild(c);
+    c.style.position = 'absolute';
+    const t = c.innerText;
+    c.remove();
+    return t;
+  });
+const cleanerFree = t => !/Housekeeper|Mairi/.test(t);
 
 // ---------- availability page as RJ McLeod (phone) ----------
 let p = await pg(390, 844, 'availability', { user: 'u-client' });
@@ -117,9 +129,9 @@ ok((await p.locator('.avp-card img').count()) >= 3, 'availability: photos shown 
       !(await p.locator('[data-unit="x-pod1"] .av-d.s-elsewhere, [data-unit="x-cottage"] .av-d.s-elsewhere').count()),
     'availability: calendars not linked yet block nothing',
   );
-  const body = await p.locator('body').innerText();
+  const body = await pageText(p);
   ok(
-    !names(x).some(n => body.includes(n)) && !/Housekeeper/.test(body),
+    !x.workers.some(w => body.includes(w.name)) && cleanerFree(body),
     'privacy: no guest or cleaner names on the availability page',
   );
   ok(!/Airbnb|Booking\.com|SuperControl/.test(body), 'privacy: RJ McLeod does not see which site a booking came from');
@@ -169,7 +181,10 @@ await settle(p);
 }
 let bk1 = (await db(p)).stays.find(s => s.roomId === 'x-pod1' && s.holdLabel === 'Calum Test');
 ok(bk1 && bk1.bookedBy === 'u-client' && !('request' in bk1), 'client booking of an extra is a confirmed booking');
-ok((await p.locator('[data-unit="x-pod1"] .av-d.s-mine').count()) === 3, 'RJ McLeod: their booked nights show as "Yours"');
+ok(
+  (await p.locator('[data-unit="x-pod1"] .av-d.s-mine').count()) === 3,
+  'RJ McLeod: their booked nights show as "Yours"',
+);
 ok(
   (await p.locator('[data-unit="x-pod1"] .av-yours').innerText()).includes('Calum Test') &&
     (await p.locator('[data-unit="x-pod1"] .av-d.s-mine').first().getAttribute('aria-label')).includes('yours'),
@@ -231,7 +246,10 @@ await settle(p);
     t.includes('Indicative £150 for 3 nights') && t.includes('Long-term deals possible'),
     'Quick card: indicative estimate',
   );
-  ok(/\bCancel\b/.test(t) && !/Confirm|Decline/.test(t), 'Quick card: no confirm/decline; RJ McLeod can cancel their own');
+  ok(
+    /\bCancel\b/.test(t) && !/Confirm|Decline/.test(t),
+    'Quick card: no confirm/decline; RJ McLeod can cancel their own',
+  );
   ok(
     t.includes('Add the name') &&
       t.includes('Change dates') &&
@@ -501,7 +519,7 @@ await shot(p, '4b-lightbox');
 await p.keyboard.press('Escape');
 await settle(p);
 ok(!(await p.locator('.lb').count()), 'viewer: Esc closes');
-ok(!/Housekeeper/.test(await p.locator('body').innerText()), 'privacy: no cleaner name on the property page');
+ok(cleanerFree(await pageText(p)), 'privacy: no cleaner name on the property page');
 ok(!(await p.locator('.pp-todo').count()), 'Eshcol: nothing left "to come" (address confirmed, bed sizes not needed)');
 await shot(p, '4-property-eshcol');
 await p.goto(U + '#available/p-lr');
@@ -874,7 +892,7 @@ p = await pg(390, 844, 'available/p-lr', { user: 'u-client' });
   // all visible text plus tooltips and labels inside the given scopes
   // the extras (Harris, Uig, Monadh, Abhainn) are priced on purpose: they are left out of the look
   const EXTRA =
-    '[data-extra], [data-extras], .xgroup, .xsec, .xcard, .xrow, .xs, .avp, [data-prop^="p-pod"], [data-prop="p-monadh"], [data-prop="p-cottage"], .pp-price-note, .pp-rate, .pp-hist';
+    '[data-extra], [data-extras], .xfree, .xgroup, .xsec, .xcard, .xrow, .xs, .avp, [data-prop^="p-pod"], [data-prop="p-monadh"], [data-prop="p-cottage"], .pp-price-note, .pp-rate, .pp-hist';
   const money = (p, sel) =>
     p.evaluate(
       ({ sel, EXTRA }) => {
@@ -926,6 +944,17 @@ p = await pg(390, 844, 'available/p-lr', { user: 'u-client' });
         const r = await money(p, sel);
         seen += r.n;
         if (r.hits.length) bad.push(`#${hash}: ${r.hits.join(' / ').slice(0, 120)}`);
+        // the housekeeper sees no prices at all (20 Oct), extras included
+        if (user === 'u-housekeeper' && (await p.locator('.xfree').count()))
+          if (/£|indicative|estimate/i.test(await p.locator('.xfree').innerText()))
+            bad.push('#free: price shown to housekeeper');
+        // Find a room lists the extras too (19 Oct), priced on purpose, outside the contract
+        if (
+          hash === 'free' &&
+          user !== 'u-housekeeper' &&
+          !/Indicative only/.test(await p.locator('.xfree-note').innerText())
+        )
+          bad.push('#free: extras shown without their indicative price note');
       }
       // activity: lines about contract rooms
       await p.goto(U + '#activity');

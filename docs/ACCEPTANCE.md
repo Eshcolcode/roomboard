@@ -1,6 +1,15 @@
 # Acceptance checklist
 
-Automated: `npm run build && npx vite preview --port 4173 &` then `node qa/qa.mjs` (77 checks, desktop and phone, all roles). Database: `supabase/tests/smoke.sql` (12 checks plus notices).
+Automated: `npm run build && npx vite preview --port 4173 &` then `npm run test:e2e:all` (qa, flow, board, props, find, views, layout: desktop and phone, all three logins). Unit: `npm test`. Database: `bash qa/sql.sh` (smoke + shared rules) and `bash qa/sql-rls.sh` (all migrations 0001–0012 on a fresh Postgres with Supabase-like roles, then the live-safe `live_rls.sql` and `live_flow.sql` checks).
+
+Run on 26 Oct 2026 (branch `properties`): unit 174/174, lint clean, qa 162/162, flow 33/33, board 114/114, props 139/139, find 19/19, views 61/61, layout 154/154 (134 screens), sql smoke 76/76 + rules 53/53, sql-rls 35/35.
+
+> **Superseded since this list was written** (the automated suites check the current behaviour): logins are by role only
+> (RJ McLeod, Eshcol, Housekeeper; no personal names anywhere, so "first names" for the cleaner no longer apply);
+> the housekeeper sees no prices; alerts are tiered (important → red dot + email, minor → activity log only), with no
+> SMS, no 6pm/07:00 digest switch, and the housekeeper alerted only for changes in the next 7 days; *More rooms* became
+> the four bookable extras (Harris, Uig, Monadh, Abhainn) on the board, Rooms, Find a room and Properties; the
+> Room 8 / Room 4 journeys used demo dates around 16–23 Oct 2026, and the demo now seeds relative to today.
 
 Run the demo (`npm run build && npx vite preview`, or open the uploaded site), then press **Reset demo**. Use the role switcher top-right.
 

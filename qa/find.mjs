@@ -47,9 +47,9 @@ const dates = async (p, a, d) => {
   await p.fill('#fr-to', uk(d));
   await settle(p);
 };
-// D(28)..D(31): Monadh's demo calendar is booked 16–19 Nov 2026 (dates relative to 19 Oct 2026)
-const A = D(28),
-  Z = D(31);
+// A..Z: three nights inside Monadh's first upcoming demo calendar block (16–19 Nov 2026 in the sample feed), read
+// from the demo data so the check does not depend on today's date
+let A, Z;
 const cards = p =>
   p
     .locator('.freeextra')
@@ -59,6 +59,14 @@ const cards = p =>
 
 // ---- RJ McLeod, Quick, desktop ----
 let p = await pg(1440, 950);
+{
+  const k = (await db(p)).blocks
+    .filter(k => k.roomId === 'x-monadh' && k.from >= D(2))
+    .sort((x, y) => x.from.localeCompare(y.from))[0];
+  A = k.from;
+  const z3 = new Date(Date.parse(A + 'T00:00Z') + 3 * 864e5).toISOString().slice(0, 10);
+  Z = k.to < z3 ? k.to : z3;
+}
 await dates(p, A, Z);
 let c = await cards(p);
 ok(

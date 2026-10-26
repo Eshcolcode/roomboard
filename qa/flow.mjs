@@ -99,9 +99,26 @@ await p.click('text=Book a room'); await settle(p);
 await p.click('.s-pick:has-text("A crew")'); await settle(p);
 await shot(p, 'crew-1-count');
 await p.click('button:has-text("Next")'); await settle(p);
-const day = new Date(Date.now() + 21 * 864e5);
-await p.click('[aria-label="Next month"]'); await settle(p);
-await p.locator('.s-calgrid .d:not([disabled])').nth(10).click(); await p.waitForTimeout(700);
+// pick the first arrival (3 to 9 weeks out) where 12 contract rooms are free for 10 nights in the demo data,
+// so the check does not depend on where today's date falls against the seeded stays
+const day = await p.evaluate(() => {
+  const x = JSON.parse(localStorage.getItem('roomboard-demo-v2'));
+  const T = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/London' }).format(new Date());
+  const add = (d, n) => new Date(Date.parse(d + 'T00:00Z') + n * 864e5).toISOString().slice(0, 10);
+  const rooms = x.rooms.filter(r => r.propertyId === 'p-es' || r.propertyId === 'p-lr');
+  for (let i = 21; i < 63; i++) {
+    const a = add(T, i), d = add(a, 10);
+    const free = rooms.filter(r => !x.stays.some(s => s.roomId === r.id && s.arrival < d && (!s.departure || s.depStatus === 'ufn' || s.departure > a)));
+    if (free.length >= 12) return a;
+  }
+  return null;
+});
+ok(!!day, 'demo data has a 10-night window with 12 free rooms (' + day + ')');
+const dayLabel = new Date(day + 'T00:00Z').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
+for (let i = 0; i < 4 && !(await p.locator(`.s-calgrid [aria-label="${dayLabel}"]`).count()); i++) {
+  await p.click('[aria-label="Next month"]'); await settle(p);
+}
+await p.locator(`.s-calgrid [aria-label="${dayLabel}"]`).click(); await p.waitForTimeout(700);
 await p.click('.s-chip:has-text("10 nights")'); await p.waitForTimeout(700);
 await shot(p, 'crew-2-rooms');
 const c0 = (await stays(p)).length;

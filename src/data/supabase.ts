@@ -315,7 +315,11 @@ export const toRow = (
     notes: i.notes,
   };
 };
+// a stale edit (stays_before): PT409 since 0013; 40001 before it (PostgREST retried that forever, so never rely on it)
+const STALE = new Set(['PT409', '40001']);
 const fail = (e: R.PgError | null | undefined) => {
+  if (e?.code && STALE.has(e.code))
+    throw new ConflictError('This stay was changed by someone else while you were editing. Reload to see the latest.');
   if (e?.code === '23P01') throw new Error('That room is already taken for some of those nights.');
   if (e?.code === 'P0001') throw new Error(e.message);
   if (e) throw new Error(e.message);
@@ -353,13 +357,13 @@ export const supabaseRepo: Repo = {
     const before = i.id ? S.db.stays.find(s => s.id === i.id) : undefined;
     if (i.id) {
       // optimistic concurrency: only update if nobody bumped the version meanwhile
-      // expected_version is checked by the stays_version trigger (raises 40001 on a stale edit)
+      // expected_version is checked by the stays_before trigger (PT409 = HTTP 409 on a stale edit, 0013)
       const { data, error } = await sb
         .from('stays')
         .update({ ...row, version: i.version })
         .eq('id', i.id)
         .select();
-      if (error?.code === '40001')
+      if (error?.code && STALE.has(error.code))
         throw new ConflictError(
           'This stay was changed by someone else while you were editing. Reload to see the latest before saving.',
         );

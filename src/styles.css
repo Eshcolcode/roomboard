@@ -3334,7 +3334,7 @@ button.freeextra:hover {
 .awayseg em {
   position: absolute;
   bottom: 1px;
-  left: 4px;
+  right: 5px;
   font-style: normal;
   font-size: 9px;
   font-weight: 700;
@@ -3342,7 +3342,8 @@ button.freeextra:hover {
   white-space: nowrap;
 }
 .bar.hold .awayseg {
-  background: repeating-linear-gradient(135deg, rgba(185, 171, 136, 0.35) 0 6px, transparent 6px 12px);
+  background: repeating-linear-gradient(135deg, rgba(120, 104, 64, 0.28) 0 6px, rgba(255, 255, 255, 0.5) 6px 12px);
+  border-left-color: #8b7a50;
 }
 .lg.shaway {
   background: repeating-linear-gradient(135deg, #a9b6c9 0 3px, #d5dce7 3px 6px);
@@ -3359,11 +3360,11 @@ button.freeextra:hover {
   line-height: 15px;
   vertical-align: 1px;
 }
-.inmark.in {
+.inmark.im-in {
   background: var(--navy2);
   color: #fff;
 }
-.inmark.away {
+.inmark.im-away {
   background: #eef2f7;
   color: var(--navy);
   border: 1px dashed var(--navy2);

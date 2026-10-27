@@ -328,7 +328,7 @@ function RoomRow({
           {r.name}
           {tonight && (
             <i
-              className={'inmark ' + (awayTonight ? 'away' : 'in')}
+              className={'inmark ' + (awayTonight ? 'im-away' : 'im-in')}
               data-inmark={awayTonight ? 'away' : 'in'}
               title={awayTonight ? 'Away tonight, room kept' : 'In tonight'}
               aria-label={awayTonight ? 'Away tonight, room kept' : 'In tonight'}

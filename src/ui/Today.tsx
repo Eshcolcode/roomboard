@@ -123,8 +123,16 @@ export function TodayList({ onOpen }: { onOpen: (p: PanelInit) => void }) {
                 <Item
                   key={s.id}
                   s={s}
-                  tag={isAway(s, T) ? 'Away' : 'In'}
-                  sub={`Night ${diffDays(s.arrival, T) + 1} · ${isAway(s, T) ? 'away, room kept · ' : ''}${leaving(s)}`}
+                  tag={isAway(s, T) ? 'Away' : isAway(s, addDays(T, -1)) ? 'Back' : 'In'}
+                  sub={`Night ${diffDays(s.arrival, T) + 1} · ${
+                    isAway(s, T)
+                      ? u.role === 'client'
+                        ? 'away, room kept · '
+                        : 'away, good day to clean · '
+                      : isAway(s, addDays(T, -1))
+                        ? 'back today · '
+                        : ''
+                  }${leaving(s)}`}
                 />
               ))
             ) : (

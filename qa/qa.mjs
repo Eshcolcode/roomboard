@@ -95,8 +95,8 @@ ok(
   'open cleans KPI counts the next 7 days only',
 );
 ok(
-  (await p.locator('.grp').first().innerText()).match(/\d+ allocated · \d+ on site/),
-  'property headings: N allocated · M on site',
+  (await p.locator('.grp').first().innerText()).match(/\d+ in tonight, \d+ away · \d+ allocated/),
+  "property headings: who's in tonight (N in, M away · K allocated)",
 );
 await p.click('.demo-pill');
 ok(await p.locator('button.reset:has-text("Reset demo data")').isVisible(), '7 Reset demo data available to provider');
@@ -233,7 +233,7 @@ ok((await p.locator('.panel .err:has-text("Away")').count()) === 1, 'away: back 
 await date(p, '[aria-label="Back on"]', D(7));
 await save(p);
 await p.waitForTimeout(150);
-ok((await p.locator('.row[data-room="lr-6"] .away').count()) === 1, 'away, room kept shown on board');
+ok((await p.locator('.row[data-room="lr-6"] .awayseg').count()) === 1, 'away, room kept shown on board');
 await p.click('.row[data-room="lr-6"] .bar');
 await p.keyboard.press('Escape');
 ok((await p.locator('.panel').count()) === 0, 'Escape closes panel');
@@ -519,8 +519,8 @@ ok(
   "open-ended stays say 'Until further notice', no 'departs'",
 );
 ok(
-  /\d+ allocated · \d+ on site/.test(await p.locator('.rooms h3').first().innerText()),
-  'rooms list headings: N allocated · M on site',
+  /\d+ in tonight, \d+ away · \d+ allocated/.test(await p.locator('.rooms h3').first().innerText()),
+  "rooms list headings: who's in tonight",
 );
 // ---------- navigation & dates ----------
 await as(p, 'u-eshcol');

@@ -2,6 +2,9 @@
 import { useSyncExternalStore } from 'react';
 import { addDays, londonToday, overlaps, fmt } from '../dates';
 import { boundary, stayError } from './rules';
+import { dayState } from './shifts';
+import type { ShiftPattern, StayShift } from './shifts';
+export type { ShiftPattern, StayShift, DayState } from './shifts';
 export type Role = 'client' | 'manager' | 'cleaner';
 export type Bath = 'ensuite' | 'private' | 'shared';
 export interface User {
@@ -225,6 +228,8 @@ export interface DB {
   feeds?: Feed[]; // iCal import links per extra unit
   blocks?: Block[]; // dates booked elsewhere (from those links): no guest details are kept
   settings?: Settings;
+  shiftPatterns?: ShiftPattern[]; // shift patterns (0015), set up once and applied to stays
+  stayShifts?: StayShift[]; // which stays follow a pattern, from when, and their one-off days
   notices?: Notice[]; // in-app alerts (red dot), newest first
   rateHistory?: RateChange[]; // newest first; Eshcol only (live: app_settings_history, RLS) // Eshcol's settings (indicative rate); everyone reads, only the manager writes
   currentUser: string;
@@ -469,7 +474,27 @@ export function suggestFor(workerId: string): { arrival: string; roomId?: string
   const free = freeRooms(last.departure, addDays(last.departure, 7)).some(r => r.id === last.roomId);
   return { arrival: last.departure, roomId: free ? last.roomId : undefined };
 }
-export const isAway = (s: Stay, d: string) => !!(s.away && s.away.from <= d && s.away.to > d);
+/** The pattern a stay follows (if any) and the pattern itself. */
+export const shiftOf = (stayId: string) => {
+  const sh = S.db.stayShifts?.find(x => x.stayId === stayId);
+  const p = sh ? S.db.shiftPatterns?.find(x => x.id === sh.patternId) : undefined;
+  return sh && p ? { sh, p } : null;
+};
+/** Away on night d, room kept: the one-off away dates, or an away day of their shift pattern. */
+export const shiftAway = (s: Stay, d: string) => {
+  const x = shiftOf(s.id);
+  return !!x && dayState(s, x.p, x.sh, d) === 'away';
+};
+export const isAway = (s: Stay, d: string) => !!(s.away && s.away.from <= d && s.away.to > d) || shiftAway(s, d);
+/** The night someone away on d is back in (null = not before they leave / not known). */
+export function backOn(s: Stay, d: string): string | null {
+  for (let i = 1; i < 400; i++) {
+    const x = addDays(d, i);
+    if (s.departure && x >= s.departure) return null;
+    if (!isAway(s, x)) return x;
+  }
+  return null;
+}
 export const inHouseOn = (s: Stay, d: string) => s.arrival <= d && (s.departure ?? '9') > d;
 /** Occupancy counts (one source for KPIs, board headings and the rooms list). */
 export function occupancy(d: string, propertyId?: string) {
@@ -552,7 +577,7 @@ export function digest(role: Role) {
             `${roomLabel(c.roomId)} ready by ${c.readyBy ? fmt(c.readyBy) : 'no arrival yet'} [${role === 'client' ? (readinessFor(c).client ?? '') : readinessFor(c).provider}]`,
         )
         .join('; ') || 'none'),
-    `In house tonight: ${visible.filter(s => s.arrival <= T && (s.departure ?? '9') > T && !(s.away && s.away.from <= T && s.away.to > T)).length}`,
+    `In house tonight: ${visible.filter(s => s.arrival <= T && (s.departure ?? '9') > T && !isAway(s, T)).length}`,
   ].join('\n');
 }
 

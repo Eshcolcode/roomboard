@@ -322,7 +322,7 @@ describe('extra properties (demo)', () => {
       { id: 'f-x-pod1', roomId: 'x-pod1', label: 'Airbnb (sample)', url: 'https://x/a.ics' },
     ];
     const n = upgrade(old);
-    expect(n.v).toBe(8);
+    expect(n.v).toBe(9);
     expect(n.rooms.some(r => r.id === 'x-lodge')).toBe(false);
     expect(n.stays.some(x => x.id === 'lodge-req')).toBe(false);
     expect(n.feeds!.every(f => typeof f.linked === 'boolean' && !('url' in f))).toBe(true);
@@ -342,7 +342,7 @@ describe('extra properties (demo)', () => {
     });
     old.stays.push({ ...S.db.stays[0], id: 'old-req', roomId: 'x-pod2', request: 'pending' } as never);
     const n = upgrade(old);
-    expect(n.v).toBe(8);
+    expect(n.v).toBe(9);
     expect(n.settings!.ratePerRoomWeek).toBe(350);
     expect(n.properties.map(p => p.short)).toEqual(['Eshcol', 'Loch Roag', 'Harris', 'Uig', 'Monadh', 'Abhainn']);
     expect(n.properties.find(p => p.short === 'Abhainn')!.bedrooms).toBe(3);
@@ -371,7 +371,7 @@ describe('extra properties (demo)', () => {
     );
     old.activity = [{ id: 'a1', ts: '', userId: null, text: 'Booked Abhainn Cottage', kind: 'stay' } as never];
     const n = upgrade(old);
-    expect(n.v).toBe(8);
+    expect(n.v).toBe(9);
     expect(n.properties.map(p => p.name)).toEqual(['Eshcol', 'Loch Roag', 'Harris', 'Uig', 'Monadh', 'Abhainn']);
     expect(n.units.find(u => u.id === 'un-cottage')!.name).toBe('Abhainn');
     expect(n.feeds!.find(f => f.roomId === 'x-cottage')!.label).toBe('Abhainn calendar');

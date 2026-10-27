@@ -178,3 +178,17 @@ export interface BlockRow {
   start_date: string;
   end_date: string;
 }
+/** 0015 shift patterns */
+export interface ShiftPatternRow {
+  id: string;
+  name: string;
+  days_on: number;
+  days_off: number;
+  start_dow: number;
+}
+export interface StayShiftRow {
+  stay_id: string;
+  pattern_id: string;
+  cycle_start: string;
+  overrides: Record<string, 'in' | 'away'> | null;
+}

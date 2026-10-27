@@ -163,3 +163,11 @@ Do this on a real Supabase project with the production build in `VITE_DATA_MODE=
 - [ ] **Undo in live mode:** cancel a stay, press Undo: the stay returns (same id) and the clean is re-linked; both sides get the alert.
 - [ ] **Shared rules on the live database:** run `node qa/sql-rules.mjs` against the project (PG* env vars) – all cases pass.
 - [ ] **Cloudflare Access** is on for `roomboard.pages.dev` (see SPEC → Hosting and access).
+
+## Shift patterns (0015, 27 Oct 2026)
+- [ ] *Shift patterns* (board header, or "Add or edit patterns…" in the stay's dropdown): Eshcol and RJ McLeod add, edit and delete patterns (name, days in, days away, first weekday). The Housekeeper only reads them (RLS: supabase/tests/shift_patterns.sql, P1–P17).
+- [ ] A stay's *Shift pattern* dropdown (Classic form, or the Quick card's *Shift pattern* button) defaults to *No pattern*; choosing one asks for the first day in. Changing only the pattern does not touch the stay (no new version, no alert).
+- [ ] Board: in nights are the solid bar, away nights the same bar lighter and striped ("Away · room kept · back …"); the room is never free on away nights (Find a room, availability and the iCal export only look at the stay). Each property heading reads "Eshcol: N in tonight, M away · K allocated"; every occupied room has an In / Away marker.
+- [ ] Day strip: tap a night to flip it in / away just for that night (a gold ring marks one-offs); tapping again puts it back.
+- [ ] Today: away = "away, good day to clean" for Eshcol and the Housekeeper ("away, room kept" for RJ McLeod); the first night back = "Back · back today".
+- [ ] `node qa/shifts.mjs` passes (screenshots in /workspace/flow-shots/shifts/).

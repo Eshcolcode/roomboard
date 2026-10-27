@@ -21,6 +21,8 @@ import { estimateLine, priceLine, PRICE_NOTE } from '../data/pricing';
 import { DateField } from './DateField';
 import { useEscape } from './hooks';
 import { confirmDialog, toast } from './overlays';
+import { DayStrip, ShiftPicker } from './Shifts';
+import type { ShiftChoice } from './Shifts';
 
 export interface PanelInit {
   stay?: Stay;
@@ -81,6 +83,7 @@ export function StayPanel({ init, onClose }: { init: PanelInit; onClose: () => v
   const db = useDB();
   const existing = init.stay;
   const [f, setF] = useState<StayInput>(() => initialForm(init));
+  const [f0] = useState<StayInput>(() => initialForm(init));
   const [mode, setMode] = useState<'worker' | 'hold'>(
     existing ? (existing.workerId ? 'worker' : 'hold') : init.hold ? 'hold' : 'worker',
   );
@@ -89,6 +92,12 @@ export function StayPanel({ init, onClose }: { init: PanelInit; onClose: () => v
   const [conflict, setConflict] = useState('');
   const [newW, setNewW] = useState(false);
   const [showAll, setShowAll] = useState(false);
+  const shift0: ShiftChoice = (() => {
+    const x = existing && db.stayShifts?.find(y => y.stayId === existing.id);
+    return x ? { patternId: x.patternId, cycleStart: x.cycleStart } : null;
+  })();
+  const [shift, setShift] = useState<ShiftChoice>(shift0);
+  const shiftChanged = JSON.stringify(shift) !== JSON.stringify(shift0);
   const close = useCallback(() => onClose(), [onClose]);
   useEscape(close);
   // return focus to whatever opened the panel
@@ -145,7 +154,13 @@ export function StayPanel({ init, onClose }: { init: PanelInit; onClose: () => v
     if (!f.roomId) return setErr('Choose a room.');
     if (mode === 'worker' && !f.workerId) return setErr('Pick a worker, or switch to "Hold · name to follow".');
     try {
-      await data.saveStay({ ...input, holdLabel: mode === 'hold' ? f.holdLabel || 'Name to follow' : '' });
+      const next = { ...input, holdLabel: mode === 'hold' ? f.holdLabel || 'Name to follow' : '' };
+      // only the shift pattern changed: leave the stay itself alone (no new version, no alert)
+      const same =
+        existing &&
+        JSON.stringify({ ...f0, holdLabel: existing.workerId ? '' : f0.holdLabel }) === JSON.stringify(next);
+      const id = same ? existing.id : (await data.saveStay(next)).id;
+      if (shiftChanged && !xp) await data.setStayShift(id, shift);
       onClose();
       toast(
         existing
@@ -392,9 +407,16 @@ export function StayPanel({ init, onClose }: { init: PanelInit; onClose: () => v
             </div>
           )}
 
+          {!xp && (
+            <>
+              <ShiftPicker arrival={f.arrival} value={shift} onChange={setShift} />
+              {existing && !shiftChanged && <DayStrip stay={existing} editable />}
+            </>
+          )}
+
           {mode === 'worker' && existing && (
             <details className="fs" open={!!f.away}>
-              <summary>Away, room kept</summary>
+              <summary>Away, room kept (one-off dates)</summary>
               <div className="two">
                 <DateField
                   label="Away from"

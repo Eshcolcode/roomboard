@@ -11,6 +11,7 @@ import {
   bathText,
   roomReadiness,
   isAway,
+  backOn,
   inHouseOn,
   slotKey,
   roomLabel,
@@ -178,7 +179,8 @@ export function Rooms({ onOpen }: { onOpen: (p: PanelInit) => void }) {
             <h3>
               {p.name}
               <small>
-                {occupancy(T, p.id).allocated} allocated · {occupancy(T, p.id).onSite} on site
+                {occupancy(T, p.id).onSite} in tonight, {occupancy(T, p.id).away} away · {occupancy(T, p.id).allocated}{' '}
+                allocated
               </small>
             </h3>
             <div className="rgrid">
@@ -356,7 +358,9 @@ function RoomCard({
           </span>
         )}
       </div>
-      {awayNow && <p className="awaytag">Away · room kept · back {fmt(now!.away!.to)}</p>}
+      {awayNow && (
+        <p className="awaytag">Away · room kept{backOn(now!, T) ? ` · back ${fmt(backOn(now!, T)!)}` : ''}</p>
+      )}
       {awaySoon && <p className="awaytag soon">Away from {fmt(now!.away!.from)} · room kept</p>}
       <div className="dates2">
         <div>

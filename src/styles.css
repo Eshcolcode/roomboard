@@ -3314,3 +3314,158 @@ button.freeextra:hover {
     grid-template-columns: 1fr;
   }
 }
+
+/* ---------- shift patterns (27 Oct 2026): away nights, room kept = a lighter striped version of the bar ---------- */
+.bar > b,
+.bar > span:not(.grip) {
+  position: relative;
+  z-index: 1;
+}
+.awayseg {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  font-style: normal;
+  background: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.62) 0 6px, rgba(255, 255, 255, 0.4) 6px 12px);
+  pointer-events: none;
+  z-index: 0;
+  border-left: 1px dashed rgba(255, 255, 255, 0.9);
+}
+.awayseg em {
+  position: absolute;
+  bottom: 1px;
+  left: 4px;
+  font-style: normal;
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--navy);
+  white-space: nowrap;
+}
+.bar.hold .awayseg {
+  background: repeating-linear-gradient(135deg, rgba(185, 171, 136, 0.35) 0 6px, transparent 6px 12px);
+}
+.lg.shaway {
+  background: repeating-linear-gradient(135deg, #a9b6c9 0 3px, #d5dce7 3px 6px);
+  border: 1px dashed var(--navy2);
+}
+.inmark {
+  display: inline-block;
+  margin-left: 6px;
+  font-style: normal;
+  font-size: 9.5px;
+  font-weight: 700;
+  padding: 0 5px;
+  border-radius: 8px;
+  line-height: 15px;
+  vertical-align: 1px;
+}
+.inmark.in {
+  background: var(--navy2);
+  color: #fff;
+}
+.inmark.away {
+  background: #eef2f7;
+  color: var(--navy);
+  border: 1px dashed var(--navy2);
+}
+.shiftscrim {
+  z-index: 70;
+}
+.shiftdlg {
+  width: 520px;
+  max-height: 86vh;
+  overflow-y: auto;
+}
+.shiftdlg .splist .li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+.shiftdlg .splist .li small {
+  display: block;
+  color: var(--mute);
+}
+.spform {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+.three {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1.4fr;
+  gap: 10px;
+}
+.three input,
+.three select {
+  width: 100%;
+}
+.shiftpick .cyclehint {
+  align-self: end;
+  padding-bottom: 14px;
+}
+.daystrip {
+  margin: -4px 0 12px;
+}
+.dsgrid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  margin-top: 4px;
+}
+.dsd {
+  border: 1px solid var(--navy2);
+  border-radius: 6px;
+  padding: 2px 0;
+  font-size: 10px;
+  line-height: 1.2;
+  text-align: center;
+  cursor: pointer;
+}
+.dsd span {
+  display: block;
+  opacity: 0.8;
+}
+.dsd b {
+  font-size: 12px;
+}
+.dsd.ds-in {
+  background: var(--navy2);
+  color: #fff;
+}
+.dsd.ds-away {
+  background: repeating-linear-gradient(135deg, #c9d2df 0 4px, #e6ebf2 4px 8px);
+  color: var(--navy);
+  border-style: dashed;
+}
+.dsd.one {
+  box-shadow: 0 0 0 2px var(--gold);
+}
+.dsd.today {
+  outline: 2px solid var(--red);
+  outline-offset: 1px;
+}
+.dsd:disabled {
+  cursor: default;
+}
+.dslegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 11px;
+  color: var(--mute);
+  margin-top: 6px;
+}
+.dslegend i.dsd {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  padding: 0;
+  vertical-align: -2px;
+  margin-right: 3px;
+}
+.t-back {
+  background: #dcfce7;
+  color: #166534;
+}

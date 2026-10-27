@@ -5,12 +5,17 @@ import { notifyStays } from './alerts';
 import { PROPERTIES, UNITS, ROOMS } from '../properties';
 import { demoFeeds } from './feeds';
 import { londonToday } from '../../dates';
+import { demoShifts } from './shifts';
 
 /** Older demo stores get the current property details, the extra units and the demo calendar links.
  * v1 → v2: real details + extras. v2 → v3 (18 Oct 2026): Lodge merged into Monadh, Harris/Uig, Loch Roag photos,
  * calendar links become secret server settings (only Monadh linked). */
 export function upgrade(x: DB): DB {
-  if ((x.v ?? 1) >= 8) return x;
+  if ((x.v ?? 1) >= 9) return x;
+  if ((x.v ?? 1) === 8) return toV9(x);
+  return toV9(upgradeTo8(x));
+}
+function upgradeTo8(x: DB): DB {
   if ((x.v ?? 1) === 7) return toV8(x);
   if ((x.v ?? 1) === 6) return toV8(toV7(x));
   if ((x.v ?? 1) === 5) return toV8(toV7(toV6(x)));
@@ -112,6 +117,12 @@ export function toV8(x: DB): DB {
   x.v = 8;
   return x;
 }
+/** v8 → v9 (27 Oct 2026): shift patterns. The demo gets the two example patterns on a few stays. */
+export function toV9(x: DB): DB {
+  if (!x.shiftPatterns) Object.assign(x, demoShifts(x));
+  x.v = 9;
+  return x;
+}
 export function guessKind(t: string): ActKind {
   if (/rate|£/i.test(t)) return 'rate';
   if (/calendar|feed|booking site|ical|supercontrol/i.test(t)) return 'ical';
@@ -133,6 +144,7 @@ export function load(): DB {
   }
   const x = seed();
   reconcile(x);
+  Object.assign(x, demoShifts(x));
   // persist straight away so a second tab opened now shares the same records (and ids)
   try {
     localStorage.setItem(KEY, JSON.stringify(x));

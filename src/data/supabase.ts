@@ -142,7 +142,7 @@ async function refresh() {
     return;
   }
   const q = (t: string, order = 'id') => sb.from(t).select('*').order(order);
-  const [pr, pp, un, rm, wk, st, co, ac, al, en, se, fd, bl, tk, cf, rh, nt] = await Promise.all([
+  const [pr, pp, un, rm, wk, st, co, ac, al, en, se, fd, bl, tk, cf, rh, nt, sp, ss] = await Promise.all([
     q('profiles'),
     q('properties', 'sort'),
     q('units', 'sort'),
@@ -162,6 +162,9 @@ async function refresh() {
     sb.from('app_settings_history').select('*').order('changed_at', { ascending: false }).limit(50), // manager only
     // in-app alerts (0009): own rows only (RLS); an empty list until that migration is applied
     sb.from('notifications').select('*').order('created_at', { ascending: false }).limit(100),
+    // shift patterns (0015): everyone signed in reads; empty lists until that migration is applied
+    q('shift_patterns', 'name'),
+    q('stay_shifts', 'stay_id'),
   ]);
   publish({
     v: 1,
@@ -233,6 +236,19 @@ async function refresh() {
       reasons: r.reasons ?? [],
       propertyId: r.property_id ?? undefined,
       read: !!r.read_at,
+    })),
+    shiftPatterns: rows<R.ShiftPatternRow>(sp.data).map(r => ({
+      id: r.id,
+      name: r.name,
+      on: r.days_on,
+      off: r.days_off,
+      startDow: r.start_dow,
+    })),
+    stayShifts: rows<R.StayShiftRow>(ss.data).map(r => ({
+      stayId: r.stay_id,
+      patternId: r.pattern_id,
+      cycleStart: r.cycle_start,
+      overrides: r.overrides ?? {},
     })),
     settings: settingsFrom(rows<R.SettingsRow>(cf.data)),
     rateHistory: rows<R.SettingsHistoryRow>(rh.data)
@@ -564,6 +580,53 @@ export const supabaseRepo: Repo = {
     fail(error);
     const url = data ? `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ical-export?t=${data.token}` : null;
     return { url, text: unitIcs(S.db, roomId) };
+  },
+  async savePattern(p) {
+    const name = p.name.trim();
+    if (!name) throw new Error('Give the pattern a name, for example "10 on / 4 off, Mon start".');
+    if (!(p.on >= 1 && p.on <= 60) || !(p.off >= 1 && p.off <= 60))
+      throw new Error('Days in and days away must each be between 1 and 60.');
+    const row = { name: name.slice(0, 60), days_on: p.on, days_off: p.off, start_dow: p.startDow };
+    const r = p.id
+      ? await sb
+          .from('shift_patterns')
+          .update({ ...row, updated_at: new Date().toISOString() })
+          .eq('id', p.id)
+          .select()
+          .single()
+      : await sb.from('shift_patterns').insert(row).select().single();
+    fail(r.error);
+    await refresh();
+    return S.db.shiftPatterns!.find(x => x.id === r.data.id)!;
+  },
+  async deletePattern(id) {
+    fail((await sb.from('shift_patterns').delete().eq('id', id)).error);
+    await refresh();
+  },
+  async setStayShift(stayId, v) {
+    if (!v) fail((await sb.from('stay_shifts').delete().eq('stay_id', stayId)).error);
+    else {
+      const old = S.db.stayShifts?.find(x => x.stayId === stayId);
+      fail(
+        (
+          await sb.from('stay_shifts').upsert({
+            stay_id: stayId,
+            pattern_id: v.patternId,
+            cycle_start: v.cycleStart,
+            overrides: old?.overrides ?? {},
+            updated_at: new Date().toISOString(),
+          })
+        ).error,
+      );
+    }
+    await refresh();
+  },
+  async setOverrides(stayId, overrides) {
+    fail(
+      (await sb.from('stay_shifts').update({ overrides, updated_at: new Date().toISOString() }).eq('stay_id', stayId))
+        .error,
+    );
+    await refresh();
   },
   canUndo: () => undoStack.length > 0,
   async setUser() {

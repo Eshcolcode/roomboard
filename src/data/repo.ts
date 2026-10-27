@@ -1,6 +1,6 @@
 // The ONE data-access interface the UI talks to. Implementations: local.ts (demo) and supabase.ts.
 // Reads come from the shared snapshot in core.ts (useDB); writes go through these commands.
-import type { Changeover, Enquiry, Series, Settings, Stay, StayInput, Worker } from './core';
+import type { Changeover, Enquiry, Series, Settings, Stay, StayInput, Worker, ShiftPattern, DayState } from './core';
 export interface Repo {
   mode: 'demo' | 'supabase';
   init(): Promise<void>;
@@ -25,6 +25,14 @@ export interface Repo {
   syncFeeds(): Promise<{ conflicts: number }>;
   /** The export feed of one unit: a link to paste into Airbnb / Booking.com (live) and the .ics text. */
   exportLink(roomId: string): Promise<{ url: string | null; text: string }>;
+  /** Shift patterns (0015): create or edit one (Eshcol and RJ McLeod). Editing changes the days of every stay using it. */
+  savePattern(p: Omit<ShiftPattern, 'id'> & { id?: string }): Promise<ShiftPattern>;
+  /** Delete a pattern; stays that used it go back to no pattern (the room stays theirs). */
+  deletePattern(id: string): Promise<void>;
+  /** Apply a pattern to a stay from cycleStart (its first on-day), or null for no pattern. One-off days are kept. */
+  setStayShift(stayId: string, v: { patternId: string; cycleStart: string } | null): Promise<void>;
+  /** One-off days for a stay that follows a pattern (e.g. back a day early). */
+  setOverrides(stayId: string, overrides: Record<string, DayState>): Promise<void>;
   undo(): Promise<void>; // revert the last stay command made in this session
   canUndo(): boolean;
   setUser(id: string): Promise<void>; // demo: role switch. supabase: no-op (identity = login)

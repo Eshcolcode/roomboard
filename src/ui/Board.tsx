@@ -1,7 +1,21 @@
 // Tape chart: rooms down the side, days across, one bar per stay. Contract houses first (per room), then the
 // extra properties (one row each, booked whole): live from Roomboard bookings and their booking calendars.
 import { useState } from 'react';
-import { useDB, me, roomOf, propOf, stayLabel, depText, bathText, occupancy, readinessFor } from '../data';
+import {
+  useDB,
+  me,
+  roomOf,
+  propOf,
+  stayLabel,
+  depText,
+  bathText,
+  occupancy,
+  readinessFor,
+  shiftOf,
+  isAway,
+} from '../data';
+import { awayRuns, nextIn } from '../data/shifts';
+import { PatternsSheet } from './Shifts';
 import type { Changeover, Stay } from '../data';
 import { addDays, diffDays, fmt, londonToday } from '../dates';
 import { DateField } from './DateField';
@@ -22,6 +36,7 @@ export function Board({ onOpen }: { onOpen: (p: PanelInit) => void }) {
   const [days, setDays] = useState(21);
   const [filter, setFilter] = useState('all');
   const [sheet, setSheet] = useState<{ pid: string; date?: string } | null>(null);
+  const [patterns, setPatterns] = useState(false);
   const W = days > 21 ? 38 : 56;
   const end = addDays(start, days);
   const dates = Array.from({ length: days }, (_, i) => addDays(start, i));
@@ -113,6 +128,9 @@ export function Board({ onOpen }: { onOpen: (p: PanelInit) => void }) {
         <button className="btn ghost findbtn" onClick={() => (location.hash = 'free')}>
           <Icon name="free" size={14} /> Find a room
         </button>
+        <button className="btn ghost" data-act="patterns" onClick={() => setPatterns(true)}>
+          Shift patterns
+        </button>
         <button className="btn ghost" onClick={() => onOpen({ date: T, hold: true })}>
           Hold room
         </button>
@@ -163,8 +181,8 @@ export function Board({ onOpen }: { onOpen: (p: PanelInit) => void }) {
                       {p.photo && <img src={p.photo} alt="" />}
                       <div>
                         <b>{p.name}</b>
-                        <span>
-                          {o.allocated} allocated · {o.onSite} on site
+                        <span data-whosin={p.id}>
+                          {p.short}: {o.onSite} in tonight, {o.away} away · {o.allocated} allocated
                         </span>
                       </div>
                     </div>
@@ -225,7 +243,7 @@ export function Board({ onOpen }: { onOpen: (p: PanelInit) => void }) {
         <div className="legend">
           <span>
             <i className="lg occ" />
-            In house
+            In (sleeping there)
           </span>
           <span>
             <i className="lg dep" />
@@ -246,8 +264,8 @@ export function Board({ onOpen }: { onOpen: (p: PanelInit) => void }) {
             Clean between stays
           </span>
           <span>
-            <i className="lg away" />
-            Away, room kept
+            <i className="lg shaway" />
+            Away, room kept (shift pattern or away dates)
           </span>
           <span>
             <span className={'co zero mini ' + (client ? 'co-client' : 'co-needs')}>
@@ -266,6 +284,7 @@ export function Board({ onOpen }: { onOpen: (p: PanelInit) => void }) {
           </span>
         </div>
       </div>
+      {patterns && <PatternsSheet onClose={() => setPatterns(false)} />}
       {sheet && <ExtraSheet pid={sheet.pid} date={sheet.date} onClose={() => setSheet(null)} onOpen={onOpen} />}
     </div>
   );
@@ -299,11 +318,25 @@ function RoomRow({
   const todayX = diffDays(start, T);
   const bathShort =
     r.bath === 'shared' && r.note ? r.note.replace('Shares a shower room', 'Shared shower') : bathText(r);
+  const tonight = db.stays.find(s => s.roomId === r.id && s.arrival <= T && (s.departure ?? '9') > T);
+  const awayTonight = tonight && isAway(tonight, T);
 
   return (
     <div className="row" data-room={r.id}>
       <div className="rl" title={r.note ?? bathText(r)}>
-        <b>{r.name}</b>
+        <b>
+          {r.name}
+          {tonight && (
+            <i
+              className={'inmark ' + (awayTonight ? 'away' : 'in')}
+              data-inmark={awayTonight ? 'away' : 'in'}
+              title={awayTonight ? 'Away tonight, room kept' : 'In tonight'}
+              aria-label={awayTonight ? 'Away tonight, room kept' : 'In tonight'}
+            >
+              {awayTonight ? 'Away' : 'In'}
+            </i>
+          )}
+        </b>
         <span>{bathShort}</span>
       </div>
       <div
@@ -494,7 +527,26 @@ function Bar({
     : !hold && s.arrival <= T && !dep && !cont
       ? `N${night}${open ? ' · ' + (s.depStatus === 'ufn' ? 'UFN' : 'TBC') : ''}`
       : sub;
-  const tip = `${hold ? 'Hold · ' : ''}${name} · ${fmt(s.arrival)} → ${depText(s)} · ${sub}`;
+  // away nights (room kept): their shift pattern's away days and any one-off away dates, drawn striped
+  const sx = shiftOf(s.id);
+  const winFrom = addDays(T, -400) < s.arrival ? s.arrival : addDays(T, -400);
+  const winTo = addDays(T, 400);
+  const runs = [
+    ...(sx ? awayRuns(s, sx.p, sx.sh, winFrom, winTo) : []),
+    ...(s.away ? [{ from: s.away.from, to: s.away.to }] : []),
+  ].sort((a, b) => a.from.localeCompare(b.from));
+  const merged: { from: string; to: string }[] = [];
+  for (const g of runs) {
+    const last = merged[merged.length - 1];
+    if (last && g.from <= last.to) last.to = g.to > last.to ? g.to : last.to;
+    else merged.push({ ...g });
+  }
+  const awayBits = merged.map(g => ({
+    ...g,
+    back: sx ? nextIn(s, sx.p, sx.sh, g.to) : s.departure && g.to >= s.departure ? null : g.to,
+  }));
+  const awayNow = isAway(s, T);
+  const tip = `${hold ? 'Hold · ' : ''}${name} · ${fmt(s.arrival)} → ${depText(s)} · ${sub}${sx ? ` · shift pattern: ${sx.p.name}` : ''}${awayNow ? ' · away tonight, room kept' : ''}`;
   const cls = [
     'bar',
     hold && 'hold',
@@ -543,14 +595,20 @@ function Bar({
           </span>
         </>
       )}
-      {s.away && (
-        <i
-          className="away"
-          style={{ left: Math.max(0, x(s.away.from) - left + W / 2), width: diffDays(s.away.from, s.away.to) * W }}
-        >
-          Away · room kept
-        </i>
-      )}
+      {awayBits
+        .filter(g => x(g.to) > x(g.from))
+        .map(g => (
+          <i
+            key={g.from}
+            className="awayseg"
+            data-away={g.from}
+            style={{ left: Math.max(0, x(g.from) - left + W / 2 - 2), width: Math.max(4, x(g.to) - x(g.from)) }}
+          >
+            {x(g.to) - x(g.from) >= 70 && (
+              <em>Away · room kept{g.back && x(g.to) - x(g.from) >= 130 ? ` · back ${fmt(g.back)}` : ''}</em>
+            )}
+          </i>
+        ))}
       {canDrag && s.departure && (
         <span
           className="grip"

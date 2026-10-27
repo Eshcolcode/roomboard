@@ -8,6 +8,7 @@ import { updateChangeover, dismissChangeover } from './changeovers';
 import { upsertWorker, addEnquiry } from './misc';
 import { createSeries, updateSeries } from './series';
 import { setSettings, syncFeeds, exportLink } from './extras';
+import { demoShifts, savePattern, deletePattern, setStayShift, setOverrides } from './shifts';
 
 export const localRepo: Repo = {
   mode: 'demo',
@@ -74,6 +75,18 @@ export const localRepo: Repo = {
   async updateSeries(next, what) {
     updateSeries(next, what);
   },
+  async savePattern(p) {
+    return savePattern(p);
+  },
+  async deletePattern(id) {
+    deletePattern(id);
+  },
+  async setStayShift(stayId, v) {
+    setStayShift(stayId, v);
+  },
+  async setOverrides(stayId, o) {
+    setOverrides(stayId, o);
+  },
   async undo() {
     undo();
   },
@@ -99,6 +112,7 @@ export const localRepo: Repo = {
     localStorage.removeItem(KEY);
     const x = seed();
     reconcile(x);
+    Object.assign(x, demoShifts(x));
     publish(x);
     commit();
   },

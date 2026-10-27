@@ -10,6 +10,7 @@ import { WhoPick } from './Who';
 import { RoomCard, RoomGroups, resolveWho } from './Book';
 import type { Notify } from './Book';
 import { ExtraBits, ExtraCard } from './Extra';
+import { ShiftStep } from '../ui/Shifts';
 import {
   assignRooms,
   checkBatch,
@@ -31,6 +32,7 @@ import {
 
 type Q =
   | null
+  | 'shiftpat'
   | 'early'
   | 'longer'
   | 'dates'
@@ -391,6 +393,19 @@ export function Change({
         />
       </Box>
     );
+  if (q === 'shiftpat') {
+    return (
+      <Box step="shiftpat" dir={dir} onBack={() => back()} title="Shift pattern" sub={head}>
+        <ShiftStep
+          stay={stay}
+          onDone={m => {
+            if (m) notify(m, 1);
+            back();
+          }}
+        />
+      </Box>
+    );
+  }
   if (q === 'details') {
     // phone: on the worker record when there is one, otherwise kept on the booking (a "Phone:" line in its notes)
     const save = () => {
@@ -727,6 +742,9 @@ export function Change({
           ? 'Leaves today'
           : 'In the room now';
   const nf = nearestFree(db, stay.roomId, stay.arrival, sDep, [stay.id]);
+  const shiftName = db.shiftPatterns?.find(
+    p => p.id === db.stayShifts?.find(x => x.stayId === stay.id)?.patternId,
+  )?.name;
   return (
     <Box step="card" dir={dir} title={label} onClose={onHome}>
       <div className="s-card">
@@ -799,6 +817,11 @@ export function Change({
           >
             {W?.phone || stay.notes ? 'Phone and notes' : 'Add phone or notes'}
           </button>
+          {!isX && (
+            <button className="s-btn ghost big" data-act="shiftpat" onClick={() => open('shiftpat')}>
+              {shiftName ? `Shift pattern: ${shiftName}` : 'Shift pattern (in / away days)'}
+            </button>
+          )}
           {(crew.length > 1 || rotations > 1) && (
             <button className="s-btn big sk" onClick={() => open('crew', () => setScope('this'))}>
               {crew.length > 1

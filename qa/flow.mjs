@@ -52,13 +52,13 @@ await p.click('.s-extra:has-text("Phone number")'); await settle(p);
 await p.fill('.s-input', '07700 900123'); await shot(p, 'extra-phone');
 await p.click('button:has-text("Save")'); await settle(p);
 ok(await p.locator('.s-extra.done:has-text("Phone number")').isVisible(), 'phone extra saved, back on held screen');
-await p.click('.s-extra:has-text("Repeat as a rota")'); await settle(p);
+await p.click('.s-extra:has-text("Shift pattern")'); await settle(p);
 await shot(p, 'extra-rota');
-await p.click('.s-chip:has-text("10 on · 4 off")'); await settle(p);
-await p.click('.s-chip:has-text("8 weeks")'); await settle(p);
-await p.click('.s-pick:has-text("Keep the room")'); await p.waitForTimeout(600);
-const rota = (await stays(p)).filter(s => s.workerId && s.seriesId);
-ok(rota.length >= 4, 'rota saved as repeating stays (' + rota.length + ')');
+const dbx = await p.evaluate(() => JSON.parse(localStorage.getItem('roomboard-demo-v2')));
+ok((await p.locator('[data-shift-choices] .s-pick').count()) === dbx.shiftPatterns.length + 1, 'shift pattern step lists only the set-up patterns + No pattern (no built-in presets)');
+await p.click('[data-pattern="sp-10-4"]'); await p.waitForTimeout(600);
+const held = (await stays(p)).filter(s => s.workerId).slice(-1)[0];
+ok((await p.evaluate(() => JSON.parse(localStorage.getItem('roomboard-demo-v2')).stayShifts)).some(x => x.patternId === 'sp-10-4' && x.stayId === held.id), 'shift pattern applied to the new booking');
 await shot(p, 'room-held-rota');
 
 // ---- change flow with clash ----

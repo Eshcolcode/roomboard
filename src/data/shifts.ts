@@ -1,4 +1,4 @@
-// Shift patterns (27 Oct 2026). A pattern is set up once ('10 on / 4 off, Mon start') and applied to a stay with the
+// Shift patterns (27 Oct 2026). A pattern is set up once (e.g. ten days in, four away) and applied to a stay with the
 // date its first on-day falls. The room stays taken for the whole stay: a pattern only says which nights the person
 // is IN (sleeping there) and which they are AWAY (room kept, their things stay). Availability, iCal and cleaning
 // rules never look at it. Pure date maths here; mirrored by nothing on the server (the server only stores rows).

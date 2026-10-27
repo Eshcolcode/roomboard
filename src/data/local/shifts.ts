@@ -7,7 +7,7 @@ import { defaultCycleStart } from '../shifts';
 
 const clean = (p: Omit<ShiftPattern, 'id'>) => {
   const name = p.name.trim();
-  if (!name) throw new Error('Give the pattern a name, for example "10 on / 4 off, Mon start".');
+  if (!name) throw new Error('Give the pattern a name.');
   if (!(p.on >= 1 && p.on <= 60) || !(p.off >= 1 && p.off <= 60))
     throw new Error('Days in and days away must each be between 1 and 60.');
   return { name: name.slice(0, 60), on: Math.round(p.on), off: Math.round(p.off), startDow: p.startDow };

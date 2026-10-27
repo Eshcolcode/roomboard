@@ -91,7 +91,7 @@ export function PatternsSheet({ onClose }: { onClose: () => void }) {
                 autoFocus
                 value={edit.name}
                 maxLength={60}
-                placeholder="e.g. 10 on / 4 off, Mon start"
+                placeholder="Give it a name, e.g. Crew A"
                 onChange={e => setEdit({ ...edit, name: e.target.value })}
               />
             </div>

@@ -94,6 +94,39 @@ await p.goto(U + '#board'); await settle(p);
 ok((await p.locator('[data-act="patterns"]').count()) === 1, 'RJ McLeod can manage patterns');
 await p.close();
 
+// like live with nothing set up yet: the quick booking offers only 'No pattern' and the way to add one (no presets)
+p = await pg(390, 844, 'quick');
+await p.evaluate(() => {
+  const x = JSON.parse(localStorage.getItem('roomboard-demo-v2'));
+  x.shiftPatterns = []; x.stayShifts = [];
+  localStorage.setItem('roomboard-demo-v2', JSON.stringify(x));
+});
+await p.goto(U + '#rooms'); await p.reload(); await settle(p);
+await p.click('.fab button:has-text("Hold")'); await settle(p);
+for (let i = 0; i < 6 && !(await p.locator('.s-extra:has-text("Shift pattern")').count()); i++) {
+  const room = p.locator('.s-pick, .s-room, button:has-text("Hold this room"), button:has-text("Hold these")').first();
+  const chip = p.locator('.s-chip').first();
+  if (await p.locator('button:has-text("Hold")').filter({ hasText: /^Hold/ }).count() && i > 3) break;
+  if (await chip.count()) await chip.click(); else if (await room.count()) await room.click();
+  await p.waitForTimeout(700);
+}
+ok(await p.locator('.s-extra:has-text("Shift pattern")').count() === 1, 'empty list: quick booking reaches the held screen with a Shift pattern option');
+await p.click('.s-extra:has-text("Shift pattern")'); await settle(p);
+const opts = await p.locator('[data-shift-choices] .s-pick').allInnerTexts();
+ok(opts.length === 1 && /No pattern/.test(opts[0]), 'empty list: only "No pattern" is offered (' + opts.map(o => o.split('\n')[0]).join(', ') + ')');
+ok(!/on · \d+ off|10 on/.test(await p.locator('.q-panel, .s-box').first().innerText()), 'empty list: no built-in rota presets');
+ok(await p.locator('[data-act="manage-patterns"]').isVisible(), 'empty list: "Add a shift pattern…" is there');
+await p.click('[data-act="manage-patterns"]'); await settle(p);
+ok(/No patterns yet/.test(await p.locator('.shiftdlg').innerText()), 'the same (empty) Shift patterns list opens');
+await p.click('.shiftdlg button:has-text("+ New pattern")');
+await p.fill('#sp-name', 'Only pattern');
+await p.click('.shiftdlg button:has-text("Add pattern")'); await settle(p);
+await p.click('.shiftdlg .x'); await settle(p);
+const opts2 = await p.locator('[data-shift-choices] .s-pick').allInnerTexts();
+ok(opts2.length === 2 && /Only pattern/.test(opts2[0]), 'a new pattern appears in the quick booking straight away (no reload)');
+await p.screenshot({ path: OUT + 'phone-quick-book-pattern.png' });
+await p.close();
+
 ok(!errs.length, 'no console errors' + (errs.length ? ': ' + errs.slice(0, 3).join(' | ') : ''));
 console.log(`${pass} passed, ${fail} failed`);
 await b.close();

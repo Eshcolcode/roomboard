@@ -261,21 +261,25 @@ await p.click('.q-x'); await settle(p);
 }
 
 // ---------- crew rota: this rotation vs all from here ----------
-p = await pg(390, 844, 'simple');
-await p.click('text=Book a room'); await settle(p);
-await p.click('.s-pick:has-text("A crew")'); await settle(p);
-await p.click('.s-chip:has-text("4")'); await p.click('button:has-text("Next")'); await settle(p);
-await p.click('[aria-label="Next month"]'); await p.click('[aria-label="Next month"]'); await settle(p);
-await p.locator('.s-calgrid .d:not([disabled])').nth(4).click(); await p.waitForTimeout(700);
-await p.click('.s-chip:has-text("10 nights")'); await p.waitForTimeout(700);
-await p.click('button:has-text("Hold these")'); await settle(p);
-await p.click('.s-extra:has-text("Repeat as a rota")'); await settle(p);
-await p.click('.s-chip:has-text("10 on · 4 off")'); await settle(p);
-await p.click('.s-chip:has-text("8 weeks")'); await settle(p);
-await p.click('.s-pick:has-text("Keep the room")'); await p.waitForTimeout(700);
-const ser = (await db(p)).stays.filter(s => s.seriesId && s.holdLabel?.startsWith('Name TBC'));
+// the crew rota (series) is made on the Crew screen; the quick booking only offers shift patterns
+p = await pg(1440, 1000, 'crew');
+await p.fill('#c-label', 'QA crew');
+await p.selectOption('#c-prop', 'p-es');
+{
+  const d0 = D(60);
+  await p.fill('#c-start', `${d0.slice(8, 10)}/${d0.slice(5, 7)}/${d0.slice(0, 4)}`);
+  await p.locator('#c-start').blur();
+}
+await p.fill('#c-holds', '4');
+await p.fill('#c-on', '10'); await p.fill('#c-off', '4');
+await p.waitForTimeout(300);
+await p.click('button:has-text("Confirm")'); await settle(p);
+await p.click('.dialog button:has-text("Book")'); await p.waitForTimeout(800);
+const ser = (await db(p)).stays.filter(s => s.seriesId);
 ok(ser.length >= 12, 'crew of 4 on a rota (' + ser.length + ' stays)');
-await p.click('button:has-text("Open booking")'); await settle(p);
+await p.setViewportSize({ width: 390, height: 844 });
+await p.goto(U + '#simple/stay/' + ser.sort((a, b) => a.arrival.localeCompare(b.arrival))[0].id);
+await p.reload(); await settle(p);
 await p.click('button:has-text("Change whole crew")'); await settle(p);
 ok(await p.locator('.s-chip:has-text("All from here")').isVisible(), 'crew: "This rotation" / "All from here" choice');
 await p.click('.s-chip:has-text("All from here")'); await settle(p);

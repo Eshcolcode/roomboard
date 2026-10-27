@@ -2,8 +2,9 @@
 import { useState } from 'react';
 import { data, useDB, getDB, bathText, me } from '../data';
 import type { DB, Room, StayInput } from '../data';
-import { usualRoom, planCrew, planInputs } from '../data/crew';
-import type { RotationEnd, OffMode } from '../data/rotation';
+import { usualRoom } from '../data/crew';
+import { defaultCycleStart, patternSummary } from '../data/shifts';
+import { PatternsSheet } from '../ui/Shifts';
 import { addDays, diffDays, fmt, londonToday } from '../dates';
 import { Box, Calendar, Chip, Note } from './parts';
 import { WhoPick } from './Who';
@@ -12,7 +13,7 @@ import { freeIn, suggestBlock, roomText, roomNum } from './logic';
 import { CONTRACT_LINE, estimate, estimateLine, gbp, priced, rate, PRICE_NOTE } from '../data/pricing';
 
 type Step = 'who' | 'count' | 'arrive' | 'leave' | 'room' | 'done';
-type Extra = null | 'phone' | 'email' | 'note' | 'rota' | 'rota-len' | 'rota-off';
+type Extra = null | 'phone' | 'email' | 'note' | 'shift';
 export type Notify = (text: string, undoSteps?: number) => void;
 
 const nextMonday = (t: string) => {
@@ -151,11 +152,10 @@ export function Book({
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState('');
   const [created, setCreated] = useState<string[]>([]);
-  const [since, setSince] = useState(0);
   const [extra, setExtra] = useState<Extra>(null);
   const [doneExtras, setDoneExtras] = useState<string[]>([]);
   const [text, setText] = useState('');
-  const [rota, setRota] = useState<{ on: number; off: number; end?: RotationEnd }>({ on: 10, off: 4 });
+  const [managePatterns, setManagePatterns] = useState(false);
 
   const crew = who?.kind === 'crew';
   const flow = flowFor(who);
@@ -247,7 +247,6 @@ export function Book({
         setCreated([s.id]);
         notify(extraP ? `${extraP.name} booked` : `${roomText(getDB(), s.roomId)} held`, 1);
       }
-      setSince(0);
       go('done');
     } catch (e) {
       setProblem(err(e));
@@ -261,7 +260,6 @@ export function Book({
   }
 
   const stays = created.map(id => db.stays.find(s => s.id === id)).filter(s => !!s);
-  const bump = () => setSince(x => x + 1);
   const finishExtra = (k: string) => {
     setDoneExtras(x => [...x, k]);
     setText('');
@@ -296,7 +294,6 @@ export function Book({
           seriesId: cur.seriesId ?? null,
           slot: cur.slot ?? null,
         });
-        bump();
       }
       finishExtra(k);
     } catch (e) {
@@ -306,58 +303,21 @@ export function Book({
     }
   }
 
-  async function saveRota(offMode: OffMode) {
-    if (!arrival || !rota.end || !stays.length) return;
+  /** Shift pattern for what was just booked: only the patterns set up in the Shift patterns list (none built in). */
+  async function saveShift(patternId: string | null) {
     setBusy(true);
     setProblem('');
-    const x = getDB();
-    const ids = stays.map(s => s.id);
-    const ordered = [...stays.filter(s => s.workerId), ...stays.filter(s => !s.workerId)];
-    const override: Record<number, string> = {};
-    ordered.forEach((s, i) => (override[i] = s.roomId));
-    const plan = planCrew(
-      { ...x, stays: x.stays.filter(s => !ids.includes(s.id)) },
-      {
-        propertyId: x.rooms.find(r => r.id === ordered[0].roomId)!.propertyId,
-        roomIds: [],
-        workerIds: ordered.filter(s => s.workerId).map(s => s.workerId!),
-        holds: ordered.filter(s => !s.workerId).length,
-        pattern: { start: arrival, on: rota.on, off: rota.off, end: rota.end, offMode },
-        roomOverride: override,
-      },
-    );
-    const bad = plan.slots.flatMap(s => s.occ.filter(o => o.problem).map(o => ({ s, o })))[0];
-    if (bad) {
-      setBusy(false);
-      return setProblem(
-        `That rota does not fit: ${roomText(x, bad.s.roomId!)} is not free from ${fmt(bad.o.arrival)} (${bad.o.problem}). Try a shorter rota, or use the full Crew screen to pick rooms.`,
-      );
-    }
-    const label = crew ? `Crew of ${stays.length}` : whoText(x, who);
-    const notes = ordered[0].notes;
     try {
-      if (since === 0 && data.canUndo()) await data.undo();
-      else for (const id of ids) await data.deleteStay(id);
-      const s = await data.createSeries(
-        {
-          label,
-          propertyId: x.rooms.find(r => r.id === ordered[0].roomId)!.propertyId,
-          start: arrival,
-          on: rota.on,
-          off: rota.off,
-          offMode,
-          end: rota.end,
-          slots: plan.slots.map(p => ({ slot: p.slot, workerId: p.workerId, label: p.label })),
-        },
-        planInputs(plan, '', notes),
-      );
-      const all = getDB().stays.filter(y => y.seriesId === s.id);
-      setCreated(all.filter(y => y.arrival === arrival).map(y => y.id));
-      notify(`Rota saved · ${all.length} stays`, 1);
-      setSince(0);
-      finishExtra('rota');
+      const p = patternId ? getDB().shiftPatterns?.find(x => x.id === patternId) : undefined;
+      for (const st of stays)
+        await data.setStayShift(
+          st.id,
+          p ? { patternId: p.id, cycleStart: defaultCycleStart(st.arrival, p.startDow) } : null,
+        );
+      notify(p ? `Shift pattern: ${p.name}` : 'No shift pattern', 0);
+      finishExtra('shift');
     } catch (e) {
-      setProblem('Could not save the rota: ' + err(e) + ' The original hold may need booking again.');
+      setProblem(err(e));
     } finally {
       setBusy(false);
     }
@@ -717,106 +677,46 @@ export function Book({
         {problem && <Note tone="bad">{problem}</Note>}
       </Box>
     );
-  if (extra === 'rota')
+  if (extra === 'shift') {
+    const list = db.shiftPatterns ?? [];
+    const cur = stays.length ? db.stayShifts?.find(x => x.stayId === stays[0].id)?.patternId : undefined;
     return (
       <Box
-        step="rota"
+        step="shift"
         dir={1}
         onBack={() => finishExtra('')}
-        title="How does the rota go?"
-        sub="Days on site, then days off. Repeats from the arrival date."
+        title="Shift pattern"
+        sub="Which nights they are in and which they are away. The room stays theirs on away days."
       >
-        <div className="s-chips two">
-          {[
-            [10, 4],
-            [14, 7],
-            [14, 14],
-            [21, 7],
-            [7, 7],
-            [28, 28],
-          ].map(([on, off]) => (
-            <Chip
-              key={on + '-' + off}
-              on={rota.on === on && rota.off === off}
-              onClick={() => {
-                setRota({ on, off });
-                setDir(1);
-                setExtra('rota-len');
-              }}
+        <div className="s-stack" data-shift-choices>
+          {list.map(p => (
+            <button
+              key={p.id}
+              className={'s-pick' + (cur === p.id ? ' on' : '')}
+              disabled={busy}
+              data-pattern={p.id}
+              onClick={() => saveShift(p.id)}
             >
-              {on} on · {off} off
-            </Chip>
+              <b>{p.name}</b>
+              <small>{patternSummary(p)}</small>
+            </button>
           ))}
+          <button className="s-pick" disabled={busy} data-pattern="none" onClick={() => saveShift(null)}>
+            <b>No pattern</b>
+            <small>In every night</small>
+          </button>
         </div>
-        <button className="s-btn ghost big" onClick={() => finishExtra('')}>
-          Skip
+        {!list.length && <Note tone="warn">No shift patterns set up yet. Add one below and it appears here.</Note>}
+        <button className="s-btn ghost big" data-act="manage-patterns" onClick={() => setManagePatterns(true)}>
+          {list.length ? 'Add or edit patterns…' : 'Add a shift pattern…'}
         </button>
-      </Box>
-    );
-  if (extra === 'rota-len' && arrival)
-    return (
-      <Box
-        step="rota-len"
-        dir={dir}
-        onBack={() => setExtra('rota')}
-        title="For how long?"
-        sub={`${rota.on} on · ${rota.off} off from ${fmt(arrival)}`}
-      >
-        <div className="s-chips two">
-          {(
-            [
-              ['4 weeks', { kind: 'date', date: addDays(arrival, 28) }],
-              ['8 weeks', { kind: 'date', date: addDays(arrival, 56) }],
-              ['3 months', { kind: 'date', date: addDays(arrival, 91) }],
-              ['6 months', { kind: 'date', date: addDays(arrival, 182) }],
-            ] as [string, RotationEnd][]
-          ).map(([l, end]) => (
-            <Chip
-              key={l}
-              onClick={() => {
-                setRota({ ...rota, end });
-                setExtra('rota-off');
-              }}
-            >
-              {l}
-            </Chip>
-          ))}
-          <Chip
-            onClick={() => {
-              setRota({ ...rota, end: { kind: 'ufn' } });
-              setExtra('rota-off');
-            }}
-            small="12 weeks booked, extend later"
-          >
-            Until further notice
-          </Chip>
-        </div>
-      </Box>
-    );
-  if (extra === 'rota-off')
-    return (
-      <Box
-        step="rota-off"
-        dir={1}
-        onBack={() => setExtra('rota-len')}
-        title="On their days off?"
-        sub={`${rota.on} on · ${rota.off} off`}
-      >
-        <div className="s-stack">
-          <button className="s-pick" disabled={busy} onClick={() => saveRota('keep')}>
-            <b>Keep the room</b>
-            <small>Same room every time. No clean between rotations.</small>
-          </button>
-          <button className="s-pick" disabled={busy} onClick={() => saveRota('release')}>
-            <b>Free the room</b>
-            <small>Room can be used by others while they are away.</small>
-          </button>
-        </div>
         {problem && <Note tone="bad">{problem}</Note>}
+        {managePatterns && <PatternsSheet onClose={() => setManagePatterns(false)} />}
       </Box>
     );
+  }
 
-  const ex = (k: Exclude<Extra, null | 'rota-len' | 'rota-off'>, label: string, sub: string) => (
+  const ex = (k: Exclude<Extra, null>, label: string, sub: string) => (
     <button
       key={k}
       className={'s-extra' + (doneExtras.includes(k) ? ' done' : '')}
@@ -862,7 +762,9 @@ export function Book({
               ? (db.workers.find(w => w.id === first.workerId)?.name ?? (first.holdLabel || 'Name TBC'))
               : 'Names to follow'}
           </span>
-          {first.seriesId && doneExtras.includes('rota') && <span className="s-tag">Repeats as a rota</span>}
+          {doneExtras.includes('shift') && db.stayShifts?.some(x => x.stayId === first.id) && (
+            <span className="s-tag">Shift pattern set</span>
+          )}
         </div>
       </div>
       {stays.some(s => priced(db.properties.find(p => p.id === db.rooms.find(r => r.id === s.roomId)!.propertyId)!)) ? (
@@ -906,7 +808,7 @@ export function Book({
         {single && ex('phone', 'Phone number', 'For arrival-day texts')}
         {single && !hasWorker && ex('email', 'Email', 'Optional')}
         {ex('note', crew ? 'Note for the crew' : 'Notes', 'e.g. late arrival, parking')}
-        {!doneExtras.includes('rota') && ex('rota', 'Repeat as a rota', 'e.g. 10 days on, 4 days off')}
+        {!extraP && ex('shift', 'Shift pattern', 'Nights in and nights away, room kept')}
       </div>
       {problem && <Note tone="bad">{problem}</Note>}
       <div className="s-grid2">
